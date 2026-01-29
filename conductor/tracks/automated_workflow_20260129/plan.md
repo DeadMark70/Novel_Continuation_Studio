@@ -14,7 +14,7 @@
     - [ ] Implement `generateStream(prompt, model, apiKey)` using `fetch` and `ReadableStream`.
     - [ ] **TDD:** Mock `fetch` to test API request formatting and stream handling.
 
-- [ ] Task: Settings Panel UI
+- [x] Task: Settings Panel UI
     - [ ] Create `components/SettingsPanel.tsx`.
     - [ ] Implement API Key input (masked).
     - [ ] Implement `ModelSelector` with history/discovery dropdown.

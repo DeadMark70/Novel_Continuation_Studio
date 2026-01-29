@@ -4,6 +4,7 @@ import React, { useEffect } from 'react';
 import { useNovelStore } from '@/store/useNovelStore';
 import { NovelStats } from '@/components/NovelStats';
 import { StoryUpload } from '@/components/StoryUpload';
+import { SettingsPanel } from '@/components/SettingsPanel';
 import { Separator } from '@/components/ui/separator';
 import { Terminal, ShieldAlert } from 'lucide-react';
 
@@ -29,16 +30,20 @@ export default function Home() {
             </div>
           </div>
           
-          <div className="hidden md:flex items-center gap-4 text-xs font-mono">
-            <div className="flex items-center gap-1.5 text-cyan-400">
-              <div className="size-1.5 rounded-full bg-cyan-400 animate-pulse" />
-              NIM_API: ONLINE
+          <div className="flex items-center gap-4">
+            <div className="hidden md:flex items-center gap-4 text-xs font-mono">
+              <div className="flex items-center gap-1.5 text-cyan-400">
+                <div className="size-1.5 rounded-full bg-cyan-400 animate-pulse" />
+                NIM_API: ONLINE
+              </div>
+              <div className="text-muted-foreground">|</div>
+              <div className="flex items-center gap-1.5 text-muted-foreground">
+                <ShieldAlert className="size-3" />
+                LOCAL_STORAGE: SECURE
+              </div>
             </div>
-            <div className="text-muted-foreground">|</div>
-            <div className="flex items-center gap-1.5 text-muted-foreground">
-              <ShieldAlert className="size-3" />
-              LOCAL_STORAGE: SECURE
-            </div>
+            <Separator orientation="vertical" className="h-6 hidden md:block" />
+            <SettingsPanel />
           </div>
         </div>
       </header>
