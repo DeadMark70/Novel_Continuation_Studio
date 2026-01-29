@@ -1,7 +1,7 @@
 # Implementation Plan: Automated Workflow & Prompt System Fix
 
 ## Phase 1: Prompt System Fix & Centralization
-- [x] Task: Centralize Prompt Definitions
+- [x] Task: Centralize Prompt Definitions 1c57f66
     - [x] Identify `DEFAULT_PROMPTS` location (currently hardcoded in `SettingsPanel.tsx`)
     - [x] Create `lib/prompts.ts` to host centralized prompt templates
     - [x] Update `components/SettingsPanel.tsx` to import from `lib/prompts.ts`
