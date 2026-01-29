@@ -36,7 +36,7 @@
     - [ ] Implement functions to merge "User Inputs" (e.g., plot direction) into the "Raw Prompt Templates".
     - [ ] **TDD:** Verify that placeholders are correctly replaced.
 
-- [ ] Task: Conductor - User Manual Verification 'Workflow State & Logic' (Protocol in workflow.md)
+- [~] Task: Conductor - User Manual Verification 'Workflow State & Logic' (Protocol in workflow.md)
 
 ## Phase 3: Workflow UI Implementation
 

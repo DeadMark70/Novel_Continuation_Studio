@@ -1,6 +1,5 @@
 import { useWorkflowStore } from '../store/useWorkflowStore';
 import { act } from '@testing-library/react';
-import { useNovelStore } from '../store/useNovelStore';
 import { vi } from 'vitest';
 
 // Mock useNovelStore

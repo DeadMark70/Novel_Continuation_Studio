@@ -1,5 +1,4 @@
 import { create } from 'zustand';
-import { saveNovel } from '@/lib/db';
 import { useNovelStore } from './useNovelStore';
 
 export type WorkflowStepId = 'analysis' | 'outline' | 'breakdown' | 'chapter1' | 'continuation';

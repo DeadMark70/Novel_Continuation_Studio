@@ -43,14 +43,14 @@ export const SettingsPanel: React.FC = () => {
   };
 
   const handleFetchModels = async () => {
-    if (!localKey) return;
     setIsLoadingModels(true);
     try {
+      // Pass localKey if present, otherwise fetchModels will try to use backend env var
       const models = await fetchModels(localKey);
       setAvailableModels(models.map(m => m.id));
     } catch (error) {
       console.error(error);
-      alert('Failed to fetch models. Check API Key.');
+      alert('Failed to fetch models. Check API Key or Network.');
     } finally {
       setIsLoadingModels(false);
     }
@@ -88,6 +88,7 @@ export const SettingsPanel: React.FC = () => {
                   {isLoadingModels ? 'Loading...' : 'Fetch Models'}
                 </Button>
               </div>
+              <p className="text-[10px] text-muted-foreground">Leave blank to use server environment variable (if configured).</p>
             </div>
 
             <div className="space-y-2">
