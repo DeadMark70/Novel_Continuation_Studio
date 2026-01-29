@@ -4,11 +4,12 @@ import { useSettingsStore } from '@/store/useSettingsStore';
 import { useNovelStore } from '@/store/useNovelStore';
 import { generateStream } from '@/lib/nim-client';
 import { injectPrompt } from '@/lib/prompt-engine';
+import { DEFAULT_PROMPTS } from '@/lib/prompts';
 
 export function useStepGenerator() {
   const { startStep, updateStepContent, completeStep, setStepError } = useWorkflowStore();
   const { apiKey, selectedModel, customPrompts } = useSettingsStore();
-  const { originalNovel, analysis, outline, chapters } = useNovelStore();
+  const { originalNovel, analysis, outline, breakdown, chapters } = useNovelStore();
   
   const abortControllerRef = useRef<AbortController | null>(null);
 
@@ -24,19 +25,17 @@ export function useStepGenerator() {
 
     try {
       // 2. Prepare Context & Prompt
-      // Get the raw template (or default if missing)
-      // Note: We should probably export DEFAULT_PROMPTS or handle defaults in store more robustly
-      // For now, assuming store has it or we fallback
-      const template = customPrompts[stepId] || ''; 
+      const template = customPrompts[stepId] || DEFAULT_PROMPTS[stepId]; 
       if (!template) throw new Error(`No prompt template found for ${stepId}`);
 
       const prompt = injectPrompt(template, {
         originalNovel,
         analysis,
         outline,
-        breakdown: '', // TODO: Breakdown state in NovelStore?
+        breakdown,
         previousChapters: chapters,
-        userNotes
+        userNotes,
+        nextChapterNumber: chapters.length + 1
       });
 
       // 3. Stream
