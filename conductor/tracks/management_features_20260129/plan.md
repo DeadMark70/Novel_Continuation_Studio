@@ -15,12 +15,9 @@
 - [x] Task: Implement Rollback Interaction a9f3858
 - [x] Task: Conductor - User Manual Verification 'Version History UI Implementation' (Protocol in workflow.md)
 
-## Phase 4: Full Story Viewer Implementation
+## Phase 4: Full Story Viewer Implementation [checkpoint: 096b8cf]
 - [x] Task: Implement Side-by-Side Reading Room 70c2920
-    - [ ] Create `components/workflow/ReadingRoom.tsx`
-    - [ ] Implement Left Pane for Original Novel with scroll synchronization (optional but nice)
-    - [ ] Implement Right Pane for all generated chapters joined together
-- [ ] Task: Conductor - User Manual Verification 'Full Story Viewer Implementation' (Protocol in workflow.md)
+- [x] Task: Conductor - User Manual Verification 'Full Story Viewer Implementation' (Protocol in workflow.md)
 
 ## Phase 5: Export Protocol Implementation
 - [ ] Task: Implement TXT Export Logic
