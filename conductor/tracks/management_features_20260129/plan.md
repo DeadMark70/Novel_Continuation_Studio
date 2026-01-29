@@ -4,7 +4,7 @@
 - [x] Task: Extend Database Layer for History Retrieval f992c08
     - [ ] Write tests for fetching historical versions from IndexedDB in `__tests__/db.test.ts`
     - [ ] Implement `getNovelHistory` function in `lib/db.ts`
-- [ ] Task: Enhance Novel Store for History Management
+- [x] Task: Enhance Novel Store for History Management 8126a32
     - [ ] Write tests for history-related actions in `__tests__/useNovelStore.test.ts`
     - [ ] Implement `rollbackToVersion` action in `store/useNovelStore.ts` (ensuring non-destructive auto-save of current state)
     - [ ] Implement `loadHistory` action to populate store from DB
