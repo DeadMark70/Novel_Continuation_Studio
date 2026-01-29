@@ -5,10 +5,10 @@
 - [x] Task: Enhance Novel Store for History Management 8126a32
 - [x] Task: Conductor - User Manual Verification 'Data Access & Versioning Logic' (Protocol in workflow.md)
 
-## Phase 2: UI Foundation & Header Integration
+## Phase 2: UI Foundation & Header Integration [checkpoint: 6a524e1]
 - [x] Task: Create Management Dialog Scaffold 55266b3
 - [x] Task: Integrate Trigger Button in Header 55266b3
-- [ ] Task: Conductor - User Manual Verification 'UI Foundation & Header Integration' (Protocol in workflow.md)
+- [x] Task: Conductor - User Manual Verification 'UI Foundation & Header Integration' (Protocol in workflow.md)
 
 ## Phase 3: Version History UI Implementation
 - [ ] Task: Implement Version List UI
