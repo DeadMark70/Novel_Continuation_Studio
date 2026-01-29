@@ -85,7 +85,7 @@ export default function Home() {
                   Security Notice
                 </h3>
                 <p className="text-[10px] text-muted-foreground leading-relaxed">
-                  All processing happens locally via NVIDIA NIM. Content is stored in your browser's IndexedDB and never touches our servers.
+                  All processing happens locally via NVIDIA NIM. Content is stored in your browser&apos;s IndexedDB and never touches our servers.
                 </p>
               </div>
             </div>

@@ -1,9 +1,11 @@
 import { indexedDB, IDBKeyRange } from 'fake-indexeddb';
 import Dexie from 'dexie';
 
-// @ts-expect-error: Mocking global indexedDB for testing
+// Mocking global indexedDB for testing
+// @ts-expect-error: indexedDB might be read-only in some environments
 global.indexedDB = indexedDB;
-// @ts-expect-error: Mocking global IDBKeyRange for testing
+// Mocking global IDBKeyRange for testing
+// @ts-expect-error: IDBKeyRange might be read-only in some environments
 global.IDBKeyRange = IDBKeyRange;
 
 Dexie.dependencies.indexedDB = indexedDB;
