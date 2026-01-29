@@ -1,12 +1,12 @@
 # Implementation Plan: Automated Workflow & Prompt System Fix
 
-## Phase 1: Prompt System Fix & Centralization
+## Phase 1: Prompt System Fix & Centralization [checkpoint: b5717a6]
 - [x] Task: Centralize Prompt Definitions 1c57f66
     - [x] Identify `DEFAULT_PROMPTS` location (currently hardcoded in `SettingsPanel.tsx`)
     - [x] Create `lib/prompts.ts` to host centralized prompt templates
     - [x] Update `components/SettingsPanel.tsx` to import from `lib/prompts.ts`
     - [x] Update `hooks/useStepGenerator.ts` to import `DEFAULT_PROMPTS` and resolve the undefined error
-- [ ] Task: Conductor - User Manual Verification 'Prompt System Fix & Centralization' (Protocol in workflow.md)
+- [x] Task: Conductor - User Manual Verification 'Prompt System Fix & Centralization' (Protocol in workflow.md)
 
 ## Phase 2: Workflow Automation Core
 - [ ] Task: Update Workflow Store for Auto-Progression
