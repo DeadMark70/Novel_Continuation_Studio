@@ -5,6 +5,7 @@ import { useNovelStore } from '@/store/useNovelStore';
 import { NovelStats } from '@/components/NovelStats';
 import { StoryUpload } from '@/components/StoryUpload';
 import { SettingsPanel } from '@/components/SettingsPanel';
+import { HistoryExportDialog } from '@/components/workflow/HistoryExportDialog';
 import { WorkflowStepper } from '@/components/WorkflowStepper';
 import { Separator } from '@/components/ui/separator';
 import { Terminal, ShieldAlert } from 'lucide-react';
@@ -44,6 +45,7 @@ export default function Home() {
               </div>
             </div>
             <Separator orientation="vertical" className="h-6 hidden md:block" />
+            <HistoryExportDialog />
             <SettingsPanel />
           </div>
         </div>
