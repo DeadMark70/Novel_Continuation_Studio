@@ -1,0 +1,8 @@
+{
+  "track_id": "core_management_20260129",
+  "type": "feature",
+  "status": "new",
+  "created_at": "2026-01-29T12:00:00Z",
+  "updated_at": "2026-01-29T12:00:00Z",
+  "description": "Build the core application structure and Novel Management module (Upload & Statistics)."
+}
