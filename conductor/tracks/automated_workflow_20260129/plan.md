@@ -25,7 +25,7 @@
 
 ## Phase 2: Workflow State & Logic
 
-- [ ] Task: Workflow Store
+- [x] Task: Workflow Store
     - [ ] Create `store/useWorkflowStore.ts` (or extend `useNovelStore`).
     - [ ] Define state for each step's status (idle, streaming, completed, error) and content.
     - [ ] Implement actions: `startStep(stepId)`, `updateContent(stepId, chunk)`, `completeStep(stepId)`.
