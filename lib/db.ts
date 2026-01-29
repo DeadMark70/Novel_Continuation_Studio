@@ -39,10 +39,10 @@ export class NovelDatabase extends Dexie {
 
 export const db = new NovelDatabase();
 
-export async function saveNovel(entry: Omit<NovelEntry, 'updatedAt'>) {
+export async function saveNovel(entry: Omit<NovelEntry, 'updatedAt'>, forceNew = false) {
   const updatedAt = Date.now();
   const latest = await db.novels.toCollection().last();
-  if (latest && latest.id) {
+  if (latest && latest.id && !forceNew) {
     return await db.novels.update(latest.id, { ...entry, updatedAt });
   } else {
     return await db.novels.add({ ...entry, updatedAt });
@@ -51,6 +51,10 @@ export async function saveNovel(entry: Omit<NovelEntry, 'updatedAt'>) {
 
 export async function getLatestNovel(): Promise<NovelEntry | undefined> {
   return await db.novels.toCollection().last();
+}
+
+export async function getNovelHistory(): Promise<NovelEntry[]> {
+  return await db.novels.orderBy('updatedAt').reverse().toArray();
 }
 
 export async function saveSettings(settings: Omit<SettingsEntry, 'id' | 'updatedAt'>) {
