@@ -5,6 +5,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { History, BookOpen, Download } from 'lucide-react';
+import { VersionList } from './VersionList';
 
 export const HistoryExportDialog: React.FC = () => {
   const [isOpen, setIsOpen] = useState(false);
@@ -48,9 +49,7 @@ export const HistoryExportDialog: React.FC = () => {
           </TabsContent>
 
           <TabsContent value="history" className="flex-1 min-h-0 py-4">
-            <div className="h-full flex items-center justify-center text-muted-foreground border border-dashed rounded-lg">
-              Version History List (Placeholder)
-            </div>
+            <VersionList />
           </TabsContent>
 
           <TabsContent value="export" className="flex-1 min-h-0 py-4">

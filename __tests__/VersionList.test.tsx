@@ -49,8 +49,10 @@ describe('VersionList', () => {
     expect(screen.getByText(/Step 1/i)).toBeDefined();
   });
 
-  it('calls rollbackToVersion when rollback button is clicked', () => {
+  it('calls rollbackToVersion when rollback button is clicked and confirmed', () => {
     const rollbackSpy = vi.fn();
+    const confirmSpy = vi.spyOn(window, 'confirm').mockImplementation(() => true);
+    
     useNovelStore.setState({ 
       history: mockHistory,
       rollbackToVersion: rollbackSpy 
@@ -61,6 +63,29 @@ describe('VersionList', () => {
     const rollbackButtons = screen.getAllByRole('button', { name: /rollback/i });
     fireEvent.click(rollbackButtons[0]);
     
+    expect(confirmSpy).toHaveBeenCalled();
     expect(rollbackSpy).toHaveBeenCalledWith(mockHistory[0]);
+    
+    confirmSpy.mockRestore();
+  });
+
+  it('does not call rollbackToVersion when rollback button is clicked and cancelled', () => {
+    const rollbackSpy = vi.fn();
+    const confirmSpy = vi.spyOn(window, 'confirm').mockImplementation(() => false);
+    
+    useNovelStore.setState({ 
+      history: mockHistory,
+      rollbackToVersion: rollbackSpy 
+    });
+    
+    render(<VersionList />);
+    
+    const rollbackButtons = screen.getAllByRole('button', { name: /rollback/i });
+    fireEvent.click(rollbackButtons[0]);
+    
+    expect(confirmSpy).toHaveBeenCalled();
+    expect(rollbackSpy).not.toHaveBeenCalled();
+    
+    confirmSpy.mockRestore();
   });
 });

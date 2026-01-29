@@ -58,7 +58,11 @@ export const VersionList: React.FC = () => {
               variant="outline"
               size="sm"
               className="gap-2 h-8 text-xs font-mono uppercase tracking-wider hover:bg-primary hover:text-primary-foreground"
-              onClick={() => rollbackToVersion(version)}
+              onClick={() => {
+                if (window.confirm('Are you sure you want to rollback? The current state will be saved as a new version first.')) {
+                  rollbackToVersion(version);
+                }
+              }}
             >
               <RotateCcw className="size-3" />
               Rollback
