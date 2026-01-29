@@ -31,7 +31,7 @@
     - [ ] Implement actions: `startStep(stepId)`, `updateContent(stepId, chunk)`, `completeStep(stepId)`.
     - [ ] **TDD:** Test state transitions and data updates.
 
-- [ ] Task: Prompt Injection Logic
+- [x] Task: Prompt Injection Logic
     - [ ] Create `lib/prompt-engine.ts`.
     - [ ] Implement functions to merge "User Inputs" (e.g., plot direction) into the "Raw Prompt Templates".
     - [ ] **TDD:** Verify that placeholders are correctly replaced.
