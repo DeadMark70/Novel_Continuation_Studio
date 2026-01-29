@@ -16,7 +16,7 @@
 - [x] Task: Conductor - User Manual Verification 'Version History UI Implementation' (Protocol in workflow.md)
 
 ## Phase 4: Full Story Viewer Implementation
-- [ ] Task: Implement Side-by-Side Reading Room
+- [x] Task: Implement Side-by-Side Reading Room 70c2920
     - [ ] Create `components/workflow/ReadingRoom.tsx`
     - [ ] Implement Left Pane for Original Novel with scroll synchronization (optional but nice)
     - [ ] Implement Right Pane for all generated chapters joined together
