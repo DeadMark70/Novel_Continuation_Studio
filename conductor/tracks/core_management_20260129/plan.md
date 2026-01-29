@@ -49,7 +49,7 @@
     - [ ] **TDD:** Write tests for file reading and text input events.
     - [ ] Connect the component to `useNovelStore`.
 
-- [ ] Task: Implement NovelStats Component
+- [x] Task: Implement NovelStats Component
     - [ ] Create `components/NovelStats.tsx`.
     - [ ] Implement word counting logic (CJK character count support).
     - [ ] Display the count using a "Digital/Terminal" style font.
