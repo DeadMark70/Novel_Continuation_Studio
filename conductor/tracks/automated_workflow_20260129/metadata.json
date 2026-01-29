@@ -1,0 +1,8 @@
+{
+  "track_id": "automated_workflow_20260129",
+  "type": "feature",
+  "status": "new",
+  "created_at": "2026-01-29T12:00:00Z",
+  "updated_at": "2026-01-29T12:00:00Z",
+  "description": "実作 5-step automated workflow 還有讓使用者能去稍微修改prompt 還有創建env檔案 並正式確定能接入nvidia的nim api並列出並讓使用者自己可以輸入模型明子或是使用列表 還有歷史紀錄的列表這些"
+}
