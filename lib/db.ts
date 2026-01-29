@@ -12,13 +12,27 @@ export interface NovelEntry {
   updatedAt: number;
 }
 
+export interface SettingsEntry {
+  id?: string; // 'global'
+  apiKey: string;
+  selectedModel: string;
+  recentModels: string[];
+  customPrompts: Record<string, string>;
+  updatedAt: number;
+}
+
 export class NovelDatabase extends Dexie {
   novels!: Table<NovelEntry>;
+  settings!: Table<SettingsEntry>;
 
   constructor() {
     super('NovelContinuationDB');
     this.version(1).stores({
-      novels: '++id, updatedAt' // id is primary key, updatedAt is indexed
+      novels: '++id, updatedAt'
+    });
+    // Version 2 adds settings
+    this.version(2).stores({
+      settings: 'id, updatedAt'
     });
   }
 }
@@ -27,9 +41,6 @@ export const db = new NovelDatabase();
 
 export async function saveNovel(entry: Omit<NovelEntry, 'updatedAt'>) {
   const updatedAt = Date.now();
-  // We only keep one main novel state for now (or a list if needed)
-  // For this app, we'll use a single entry or identified by a specific key if multi-novel
-  // Let's assume a singleton novel for the simple workflow
   const latest = await db.novels.toCollection().last();
   if (latest && latest.id) {
     return await db.novels.update(latest.id, { ...entry, updatedAt });
@@ -40,4 +51,13 @@ export async function saveNovel(entry: Omit<NovelEntry, 'updatedAt'>) {
 
 export async function getLatestNovel(): Promise<NovelEntry | undefined> {
   return await db.novels.toCollection().last();
+}
+
+export async function saveSettings(settings: Omit<SettingsEntry, 'id' | 'updatedAt'>) {
+  const updatedAt = Date.now();
+  return await db.settings.put({ ...settings, id: 'global', updatedAt });
+}
+
+export async function getSettings(): Promise<SettingsEntry | undefined> {
+  return await db.settings.get('global');
 }

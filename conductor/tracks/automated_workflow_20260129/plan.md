@@ -2,7 +2,7 @@
 
 ## Phase 1: Settings & NIM Integration
 
-- [ ] Task: Settings Store & Persistence
+- [x] Task: Settings Store & Persistence
     - [ ] Create `store/useSettingsStore.ts`.
     - [ ] Define state: `apiKey`, `selectedModel`, `recentModels`, `customPrompts`.
     - [ ] Implement `persist` using the existing IndexedDB logic.
