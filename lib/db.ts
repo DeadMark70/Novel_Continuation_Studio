@@ -8,6 +8,7 @@ export interface NovelEntry {
   analysis: string;
   outline: string;
   outlineDirection: string;
+  breakdown: string;
   chapters: string[];
   updatedAt: number;
 }
