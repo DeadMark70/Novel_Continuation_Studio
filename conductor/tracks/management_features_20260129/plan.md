@@ -14,7 +14,7 @@
 - [x] Task: Implement Version List UI e155c5f
     - [ ] Write tests for `VersionList` component (mocking store)
     - [ ] Create `components/workflow/VersionList.tsx` showing timestamps and metadata
-- [ ] Task: Implement Rollback Interaction
+- [x] Task: Implement Rollback Interaction a9f3858
     - [ ] Connect the "Rollback" button to the store's rollback action
     - [ ] Add confirmation dialog before proceeding with rollback
 - [ ] Task: Conductor - User Manual Verification 'Version History UI Implementation' (Protocol in workflow.md)
