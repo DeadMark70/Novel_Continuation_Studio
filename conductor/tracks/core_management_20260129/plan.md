@@ -28,7 +28,7 @@
     - [ ] Implement actions: `setNovel`, `reset`.
     - [ ] Write unit tests for the store logic.
 
-- [ ] Task: Setup IndexedDB with Dexie
+- [x] Task: Setup IndexedDB with Dexie
     - [ ] Install `dexie`.
     - [ ] Create `lib/db.ts` (or `storage.ts`) and define the `NovelDatabase` schema.
     - [ ] Implement helper functions: `saveNovel`, `getLatestNovel`.
