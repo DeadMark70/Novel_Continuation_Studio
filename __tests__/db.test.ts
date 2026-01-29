@@ -1,15 +1,10 @@
-import 'fake-indexeddb/auto';
 import { db, saveNovel, getLatestNovel } from '../lib/db';
-import Dexie from 'dexie';
-import { indexedDB, IDBKeyRange } from 'fake-indexeddb';
-
-// Ensure Dexie uses the mocked IndexedDB
-Dexie.dependencies.indexedDB = indexedDB;
-Dexie.dependencies.IDBKeyRange = IDBKeyRange;
 
 describe('NovelDatabase', () => {
   beforeEach(async () => {
-    // We might need to recreate or reset the DB instance if it failed to open
+    if (!db.isOpen()) {
+      await db.open();
+    }
     await db.novels.clear();
   });
 

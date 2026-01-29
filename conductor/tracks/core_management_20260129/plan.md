@@ -34,7 +34,7 @@
     - [ ] Implement helper functions: `saveNovel`, `getLatestNovel`.
     - [ ] Write unit tests for database operations (mocking Dexie or using an in-memory adapter).
 
-- [ ] Task: Integrate Storage with Store
+- [x] Task: Integrate Storage with Store
     - [ ] Update `useNovelStore` to persist changes to IndexedDB.
     - [ ] Implement a hydration mechanism to load data on app start.
 
