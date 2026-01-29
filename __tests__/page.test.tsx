@@ -16,6 +16,12 @@ vi.mock('lucide-react', () => ({
   Terminal: () => <div />,
   ShieldAlert: () => <div />,
   Settings: () => <div data-testid="settings-icon" />,
+  History: () => <div />,
+  BookOpen: () => <div />,
+  Download: () => <div />,
+  FileText: () => <div />,
+  Clock: () => <div />,
+  Hash: () => <div />,
   Save: () => <div />,
   RotateCcw: () => <div />,
   X: () => <div />, // Used by Dialog
@@ -30,6 +36,7 @@ vi.mock('lucide-react', () => ({
   StopCircle: () => <div />,
   RefreshCw: () => <div />,
   Repeat: () => <div />,
+  FastForward: () => <div />,
 }));
 
 describe('Home Page', () => {

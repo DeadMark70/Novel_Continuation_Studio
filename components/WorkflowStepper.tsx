@@ -1,7 +1,8 @@
 'use client';
 
-import React from 'react';
+import React, { useEffect } from 'react';
 import { useWorkflowStore, WorkflowStepId } from '@/store/useWorkflowStore';
+import { useStepGenerator } from '@/hooks/useStepGenerator';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { StepAnalysis } from './workflow/StepAnalysis';
 import { StepOutline } from './workflow/StepOutline';
@@ -12,7 +13,17 @@ import { CheckCircle2, Circle, Loader2, AlertCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 export const WorkflowStepper: React.FC = () => {
-  const { steps, currentStepId } = useWorkflowStore();
+  const { steps, currentStepId, autoTriggerStepId, clearAutoTrigger } = useWorkflowStore();
+  const { generate } = useStepGenerator();
+
+  // Automation Effect
+  useEffect(() => {
+    if (autoTriggerStepId) {
+      console.log(`[Automation] Triggering step: ${autoTriggerStepId}`);
+      generate(autoTriggerStepId);
+      // clearAutoTrigger is handled inside startStep which is called by generate
+    }
+  }, [autoTriggerStepId, generate]);
 
   const getStatusIcon = (stepId: WorkflowStepId) => {
     const status = steps[stepId].status;

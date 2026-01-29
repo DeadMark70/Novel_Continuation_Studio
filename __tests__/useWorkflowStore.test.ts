@@ -51,4 +51,40 @@ describe('useWorkflowStore', () => {
     expect(state.steps.analysis.status).toBe('completed');
     expect(mockUpdateWorkflow).toHaveBeenCalled();
   });
+
+  it('should auto-progress to outline (idle) after analysis completes', async () => {
+    await act(async () => {
+      await useWorkflowStore.getState().completeStep('analysis');
+    });
+    const state = useWorkflowStore.getState();
+    expect(state.currentStepId).toBe('outline');
+    expect(state.autoTriggerStepId).toBeNull(); // Pause point
+  });
+
+  it('should auto-trigger breakdown after outline completes', async () => {
+    await act(async () => {
+      await useWorkflowStore.getState().completeStep('outline');
+    });
+    const state = useWorkflowStore.getState();
+    expect(state.currentStepId).toBe('breakdown');
+    expect(state.autoTriggerStepId).toBe('breakdown');
+  });
+
+  it('should auto-trigger chapter1 after breakdown completes', async () => {
+    await act(async () => {
+      await useWorkflowStore.getState().completeStep('breakdown');
+    });
+    const state = useWorkflowStore.getState();
+    expect(state.currentStepId).toBe('chapter1');
+    expect(state.autoTriggerStepId).toBe('chapter1');
+  });
+
+  it('should NOT auto-trigger continuation after chapter1 completes', async () => {
+    await act(async () => {
+      await useWorkflowStore.getState().completeStep('chapter1');
+    });
+    const state = useWorkflowStore.getState();
+    expect(state.currentStepId).toBe('continuation');
+    expect(state.autoTriggerStepId).toBeNull();
+  });
 });
