@@ -6,12 +6,8 @@
 - [x] Task: Conductor - User Manual Verification 'Data Access & Versioning Logic' (Protocol in workflow.md)
 
 ## Phase 2: UI Foundation & Header Integration
-- [ ] Task: Create Management Dialog Scaffold
-    - [ ] Create `components/workflow/HistoryExportDialog.tsx` using `shadcn/ui` Dialog
-    - [ ] Implement tabs for "Reading Room", "History", and "Export"
-- [ ] Task: Integrate Trigger Button in Header
-    - [ ] Modify `app/page.tsx` or relevant layout to add the "History & Export" button
-    - [ ] Verify the button correctly opens the dialog
+- [x] Task: Create Management Dialog Scaffold 55266b3
+- [x] Task: Integrate Trigger Button in Header 55266b3
 - [ ] Task: Conductor - User Manual Verification 'UI Foundation & Header Integration' (Protocol in workflow.md)
 
 ## Phase 3: Version History UI Implementation
