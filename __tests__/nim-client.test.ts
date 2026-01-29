@@ -20,7 +20,7 @@ describe('NIM Client', () => {
       const models = await fetchModels('test-key');
       expect(models).toEqual(mockModels);
       expect(global.fetch).toHaveBeenCalledWith(
-        'https://integrate.api.nvidia.com/v1/models',
+        '/api/nim/models',
         expect.objectContaining({
           headers: expect.objectContaining({
             Authorization: 'Bearer test-key',
@@ -36,7 +36,7 @@ describe('NIM Client', () => {
         statusText: 'Unauthorized',
       });
 
-      await expect(fetchModels('bad-key')).rejects.toThrow('Failed to fetch models: 401 Unauthorized');
+      await expect(fetchModels('bad-key')).rejects.toThrow('Authentication failed. Check API key.');
     });
   });
 
