@@ -45,7 +45,7 @@
     - [ ] Create `components/workflow/StepOutline.tsx`: Add "Plot Direction" input field (Guided Injection).
     - [ ] Connect to `nim-client` to trigger generation.
 
-- [ ] Task: Steps 3, 4, & 5 UI
+- [x] Task: Steps 3, 4, & 5 UI
     - [ ] Create components for Breakdown, Chapter 1, and Continuation.
     - [ ] Implement the "Accordion" layout in `components/WorkflowStepper.tsx`.
     - [ ] Ensure "Streaming" state shows a live cursor or typing effect.

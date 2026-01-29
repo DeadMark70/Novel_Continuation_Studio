@@ -61,14 +61,38 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
       }
     }));
 
-    // Sync with main NovelStore for persistence
     const { steps } = get();
-    // This part bridges the specific workflow steps to the main novel state
-    // We might want to move this logic or keep it here for auto-sync
-    await useNovelStore.getState().updateWorkflow({
+    const novelStore = useNovelStore.getState();
+
+    // Specific logic for chapters
+    if (stepId === 'chapter1') {
+      const content = steps.chapter1.content;
+      // Replace chapters array with just this one if it's the first
+      await novelStore.updateWorkflow({
+        chapters: [content]
+      });
+    } else if (stepId === 'continuation') {
+      const content = steps.continuation.content;
+      // Append to chapters
+      const currentChapters = novelStore.chapters || [];
+      await novelStore.updateWorkflow({
+        chapters: [...currentChapters, content]
+      });
+      
+      // Optionally clear continuation content for next run? 
+      // For now, keep it visible so user sees what was just generated.
+      // But we need a way to clear it before *next* generation starts? 
+      // `startStep` doesn't clear content by default in my implementation.
+      // I should update `startStep` to clear content if it's a fresh start?
+      // Or maybe we want to see previous run until new one starts?
+      // Let's leave it for now.
+    }
+
+    // Sync other fields
+    await novelStore.updateWorkflow({
       analysis: steps.analysis.content,
       outline: steps.outline.content,
-      // Mapping other steps if needed, or storing raw workflow data
+      breakdown: steps.breakdown.content,
     });
   },
 

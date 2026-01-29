@@ -5,6 +5,7 @@ import { useNovelStore } from '@/store/useNovelStore';
 import { NovelStats } from '@/components/NovelStats';
 import { StoryUpload } from '@/components/StoryUpload';
 import { SettingsPanel } from '@/components/SettingsPanel';
+import { WorkflowStepper } from '@/components/WorkflowStepper';
 import { Separator } from '@/components/ui/separator';
 import { Terminal, ShieldAlert } from 'lucide-react';
 
@@ -49,7 +50,7 @@ export default function Home() {
       </header>
 
       {/* Main Content Area */}
-      <div className="container mx-auto px-4 py-8 space-y-8">
+      <div className="container mx-auto px-4 py-8 space-y-12">
         {/* Status Dashboard Section */}
         <section className="space-y-4">
           <div className="flex items-center gap-4">
@@ -67,20 +68,18 @@ export default function Home() {
           </div>
           
           <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
-            {/* Main Input area (taking most space) */}
             <div className="lg:col-span-3">
               <StoryUpload />
             </div>
 
-            {/* Sidebar for additional info/controls */}
             <div className="lg:col-span-1 space-y-6">
               <div className="rounded-lg border border-border bg-card/20 p-4 space-y-4">
                 <h3 className="text-xs font-mono font-bold uppercase text-primary border-b border-primary/10 pb-2">System Instructions</h3>
                 <ul className="text-xs space-y-3 text-muted-foreground font-sans list-disc list-inside">
-                  <li>Upload or paste your Pixiv novel content to the central terminal.</li>
-                  <li>System will automatically analyze characters, setting, and style.</li>
-                  <li>Ensure the NIM_API key is configured in your environment.</li>
-                  <li>Progress is automatically persisted to local secure storage.</li>
+                  <li>Upload your novel to the terminal.</li>
+                  <li>Follow the 5-step automated workflow below.</li>
+                  <li>Modify prompts in settings for deep customization.</li>
+                  <li>Use "Plot Direction" in Step 2 to guide the story.</li>
                 </ul>
               </div>
 
@@ -90,11 +89,20 @@ export default function Home() {
                   Security Notice
                 </h3>
                 <p className="text-[10px] text-muted-foreground leading-relaxed">
-                  All processing happens locally via NVIDIA NIM. Content is stored in your browser&apos;s IndexedDB and never touches our servers.
+                  All processing happens locally via NVIDIA NIM. Content is stored securely in IndexedDB.
                 </p>
               </div>
             </div>
           </div>
+        </section>
+
+        {/* Automated Workflow Section */}
+        <section className="space-y-4">
+          <div className="flex items-center gap-4">
+            <h2 className="text-sm font-mono font-bold text-muted-foreground uppercase tracking-[0.2em]">Workflow Execution</h2>
+            <Separator className="flex-1" />
+          </div>
+          <WorkflowStepper />
         </section>
       </div>
 
@@ -103,8 +111,7 @@ export default function Home() {
         <div className="container mx-auto px-4 flex justify-between items-center text-[10px] font-mono text-muted-foreground uppercase tracking-widest">
           <p>© 2026 NCS INFRASTRUCTURE</p>
           <div className="flex gap-4">
-            <span>Lat: --.----</span>
-            <span>Lng: ---.----</span>
+            <span>READY</span>
           </div>
         </div>
       </footer>
