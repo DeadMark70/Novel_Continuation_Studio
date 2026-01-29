@@ -20,9 +20,6 @@
 - [x] Task: Conductor - User Manual Verification 'Full Story Viewer Implementation' (Protocol in workflow.md)
 
 ## Phase 5: Export Protocol Implementation
-- [ ] Task: Implement TXT Export Logic
-    - [ ] Create utility function in `lib/utils.ts` to format the story as text
-    - [ ] Implement download trigger using `Blob` and `URL.createObjectURL`
-- [ ] Task: Add Export UI in Dialog
-    - [ ] Add the "Download Full Story (.txt)" button to the Export tab
+- [x] Task: Implement TXT Export Logic d937f7c
+- [x] Task: Add Export UI in Dialog d937f7c
 - [ ] Task: Conductor - User Manual Verification 'Export Protocol Implementation' (Protocol in workflow.md)
