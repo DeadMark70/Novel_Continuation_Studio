@@ -55,7 +55,7 @@
     - [ ] Display the count using a "Digital/Terminal" style font.
     - [ ] **TDD:** Write tests for the word counting function.
 
-- [ ] Task: Assemble Main Page
+- [x] Task: Assemble Main Page
     - [ ] Update `app/page.tsx`.
     - [ ] Create a "Command Center" layout using the components.
     - [ ] Ensure responsive design (mobile-friendly).
