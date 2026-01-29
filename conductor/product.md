@@ -15,7 +15,8 @@
 ## Core Features
 1.  **Novel Management:**
     -   Upload (paste or file).
-    -   Preview and word count statistics.
+    -   Full Story Reading Room (Side-by-side view of original vs. generated).
+    -   Word count and reading time statistics.
 2.  **5-Step Automated Workflow:**
     -   Step 1: Analysis
     -   Step 2: Outline (with direction guidance)
@@ -32,8 +33,8 @@
     -   Pause/Cancel controls.
 5.  **Version Control:**
     -   Local persistence (IndexedDB).
-    -   History rollback.
-    -   Export to TXT (Content only or full log).
+    -   Non-destructive History rollback (auto-saves current state before restoring).
+    -   Export to TXT (Formatted story including original and all chapters).
 
 ## Default Prompts Configuration
 The application is built around these 5 specific prompt stages:
