@@ -18,11 +18,10 @@
     -   Full Story Reading Room (Side-by-side view of original vs. generated).
     -   Word count and reading time statistics.
 2.  **5-Step Automated Workflow:**
-    -   Step 1: Analysis
-    -   Step 2: Outline (with direction guidance)
-    -   Step 3: Chapter Breakdown
-    -   Step 4: Chapter 1 Generation
-    -   Step 5: Continuation
+    -   **Sequence Alpha (Step 1 -> 2):** Automated analysis leading to a user decision point.
+    -   **User Decision Point:** User-defined "Plot Direction" input at Step 2.
+    -   **Sequence Beta (Step 2 -> 3 -> 4):** Continuous automated generation from outline to the first chapter.
+    -   **Step 5 (Manual):** Perpetual generation triggered by the user.
 3.  **Prompt Engineering Panel:**
     -   Full edit access to the 5 core prompts.
     -   Adjustable word count targets.
