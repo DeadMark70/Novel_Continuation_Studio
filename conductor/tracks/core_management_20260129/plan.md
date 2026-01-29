@@ -21,7 +21,7 @@
 
 ## Phase 2: Core Infrastructure (State & Storage)
 
-- [ ] Task: Setup Zustand Store
+- [x] Task: Setup Zustand Store
     - [ ] Install `zustand`.
     - [ ] Create `store/useNovelStore.ts`.
     - [ ] Define the `NovelState` interface (originalNovel, wordCount).
