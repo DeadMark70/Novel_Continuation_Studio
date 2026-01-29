@@ -19,7 +19,7 @@
 - [x] Task: Implement Side-by-Side Reading Room 70c2920
 - [x] Task: Conductor - User Manual Verification 'Full Story Viewer Implementation' (Protocol in workflow.md)
 
-## Phase 5: Export Protocol Implementation
+## Phase 5: Export Protocol Implementation [checkpoint: 18aff10]
 - [x] Task: Implement TXT Export Logic d937f7c
 - [x] Task: Add Export UI in Dialog d937f7c
-- [ ] Task: Conductor - User Manual Verification 'Export Protocol Implementation' (Protocol in workflow.md)
+- [x] Task: Conductor - User Manual Verification 'Export Protocol Implementation' (Protocol in workflow.md)
