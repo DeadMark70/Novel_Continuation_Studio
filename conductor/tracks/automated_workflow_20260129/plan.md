@@ -40,7 +40,7 @@
 
 ## Phase 3: Workflow UI Implementation
 
-- [ ] Task: Step 1 (Analysis) & Step 2 (Outline) UI
+- [x] Task: Step 1 (Analysis) & Step 2 (Outline) UI
     - [ ] Create `components/workflow/StepAnalysis.tsx`: Simple "Start" trigger.
     - [ ] Create `components/workflow/StepOutline.tsx`: Add "Plot Direction" input field (Guided Injection).
     - [ ] Connect to `nim-client` to trigger generation.

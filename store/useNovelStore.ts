@@ -10,6 +10,7 @@ interface NovelState {
   analysis: string;
   outline: string;
   outlineDirection: string;
+  breakdown: string; // Added breakdown
   chapters: string[];
   
   // Actions
@@ -28,6 +29,7 @@ export const useNovelStore = create<NovelState>((set, get) => ({
   analysis: '',
   outline: '',
   outlineDirection: '',
+  breakdown: '',
   chapters: [],
 
   setNovel: async (content: string) => {
@@ -41,7 +43,7 @@ export const useNovelStore = create<NovelState>((set, get) => ({
     await get().persist();
   },
 
-  updateWorkflow: async (data: Partial<Omit<NovelState, 'setNovel' | 'setStep' | 'updateWorkflow' | 'reset' | 'initialize' | 'persist'>>) => {
+  updateWorkflow: async (data: any) => {
     set((state) => ({ ...state, ...data }));
     await get().persist();
   },
@@ -67,6 +69,7 @@ export const useNovelStore = create<NovelState>((set, get) => ({
       analysis: '',
       outline: '',
       outlineDirection: '',
+      breakdown: '',
       chapters: [],
     });
     await get().persist();
@@ -83,6 +86,7 @@ export const useNovelStore = create<NovelState>((set, get) => ({
         outline: latest.outline,
         outlineDirection: latest.outlineDirection,
         chapters: latest.chapters,
+        // Assuming we update db schema later to include breakdown, or it just won't be persisted yet in old records
       });
     }
   },
