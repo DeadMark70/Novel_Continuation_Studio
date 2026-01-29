@@ -8,7 +8,7 @@
     - [ ] Implement `persist` using the existing IndexedDB logic.
     - [ ] **TDD:** Write tests for saving/loading settings.
 
-- [ ] Task: NVIDIA NIM Client
+- [x] Task: NVIDIA NIM Client
     - [ ] Create `lib/nim-client.ts`.
     - [ ] Implement `fetchModels()` to discover available models.
     - [ ] Implement `generateStream(prompt, model, apiKey)` using `fetch` and `ReadableStream`.
