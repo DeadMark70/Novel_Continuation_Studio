@@ -2,22 +2,22 @@
 
 ## Phase 1: Project Initialization & Design System
 
-- [ ] Task: Initialize Next.js Project
+- [x] Task: Initialize Next.js Project
     - [ ] Initialize Next.js project with TypeScript, Tailwind CSS, and ESLint.
     - [ ] Clean up default boilerplate code.
     - [ ] Configure `tsconfig.json` for strict mode (no `any`).
 
-- [ ] Task: Install & Configure shadcn/ui
+- [x] Task: Install & Configure shadcn/ui
     - [ ] Run `npx shadcn-ui@latest init`.
     - [ ] Configure `components.json` to use the `app` directory and `lib/utils.ts`.
     - [ ] Install core components: `button`, `card`, `textarea`, `input`, `label`, `progress`.
 
-- [ ] Task: Implement Noir Industrial Theme
+- [x] Task: Implement Noir Industrial Theme
     - [ ] Update `tailwind.config.ts` with the custom color palette (Deep Black, Charcoal, Cyan, Crimson).
     - [ ] Configure global CSS variables for the dark theme.
     - [ ] Create a `ThemeProvider` (if needed) or enforce dark mode in `layout.tsx`.
 
-- [ ] Task: Conductor - User Manual Verification 'Project Initialization & Design System' (Protocol in workflow.md)
+- [x] Task: Conductor - User Manual Verification 'Project Initialization & Design System' [checkpoint: phase1] (Protocol in workflow.md)
 
 ## Phase 2: Core Infrastructure (State & Storage)
 

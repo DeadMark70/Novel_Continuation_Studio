@@ -4,5 +4,5 @@ This file tracks all major tracks for the project. Each track has its own detail
 
 ---
 
-- [ ] **Track: Build Core App & Novel Management**
+- [~] **Track: Build Core App & Novel Management**
   *Link: [./tracks/core_management_20260129/](./tracks/core_management_20260129/)*
