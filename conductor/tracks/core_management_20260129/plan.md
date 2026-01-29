@@ -38,11 +38,11 @@
     - [ ] Update `useNovelStore` to persist changes to IndexedDB.
     - [ ] Implement a hydration mechanism to load data on app start.
 
-- [ ] Task: Conductor - User Manual Verification 'Core Infrastructure (State & Storage)' (Protocol in workflow.md)
+- [~] Task: Conductor - User Manual Verification 'Core Infrastructure (State & Storage)' (Protocol in workflow.md)
 
 ## Phase 3: Feature Implementation - Novel Management
 
-- [ ] Task: Implement StoryUpload Component
+- [x] Task: Implement StoryUpload Component
     - [ ] Create `components/StoryUpload.tsx`.
     - [ ] Implement a large `Textarea` for direct pasting.
     - [ ] Implement file upload logic (accept `.txt` only).
