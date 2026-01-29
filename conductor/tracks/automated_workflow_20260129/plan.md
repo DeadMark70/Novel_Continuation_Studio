@@ -24,9 +24,9 @@
 - [x] Task: Conductor - User Manual Verification 'Step 2 UI & Interaction Refinement' (Protocol in workflow.md)
 
 
-## Phase 4: Integration & Full Flow Validation
-- [ ] Task: Verify End-to-End Automation
-    - [ ] Test Sequence Alpha: Analysis -> Outline Pause
-    - [ ] Test Sequence Beta: Outline Submit -> Breakdown -> Chapter 1 Finish
-    - [ ] Confirm Step 5 remains manual as specified
-- [ ] Task: Conductor - User Manual Verification 'Integration & Full Flow Validation' (Protocol in workflow.md)
+## Phase 4: Integration & Full Flow Validation [checkpoint: d72ad2c]
+- [x] Task: Verify End-to-End Automation
+    - [x] Test Sequence Alpha: Analysis -> Outline Pause
+    - [x] Test Sequence Beta: Outline Submit -> Breakdown -> Chapter 1 Finish
+    - [x] Confirm Step 5 remains manual as specified
+- [x] Task: Conductor - User Manual Verification 'Integration & Full Flow Validation' (Protocol in workflow.md)
