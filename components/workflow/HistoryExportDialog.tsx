@@ -6,6 +6,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { History, BookOpen, Download } from 'lucide-react';
 import { VersionList } from './VersionList';
+import { ReadingRoom } from './ReadingRoom';
 
 export const HistoryExportDialog: React.FC = () => {
   const [isOpen, setIsOpen] = useState(false);
@@ -43,9 +44,7 @@ export const HistoryExportDialog: React.FC = () => {
           </TabsList>
 
           <TabsContent value="reading" className="flex-1 min-h-0 py-4">
-            <div className="h-full flex items-center justify-center text-muted-foreground border border-dashed rounded-lg">
-              Reading Room Content (Placeholder)
-            </div>
+            <ReadingRoom />
           </TabsContent>
 
           <TabsContent value="history" className="flex-1 min-h-0 py-4">
