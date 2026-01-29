@@ -11,7 +11,7 @@
 - [x] Task: Conductor - User Manual Verification 'UI Foundation & Header Integration' (Protocol in workflow.md)
 
 ## Phase 3: Version History UI Implementation
-- [ ] Task: Implement Version List UI
+- [x] Task: Implement Version List UI e155c5f
     - [ ] Write tests for `VersionList` component (mocking store)
     - [ ] Create `components/workflow/VersionList.tsx` showing timestamps and metadata
 - [ ] Task: Implement Rollback Interaction
