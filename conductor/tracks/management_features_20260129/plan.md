@@ -1,14 +1,9 @@
 # Implementation Plan: Core Management Features
 
-## Phase 1: Data Access & Versioning Logic
+## Phase 1: Data Access & Versioning Logic [checkpoint: 395926b]
 - [x] Task: Extend Database Layer for History Retrieval f992c08
-    - [ ] Write tests for fetching historical versions from IndexedDB in `__tests__/db.test.ts`
-    - [ ] Implement `getNovelHistory` function in `lib/db.ts`
 - [x] Task: Enhance Novel Store for History Management 8126a32
-    - [ ] Write tests for history-related actions in `__tests__/useNovelStore.test.ts`
-    - [ ] Implement `rollbackToVersion` action in `store/useNovelStore.ts` (ensuring non-destructive auto-save of current state)
-    - [ ] Implement `loadHistory` action to populate store from DB
-- [ ] Task: Conductor - User Manual Verification 'Data Access & Versioning Logic' (Protocol in workflow.md)
+- [x] Task: Conductor - User Manual Verification 'Data Access & Versioning Logic' (Protocol in workflow.md)
 
 ## Phase 2: UI Foundation & Header Integration
 - [ ] Task: Create Management Dialog Scaffold
