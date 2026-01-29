@@ -10,14 +10,10 @@
 - [x] Task: Integrate Trigger Button in Header 55266b3
 - [x] Task: Conductor - User Manual Verification 'UI Foundation & Header Integration' (Protocol in workflow.md)
 
-## Phase 3: Version History UI Implementation
+## Phase 3: Version History UI Implementation [checkpoint: d3c8471]
 - [x] Task: Implement Version List UI e155c5f
-    - [ ] Write tests for `VersionList` component (mocking store)
-    - [ ] Create `components/workflow/VersionList.tsx` showing timestamps and metadata
 - [x] Task: Implement Rollback Interaction a9f3858
-    - [ ] Connect the "Rollback" button to the store's rollback action
-    - [ ] Add confirmation dialog before proceeding with rollback
-- [ ] Task: Conductor - User Manual Verification 'Version History UI Implementation' (Protocol in workflow.md)
+- [x] Task: Conductor - User Manual Verification 'Version History UI Implementation' (Protocol in workflow.md)
 
 ## Phase 4: Full Story Viewer Implementation
 - [ ] Task: Implement Side-by-Side Reading Room
