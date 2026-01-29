@@ -21,7 +21,7 @@
     - [ ] Implement "Prompt Editor" tabs for the 5 prompts with "Reset to Default" buttons.
     - [ ] Add "Save" and "Cancel" actions.
 
-- [ ] Task: Conductor - User Manual Verification 'Settings & NIM Integration' (Protocol in workflow.md)
+- [~] Task: Conductor - User Manual Verification 'Settings & NIM Integration' (Protocol in workflow.md)
 
 ## Phase 2: Workflow State & Logic
 

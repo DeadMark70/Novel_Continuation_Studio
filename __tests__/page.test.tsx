@@ -15,6 +15,11 @@ vi.mock('@/components/NovelStats', () => ({
 vi.mock('lucide-react', () => ({
   Terminal: () => <div />,
   ShieldAlert: () => <div />,
+  Settings: () => <div data-testid="settings-icon" />,
+  Save: () => <div />,
+  RotateCcw: () => <div />,
+  X: () => <div />, // Used by Dialog
+  XIcon: () => <div />, // Legacy alias
 }));
 
 describe('Home Page', () => {

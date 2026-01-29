@@ -12,7 +12,7 @@ describe('NIM Client', () => {
   describe('fetchModels', () => {
     it('fetches models successfully', async () => {
       const mockModels = [{ id: 'model-a' }, { id: 'model-b' }];
-      (global.fetch as any).mockResolvedValue({
+      (global.fetch as unknown as ReturnType<typeof vi.fn>).mockResolvedValue({
         ok: true,
         json: async () => ({ data: mockModels }),
       });
@@ -30,7 +30,7 @@ describe('NIM Client', () => {
     });
 
     it('throws error on failure', async () => {
-      (global.fetch as any).mockResolvedValue({
+      (global.fetch as unknown as ReturnType<typeof vi.fn>).mockResolvedValue({
         ok: false,
         status: 401,
         statusText: 'Unauthorized',
@@ -55,7 +55,7 @@ describe('NIM Client', () => {
         }
       });
 
-      (global.fetch as any).mockResolvedValue({
+      (global.fetch as unknown as ReturnType<typeof vi.fn>).mockResolvedValue({
         ok: true,
         body: mockStream,
       });
