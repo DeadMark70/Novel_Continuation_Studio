@@ -79,7 +79,7 @@ export default function Home() {
                   <li>Upload your novel to the terminal.</li>
                   <li>Follow the 5-step automated workflow below.</li>
                   <li>Modify prompts in settings for deep customization.</li>
-                  <li>Use "Plot Direction" in Step 2 to guide the story.</li>
+                  <li>Use &quot;Plot Direction&quot; in Step 2 to guide the story.</li>
                 </ul>
               </div>
 

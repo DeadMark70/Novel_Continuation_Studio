@@ -20,6 +20,16 @@ vi.mock('lucide-react', () => ({
   RotateCcw: () => <div />,
   X: () => <div />, // Used by Dialog
   XIcon: () => <div />, // Legacy alias
+  Circle: () => <div />,
+  CheckCircle2: () => <div />,
+  AlertCircle: () => <div />,
+  Loader2: () => <div />,
+  ChevronDown: () => <div />, // Used by Accordion
+  ChevronDownIcon: () => <div />,
+  Play: () => <div />,
+  StopCircle: () => <div />,
+  RefreshCw: () => <div />,
+  Repeat: () => <div />,
 }));
 
 describe('Home Page', () => {

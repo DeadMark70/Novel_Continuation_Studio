@@ -1,14 +1,12 @@
 'use client';
 
-import React, { useState } from 'react';
+import React from 'react';
 import { useWorkflowStore } from '@/store/useWorkflowStore';
 import { useStepGenerator } from '@/hooks/useStepGenerator';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Play, StopCircle, RefreshCw, Repeat } from 'lucide-react';
+import { Play, StopCircle, Repeat } from 'lucide-react';
 import { Textarea } from '@/components/ui/textarea';
-import { Switch } from '@/components/ui/switch';
-import { Label } from '@/components/ui/label';
 
 export const StepContinuation: React.FC = () => {
   const { steps } = useWorkflowStore();

@@ -41,18 +41,18 @@
 ## Phase 3: Workflow UI Implementation
 
 - [x] Task: Step 1 (Analysis) & Step 2 (Outline) UI
-    - [ ] Create `components/workflow/StepAnalysis.tsx`: Simple "Start" trigger.
-    - [ ] Create `components/workflow/StepOutline.tsx`: Add "Plot Direction" input field (Guided Injection).
-    - [ ] Connect to `nim-client` to trigger generation.
+    - [x] Create `components/workflow/StepAnalysis.tsx`: Simple "Start" trigger.
+    - [x] Create `components/workflow/StepOutline.tsx`: Add "Plot Direction" input field (Guided Injection).
+    - [x] Connect to `nim-client` to trigger generation.
 
 - [x] Task: Steps 3, 4, & 5 UI
-    - [ ] Create components for Breakdown, Chapter 1, and Continuation.
-    - [ ] Implement the "Accordion" layout in `components/WorkflowStepper.tsx`.
-    - [ ] Ensure "Streaming" state shows a live cursor or typing effect.
+    - [x] Create components for Breakdown, Chapter 1, and Continuation.
+    - [x] Implement the "Accordion" layout in `components/WorkflowStepper.tsx`.
+    - [x] Ensure "Streaming" state shows a live cursor or typing effect.
 
-- [ ] Task: Integration & Polish
-    - [ ] Integrate `WorkflowStepper` into the main `page.tsx` (replacing the placeholder).
-    - [ ] Ensure "Stop Generation" button works.
-    - [ ] Verify persistence: Refreshing page should keep the generated content.
+- [x] Task: Integration & Polish
+    - [x] Integrate `WorkflowStepper` into the main `page.tsx` (replacing the placeholder).
+    - [x] Ensure "Stop Generation" button works.
+    - [x] Verify persistence: Refreshing page should keep the generated content.
 
-- [ ] Task: Conductor - User Manual Verification 'Workflow UI Implementation' (Protocol in workflow.md)
+- [x] Task: Conductor - User Manual Verification 'Workflow UI Implementation' [checkpoint: phase3] (Protocol in workflow.md)

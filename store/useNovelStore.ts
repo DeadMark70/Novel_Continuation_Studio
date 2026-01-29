@@ -43,7 +43,7 @@ export const useNovelStore = create<NovelState>((set, get) => ({
     await get().persist();
   },
 
-  updateWorkflow: async (data: any) => {
+  updateWorkflow: async (data: Partial<Omit<NovelState, 'setNovel' | 'setStep' | 'updateWorkflow' | 'reset' | 'initialize' | 'persist'>>) => {
     set((state) => ({ ...state, ...data }));
     await get().persist();
   },
