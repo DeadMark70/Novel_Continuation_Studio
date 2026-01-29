@@ -4,12 +4,21 @@ import React, { useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
-import { History, BookOpen, Download } from 'lucide-react';
+import { History, BookOpen, Download, FileText } from 'lucide-react';
 import { VersionList } from './VersionList';
 import { ReadingRoom } from './ReadingRoom';
+import { useNovelStore } from '@/store/useNovelStore';
+import { downloadAsTxt } from '@/lib/utils';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 
 export const HistoryExportDialog: React.FC = () => {
   const [isOpen, setIsOpen] = useState(false);
+  const { originalNovel, chapters } = useNovelStore();
+
+  const handleExport = () => {
+    // Simple title for now, could be dynamic later
+    downloadAsTxt('Novel_Project', originalNovel, chapters);
+  };
 
   return (
     <Dialog open={isOpen} onOpenChange={setIsOpen}>
@@ -52,8 +61,32 @@ export const HistoryExportDialog: React.FC = () => {
           </TabsContent>
 
           <TabsContent value="export" className="flex-1 min-h-0 py-4">
-            <div className="h-full flex items-center justify-center text-muted-foreground border border-dashed rounded-lg">
-              Export Options (Placeholder)
+            <div className="flex items-center justify-center h-full">
+              <Card className="max-w-md w-full bg-card/50 border-border">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <FileText className="size-5 text-primary" />
+                    Export Protocol
+                  </CardTitle>
+                  <CardDescription>
+                    Download your entire project as a single formatted text file.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="p-4 rounded-lg bg-primary/5 border border-primary/10 text-xs font-mono space-y-2">
+                    <p className="text-primary font-bold">INCLUDED IN EXPORT:</p>
+                    <ul className="list-disc list-inside text-muted-foreground">
+                      <li>Original Novel Content</li>
+                      <li>All Generated Chapters ({chapters.length})</li>
+                      <li>Export Timestamp</li>
+                    </ul>
+                  </div>
+                  <Button className="w-full gap-2 font-mono uppercase tracking-widest" onClick={handleExport}>
+                    <Download className="size-4" />
+                    Download .txt
+                  </Button>
+                </CardContent>
+              </Card>
             </div>
           </TabsContent>
         </Tabs>
