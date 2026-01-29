@@ -1,58 +1,31 @@
-# Implementation Plan: Automated Workflow & NIM Integration
+# Implementation Plan: Automated Workflow & Prompt System Fix
 
-## Phase 1: Settings & NIM Integration
+## Phase 1: Prompt System Fix & Centralization
+- [x] Task: Centralize Prompt Definitions
+    - [x] Identify `DEFAULT_PROMPTS` location (currently hardcoded in `SettingsPanel.tsx`)
+    - [x] Create `lib/prompts.ts` to host centralized prompt templates
+    - [x] Update `components/SettingsPanel.tsx` to import from `lib/prompts.ts`
+    - [x] Update `hooks/useStepGenerator.ts` to import `DEFAULT_PROMPTS` and resolve the undefined error
+- [ ] Task: Conductor - User Manual Verification 'Prompt System Fix & Centralization' (Protocol in workflow.md)
 
-- [x] Task: Settings Store & Persistence
-    - [ ] Create `store/useSettingsStore.ts`.
-    - [ ] Define state: `apiKey`, `selectedModel`, `recentModels`, `customPrompts`.
-    - [ ] Implement `persist` using the existing IndexedDB logic.
-    - [ ] **TDD:** Write tests for saving/loading settings.
+## Phase 2: Workflow Automation Core
+- [ ] Task: Update Workflow Store for Auto-Progression
+    - [ ] Write unit tests in `__tests__/useWorkflowStore.test.ts` for automated step transitions
+    - [ ] Implement automation logic in `store/useWorkflowStore.ts`:
+        - Analysis (Completed) -> Set Current to Outline (Idle)
+        - Outline (Completed) -> Set Current to Breakdown (Streaming)
+        - Breakdown (Completed) -> Set Current to Chapter 1 (Streaming)
+- [ ] Task: Conductor - User Manual Verification 'Workflow Automation Core' (Protocol in workflow.md)
 
-- [x] Task: NVIDIA NIM Client
-    - [ ] Create `lib/nim-client.ts`.
-    - [ ] Implement `fetchModels()` to discover available models.
-    - [ ] Implement `generateStream(prompt, model, apiKey)` using `fetch` and `ReadableStream`.
-    - [ ] **TDD:** Mock `fetch` to test API request formatting and stream handling.
+## Phase 3: Step 2 UI & Interaction Refinement
+- [ ] Task: Enhance StepOutline Component
+    - [ ] Modify `components/workflow/StepOutline.tsx` to autofocus the "Plot Direction" input when the step becomes active
+    - [ ] Update the UI to clearly signal that this is a "required decision point" to continue automation
+- [ ] Task: Conductor - User Manual Verification 'Step 2 UI & Interaction Refinement' (Protocol in workflow.md)
 
-- [x] Task: Settings Panel UI
-    - [ ] Create `components/SettingsPanel.tsx`.
-    - [ ] Implement API Key input (masked).
-    - [ ] Implement `ModelSelector` with history/discovery dropdown.
-    - [ ] Implement "Prompt Editor" tabs for the 5 prompts with "Reset to Default" buttons.
-    - [ ] Add "Save" and "Cancel" actions.
-
-- [~] Task: Conductor - User Manual Verification 'Settings & NIM Integration' (Protocol in workflow.md)
-
-## Phase 2: Workflow State & Logic
-
-- [x] Task: Workflow Store
-    - [ ] Create `store/useWorkflowStore.ts` (or extend `useNovelStore`).
-    - [ ] Define state for each step's status (idle, streaming, completed, error) and content.
-    - [ ] Implement actions: `startStep(stepId)`, `updateContent(stepId, chunk)`, `completeStep(stepId)`.
-    - [ ] **TDD:** Test state transitions and data updates.
-
-- [x] Task: Prompt Injection Logic
-    - [ ] Create `lib/prompt-engine.ts`.
-    - [ ] Implement functions to merge "User Inputs" (e.g., plot direction) into the "Raw Prompt Templates".
-    - [ ] **TDD:** Verify that placeholders are correctly replaced.
-
-- [x] Task: Conductor - User Manual Verification 'Workflow State & Logic' [checkpoint: phase2] (Protocol in workflow.md)
-
-## Phase 3: Workflow UI Implementation
-
-- [x] Task: Step 1 (Analysis) & Step 2 (Outline) UI
-    - [x] Create `components/workflow/StepAnalysis.tsx`: Simple "Start" trigger.
-    - [x] Create `components/workflow/StepOutline.tsx`: Add "Plot Direction" input field (Guided Injection).
-    - [x] Connect to `nim-client` to trigger generation.
-
-- [x] Task: Steps 3, 4, & 5 UI
-    - [x] Create components for Breakdown, Chapter 1, and Continuation.
-    - [x] Implement the "Accordion" layout in `components/WorkflowStepper.tsx`.
-    - [x] Ensure "Streaming" state shows a live cursor or typing effect.
-
-- [x] Task: Integration & Polish
-    - [x] Integrate `WorkflowStepper` into the main `page.tsx` (replacing the placeholder).
-    - [x] Ensure "Stop Generation" button works.
-    - [x] Verify persistence: Refreshing page should keep the generated content.
-
-- [x] Task: Conductor - User Manual Verification 'Workflow UI Implementation' [checkpoint: phase3] (Protocol in workflow.md)
+## Phase 4: Integration & Full Flow Validation
+- [ ] Task: Verify End-to-End Automation
+    - [ ] Test Sequence Alpha: Analysis -> Outline Pause
+    - [ ] Test Sequence Beta: Outline Submit -> Breakdown -> Chapter 1 Finish
+    - [ ] Confirm Step 5 remains manual as specified
+- [ ] Task: Conductor - User Manual Verification 'Integration & Full Flow Validation' (Protocol in workflow.md)
