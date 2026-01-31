@@ -28,7 +28,8 @@ describe('Prompt Engine', () => {
   it('injects previous chapters', () => {
     const template = 'Prev: [插入前面所有已生成的章節]';
     const result = injectPrompt(template, { previousChapters: ['Ch1', 'Ch2'] });
-    expect(result).toBe('Prev: Ch1\n\n---\n\nCh2');
+    const expected = 'Prev: 【第 1 章】\nCh1\n\n---\n\n【第 2 章】\nCh2';
+    expect(result).toBe(expected);
   });
 
   it('injects user notes before separator', () => {

@@ -19,7 +19,8 @@ describe('Prompt Engine Automation', () => {
       previousChapters: ['C1', 'C2']
     };
     const result = injectPrompt(template, context);
-    expect(result).toBe('Chapters: C1\n\n---\n\nC2');
+    const expected = 'Chapters: 【第 1 章】\nC1\n\n---\n\n【第 2 章】\nC2';
+    expect(result).toBe(expected);
   });
 
   it('handles user direction sections when present', () => {
