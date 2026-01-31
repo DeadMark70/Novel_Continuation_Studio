@@ -4,11 +4,17 @@ import { vi } from 'vitest';
 
 // Mock useNovelStore
 const mockUpdateWorkflow = vi.fn().mockResolvedValue(undefined);
+const mockStartNewSession = vi.fn();
 
 vi.mock('../store/useNovelStore', () => ({
   useNovelStore: {
     getState: () => ({
       updateWorkflow: mockUpdateWorkflow,
+      startNewSession: mockStartNewSession,
+      analysis: '',
+      outline: '',
+      breakdown: '',
+      chapters: []
     }),
   },
 }));
@@ -16,6 +22,7 @@ vi.mock('../store/useNovelStore', () => ({
 describe('useWorkflowStore', () => {
   beforeEach(() => {
     mockUpdateWorkflow.mockClear();
+    mockStartNewSession.mockClear();
     act(() => {
       useWorkflowStore.getState().resetWorkflow();
     });
@@ -33,6 +40,8 @@ describe('useWorkflowStore', () => {
     });
     const state = useWorkflowStore.getState();
     expect(state.steps.analysis.status).toBe('streaming');
+    // Verify session started
+    expect(mockStartNewSession).toHaveBeenCalled();
   });
 
   it('should update content', () => {
@@ -44,6 +53,11 @@ describe('useWorkflowStore', () => {
   });
 
   it('should complete step and sync with novel store', async () => {
+    // Set content first to pass validation
+    act(() => {
+      useWorkflowStore.getState().updateStepContent('analysis', 'Analysis Content');
+    });
+    
     await act(async () => {
       await useWorkflowStore.getState().completeStep('analysis');
     });
@@ -53,6 +67,9 @@ describe('useWorkflowStore', () => {
   });
 
   it('should auto-progress to outline (idle) after analysis completes', async () => {
+    act(() => {
+      useWorkflowStore.getState().updateStepContent('analysis', 'Analysis Content');
+    });
     await act(async () => {
       await useWorkflowStore.getState().completeStep('analysis');
     });
@@ -62,6 +79,9 @@ describe('useWorkflowStore', () => {
   });
 
   it('should auto-trigger breakdown after outline completes', async () => {
+    act(() => {
+      useWorkflowStore.getState().updateStepContent('outline', 'Outline Content');
+    });
     await act(async () => {
       await useWorkflowStore.getState().completeStep('outline');
     });
@@ -71,6 +91,9 @@ describe('useWorkflowStore', () => {
   });
 
   it('should auto-trigger chapter1 after breakdown completes', async () => {
+    act(() => {
+      useWorkflowStore.getState().updateStepContent('breakdown', 'Breakdown Content');
+    });
     await act(async () => {
       await useWorkflowStore.getState().completeStep('breakdown');
     });
@@ -80,6 +103,9 @@ describe('useWorkflowStore', () => {
   });
 
   it('should NOT auto-trigger continuation after chapter1 completes', async () => {
+    act(() => {
+      useWorkflowStore.getState().updateStepContent('chapter1', 'Chapter 1 Content');
+    });
     await act(async () => {
       await useWorkflowStore.getState().completeStep('chapter1');
     });
