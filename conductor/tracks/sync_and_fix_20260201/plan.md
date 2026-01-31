@@ -10,15 +10,15 @@
 - [x] Task: Conductor - User Manual Verification 'Documentation & Standards' (Protocol in workflow.md) [checkpoint: 8411a11]
 
 ## Phase 2: Core System Fixes (DB & Store)
-- [ ] Task: Fix `lib/db.ts` and `__tests__/db.test.ts`
-    - [ ] Sub-task: Verify `db.test.ts` failure regarding "Invalid key provided".
-    - [ ] Sub-task: Update `lib/db.ts` to correctly handle `sessionId` in `saveNovel`.
-    - [ ] Sub-task: Verify all `db.test.ts` tests pass.
-- [ ] Task: Fix `store/useWorkflowStore.ts` and `__tests__/useWorkflowStore.test.ts`
-    - [ ] Sub-task: Fix circular dependency/module resolution for `useNovelStore` in `useWorkflowStore`.
-    - [ ] Sub-task: Ensure safe access to `novelStore` state during sync (fix `Cannot read properties of undefined`).
-    - [ ] Sub-task: Verify all `useWorkflowStore.test.ts` tests pass.
-- [ ] Task: Conductor - User Manual Verification 'Core System Fixes' (Protocol in workflow.md)
+- [x] Task: Fix `lib/db.ts` and `__tests__/db.test.ts` [df11e67]
+    - [x] Sub-task: Verify `db.test.ts` failure regarding "Invalid key provided".
+    - [x] Sub-task: Update `lib/db.ts` to correctly handle `sessionId` in `saveNovel`.
+    - [x] Sub-task: Verify all `db.test.ts` tests pass.
+- [x] Task: Fix `store/useWorkflowStore.ts` and `__tests__/useWorkflowStore.test.ts` [df11e67]
+    - [x] Sub-task: Fix circular dependency/module resolution for `useNovelStore` in `useWorkflowStore`.
+    - [x] Sub-task: Ensure safe access to `novelStore` state during sync (fix `Cannot read properties of undefined`).
+    - [x] Sub-task: Verify all `useWorkflowStore.test.ts` tests pass.
+- [x] Task: Conductor - User Manual Verification 'Core System Fixes' (Protocol in workflow.md) [checkpoint: 0f32ba9]
 
 ## Phase 3: Frontend & Prompt Engine Fixes
 - [ ] Task: Fix `__tests__/VersionList.test.tsx`
