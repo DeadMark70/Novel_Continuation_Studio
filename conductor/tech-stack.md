@@ -26,3 +26,4 @@
 ## Development Tools
 - **Agent:** Gemini CLI (Coding Agent)
 - **Version Control:** Git
+- **Standards:** [Engineering Standards](../docs/ENGINEERING_STANDARDS.md)
