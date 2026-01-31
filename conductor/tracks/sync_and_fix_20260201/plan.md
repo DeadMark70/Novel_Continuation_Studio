@@ -21,10 +21,10 @@
 - [x] Task: Conductor - User Manual Verification 'Core System Fixes' (Protocol in workflow.md) [checkpoint: 0f32ba9]
 
 ## Phase 3: Frontend & Prompt Engine Fixes
-- [ ] Task: Fix `__tests__/VersionList.test.tsx`
-    - [ ] Sub-task: Update `lucide-react` mock to include `FileText` icon.
-    - [ ] Sub-task: Verify `VersionList` tests pass.
-- [ ] Task: Fix `__tests__/prompt-engine.test.ts`
-    - [ ] Sub-task: Update assertion logic to match new chapter title prefixing (or fix code if regression).
-    - [ ] Sub-task: Verify `prompt-engine` tests pass.
-- [ ] Task: Conductor - User Manual Verification 'Frontend & Prompt Engine Fixes' (Protocol in workflow.md)
+- [x] Task: Fix `__tests__/VersionList.test.tsx` [5c323f8]
+    - [x] Sub-task: Update `lucide-react` mock to include `FileText` icon.
+    - [x] Sub-task: Verify `VersionList` tests pass.
+- [x] Task: Fix `__tests__/prompt-engine.test.ts` [5c323f8]
+    - [x] Sub-task: Update assertion logic to match new chapter title prefixing (or fix code if regression).
+    - [x] Sub-task: Verify `prompt-engine` tests pass.
+- [x] Task: Conductor - User Manual Verification 'Frontend & Prompt Engine Fixes' (Protocol in workflow.md) [checkpoint: 99591e0]
