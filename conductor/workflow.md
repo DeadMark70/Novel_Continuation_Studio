@@ -232,6 +232,12 @@ Before requesting review:
    - Performance acceptable on mobile
    - Interactions feel native
 
+7. **Automated Workflows**
+   - Global mutex (`isGenerating`) used for all generation steps
+   - SSE error objects handled explicitly
+   - Token limits checks implemented
+   - Timeout safety guards (180s) in place
+
 ## Commit Guidelines
 
 ### Message Format
