@@ -30,8 +30,9 @@
 4.  **Real-time Streaming:**
     -   Visual feedback during generation (NVIDIA NIM).
     -   Pause/Cancel controls.
-5.  **Version Control:**
-    -   Local persistence (IndexedDB).
+5.  **Version Control (Session-Based):**
+    -   **Session History:** Each analysis starts a new isolated session, preserving the full context of that run.
+    -   Local persistence (IndexedDB v3).
     -   Non-destructive History rollback (auto-saves current state before restoring).
     -   Export to TXT (Formatted story including original and all chapters).
 

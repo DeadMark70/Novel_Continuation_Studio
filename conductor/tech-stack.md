@@ -13,11 +13,15 @@
 
 ## State & Data
 - **Global State:** Zustand
-- **Persistence:** IndexedDB with Dexie.js (for story storage and versioning)
+    - **Workflow Store:** Manages execution phases and global generation locks (`isGenerating` mutex).
+    - **Novel Store:** Manages content persistence and session handling.
+- **Persistence:** IndexedDB with Dexie.js (Schema v3)
+    - **Schema:** Session-based storage (`sessionId` index) for multi-run history.
 
 ## AI & Integration
 - **LLM API:** NVIDIA NIM API
 - **Capabilities:** Server-Sent Events (SSE) for real-time streaming output
+- **Protocols:** Strict error object detection for HTTP 200 responses.
 
 ## Development Tools
 - **Agent:** Gemini CLI (Coding Agent)
