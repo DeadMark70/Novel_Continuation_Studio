@@ -264,6 +264,37 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
       await delay(1000);
       releaseGenerationLock();
       
+      // Get fresh state for chapters count
+      const updatedNovelStore = useNovelStore.getState();
+      const currentChapterCount = updatedNovelStore.chapters ? updatedNovelStore.chapters.length : 0;
+      const { autoMode, autoRangeEnd, isPaused } = get();
+      
+      console.log(`[Workflow] Continuation complete. Total chapters: ${currentChapterCount}. AutoMode: ${autoMode}, Paused: ${isPaused}`);
+      
+      let nextAutoTriggerId: WorkflowStepId | null = null;
+
+      if (currentChapterCount >= 5) {
+         console.log('[Workflow] All 5 chapters completed!');
+      } else if (isPaused) {
+         console.log('[Workflow] Generation paused by user');
+      } else {
+         let shouldAutoTrigger = false;
+         const nextChapter = currentChapterCount + 1;
+
+         if (autoMode === 'full_auto') {
+           shouldAutoTrigger = true;
+         } else if (autoMode === 'range') {
+           shouldAutoTrigger = nextChapter <= autoRangeEnd;
+         }
+
+         if (shouldAutoTrigger) {
+            console.log(`[Workflow] Auto-triggering next chapter: ${nextChapter}`);
+            nextAutoTriggerId = 'continuation';
+         } else {
+            console.log(`[Workflow] Auto-trigger condition not met. Stopping.`);
+         }
+      }
+      
       // Reset the continuation step to idle with empty content for next chapter
       set((state) => ({
         steps: {
@@ -274,7 +305,7 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
             content: '' 
           }
         },
-        autoTriggerStepId: null
+        autoTriggerStepId: nextAutoTriggerId
       }));
       
       console.log(`[Workflow] Continuation chapter saved. Ready for next chapter.`);

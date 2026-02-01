@@ -5,17 +5,11 @@ import { vi } from 'vitest';
 // Mock useNovelStore
 const mockUpdateWorkflow = vi.fn().mockResolvedValue(undefined);
 const mockStartNewSession = vi.fn();
+const mockGetState = vi.fn();
 
 vi.mock('../store/useNovelStore', () => ({
   useNovelStore: {
-    getState: () => ({
-      updateWorkflow: mockUpdateWorkflow,
-      startNewSession: mockStartNewSession,
-      analysis: '',
-      outline: '',
-      breakdown: '',
-      chapters: []
-    }),
+    getState: () => mockGetState(),
   },
 }));
 
@@ -23,6 +17,14 @@ describe('useWorkflowStore', () => {
   beforeEach(() => {
     mockUpdateWorkflow.mockClear();
     mockStartNewSession.mockClear();
+    mockGetState.mockReturnValue({
+      updateWorkflow: mockUpdateWorkflow,
+      startNewSession: mockStartNewSession,
+      analysis: '',
+      outline: '',
+      breakdown: '',
+      chapters: []
+    });
     act(() => {
       useWorkflowStore.getState().resetWorkflow();
     });
@@ -40,8 +42,6 @@ describe('useWorkflowStore', () => {
     });
     const state = useWorkflowStore.getState();
     expect(state.steps.analysis.status).toBe('streaming');
-    // Verify session started
-    // expect(mockStartNewSession).toHaveBeenCalled(); // Removed as session start is moved
   });
 
   it('should update content', () => {
@@ -53,7 +53,6 @@ describe('useWorkflowStore', () => {
   });
 
   it('should complete step and sync with novel store', async () => {
-    // Set content first to pass validation
     act(() => {
       useWorkflowStore.getState().updateStepContent('analysis', 'Analysis Content');
     });
@@ -75,7 +74,7 @@ describe('useWorkflowStore', () => {
     });
     const state = useWorkflowStore.getState();
     expect(state.currentStepId).toBe('outline');
-    expect(state.autoTriggerStepId).toBeNull(); // Pause point
+    expect(state.autoTriggerStepId).toBeNull(); 
   });
 
   it('should auto-trigger breakdown after outline completes', async () => {
@@ -115,7 +114,7 @@ describe('useWorkflowStore', () => {
   });
 });
 
-describe('useWorkflowStore - Automation', () => {
+describe('useWorkflowStore - Automation Actions', () => {
   beforeEach(() => {
     act(() => {
       useWorkflowStore.getState().resetWorkflow();
@@ -124,42 +123,19 @@ describe('useWorkflowStore - Automation', () => {
 
   it('should set auto mode correctly', () => {
     act(() => {
-      // @ts-ignore
-      if (useWorkflowStore.getState().setAutoMode) {
-        // @ts-ignore
-        useWorkflowStore.getState().setAutoMode('full_auto');
-      }
+      useWorkflowStore.getState().setAutoMode('full_auto');
     });
-    // @ts-ignore
     const state = useWorkflowStore.getState();
-    // @ts-ignore
-    if (state.autoMode) {
-        // @ts-ignore
-      expect(state.autoMode).toBe('full_auto');
-    } else {
-        // Fail if property doesn't exist yet (TDD Red)
-        expect(state).toHaveProperty('autoMode');
-    }
+    expect(state.autoMode).toBe('full_auto');
   });
 
   it('should set auto range correctly', () => {
     act(() => {
-        // @ts-ignore
-      if (useWorkflowStore.getState().setAutoRange) {
-        // @ts-ignore
-        useWorkflowStore.getState().setAutoRange(2, 4);
-      }
+      useWorkflowStore.getState().setAutoRange(2, 4);
     });
     const state = useWorkflowStore.getState();
-    // @ts-ignore
-    if (state.autoRangeStart) {
-        // @ts-ignore
-      expect(state.autoRangeStart).toBe(2);
-      // @ts-ignore
-      expect(state.autoRangeEnd).toBe(4);
-    } else {
-        expect(state).toHaveProperty('autoRangeStart');
-    }
+    expect(state.autoRangeStart).toBe(2);
+    expect(state.autoRangeEnd).toBe(4);
   });
 
   it('should pause generation and abort active step', () => {
@@ -168,51 +144,135 @@ describe('useWorkflowStore - Automation', () => {
     });
     
     act(() => {
-        // @ts-ignore
-      if (useWorkflowStore.getState().pauseGeneration) {
-        // @ts-ignore
-        useWorkflowStore.getState().pauseGeneration();
-      }
+      useWorkflowStore.getState().pauseGeneration();
     });
     
     const state = useWorkflowStore.getState();
-    // @ts-ignore
-    if (state.isPaused !== undefined) {
-        // @ts-ignore
-      expect(state.isPaused).toBe(true);
-      // Should also ensure generating mutex is released or step is cancelled
-      expect(state.isGenerating).toBe(false);
-    } else {
-        expect(state).toHaveProperty('isPaused');
-    }
+    expect(state.isPaused).toBe(true);
+    expect(state.isGenerating).toBe(false);
   });
 
   it('should resume generation', () => {
     act(() => {
-        // @ts-ignore
-      if (useWorkflowStore.getState().pauseGeneration) {
-        // @ts-ignore
-        useWorkflowStore.getState().pauseGeneration();
-      }
+      useWorkflowStore.getState().pauseGeneration();
     });
     
     act(() => {
-        // @ts-ignore
-      if (useWorkflowStore.getState().resumeGeneration) {
-        // @ts-ignore
-        useWorkflowStore.getState().resumeGeneration();
-      }
+      useWorkflowStore.getState().resumeGeneration();
     });
     
     const state = useWorkflowStore.getState();
-    // @ts-ignore
-    if (state.isPaused !== undefined) {
-        // @ts-ignore
-      expect(state.isPaused).toBe(false);
-      // Resume should trigger current step
-      expect(state.autoTriggerStepId).toBe(state.currentStepId);
-    } else {
-         expect(state).toHaveProperty('isPaused');
-    }
+    expect(state.isPaused).toBe(false);
+    expect(state.autoTriggerStepId).toBe(state.currentStepId);
+  });
+});
+
+describe('useWorkflowStore - Automation Logic', () => {
+  beforeEach(() => {
+    mockUpdateWorkflow.mockClear();
+    mockGetState.mockReturnValue({
+      updateWorkflow: mockUpdateWorkflow,
+      startNewSession: mockStartNewSession,
+      analysis: '',
+      outline: '',
+      breakdown: '',
+      chapters: ['Chapter 1'] 
+    });
+    act(() => {
+      useWorkflowStore.getState().resetWorkflow();
+      useWorkflowStore.getState().setAutoMode('full_auto');
+      useWorkflowStore.getState().updateStepContent('continuation', 'Chapter 2 Content');
+    });
+  });
+
+  it('should auto-trigger next chapter in full_auto mode', async () => {
+    // Setup: just finished chapter 2 (so chapters will be 2)
+    mockGetState.mockReturnValue({
+        updateWorkflow: mockUpdateWorkflow,
+        startNewSession: mockStartNewSession,
+        analysis: '',
+        outline: '',
+        breakdown: '',
+        chapters: ['Chapter 1', 'Chapter 2'] 
+    });
+
+    await act(async () => {
+      await useWorkflowStore.getState().completeStep('continuation');
+    });
+
+    const state = useWorkflowStore.getState();
+    expect(state.autoTriggerStepId).toBe('continuation');
+  });
+
+  it('should auto-trigger next chapter in range mode if within range', async () => {
+    act(() => {
+      useWorkflowStore.getState().setAutoMode('range');
+      useWorkflowStore.getState().setAutoRange(2, 3); // Generate up to 3
+    });
+
+    // Setup: just finished chapter 2 (so chapters will be 2). Next is 3. 3 <= 3. Trigger.
+    mockGetState.mockReturnValue({
+        updateWorkflow: mockUpdateWorkflow,
+        startNewSession: mockStartNewSession,
+        analysis: '',
+        outline: '',
+        breakdown: '',
+        chapters: ['Chapter 1', 'Chapter 2'] 
+    });
+
+    await act(async () => {
+      await useWorkflowStore.getState().completeStep('continuation');
+    });
+
+    const state = useWorkflowStore.getState();
+    expect(state.autoTriggerStepId).toBe('continuation');
+  });
+
+  it('should NOT auto-trigger next chapter in range mode if end reached', async () => {
+    act(() => {
+      useWorkflowStore.getState().setAutoMode('range');
+      useWorkflowStore.getState().setAutoRange(2, 2); // Generate up to 2
+    });
+
+    // Setup: just finished chapter 2 (so chapters will be 2). Next is 3. 3 > 2. Stop.
+    mockGetState.mockReturnValue({
+        updateWorkflow: mockUpdateWorkflow,
+        startNewSession: mockStartNewSession,
+        analysis: '',
+        outline: '',
+        breakdown: '',
+        chapters: ['Chapter 1', 'Chapter 2'] 
+    });
+
+    await act(async () => {
+      await useWorkflowStore.getState().completeStep('continuation');
+    });
+
+    const state = useWorkflowStore.getState();
+    expect(state.autoTriggerStepId).toBeNull();
+  });
+
+  it('should NOT auto-trigger if paused', async () => {
+    act(() => {
+      useWorkflowStore.getState().setAutoMode('full_auto');
+      useWorkflowStore.getState().pauseGeneration();
+    });
+
+    // Setup: just finished chapter 2
+    mockGetState.mockReturnValue({
+        updateWorkflow: mockUpdateWorkflow,
+        startNewSession: mockStartNewSession,
+        analysis: '',
+        outline: '',
+        breakdown: '',
+        chapters: ['Chapter 1', 'Chapter 2'] 
+    });
+
+    await act(async () => {
+      await useWorkflowStore.getState().completeStep('continuation');
+    });
+
+    const state = useWorkflowStore.getState();
+    expect(state.autoTriggerStepId).toBeNull();
   });
 });
