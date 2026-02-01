@@ -19,6 +19,12 @@ interface WorkflowState {
   autoTriggerStepId: WorkflowStepId | null;
 
   isGenerating: boolean; // ✅ Global mutex lock for generation
+  
+  // Automation State
+  autoMode: 'manual' | 'full_auto' | 'range';
+  autoRangeStart: number;
+  autoRangeEnd: number;
+  isPaused: boolean;
 
   // Actions
 
@@ -39,6 +45,12 @@ interface WorkflowState {
   cancelStep: (stepId: WorkflowStepId) => void;
 
   setIsGenerating: (value: boolean) => void; // ✅ Action to set mutex lock
+  
+  // Automation Actions
+  setAutoMode: (mode: 'manual' | 'full_auto' | 'range') => void;
+  setAutoRange: (start: number, end: number) => void;
+  pauseGeneration: () => void;
+  resumeGeneration: () => void;
 
 }
 
@@ -69,15 +81,16 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
   autoTriggerStepId: null,
 
   isGenerating: false, // ✅ Global mutex lock initial value
-
+  
+  autoMode: 'manual',
+  autoRangeStart: 2,
+  autoRangeEnd: 5,
+  isPaused: false,
 
 
   startStep: (stepId) => {
-    // When starting Phase 1 (analysis), create a new session
-    if (stepId === 'analysis') {
-      useNovelStore.getState().startNewSession();
-      console.log('[Workflow] Started new session for analysis.');
-    }
+    // Note: Session creation is now handled by setNovel() when user uploads a new novel
+    // Do NOT call startNewSession here as it clears the novel content
 
     set((state) => ({
 
@@ -299,7 +312,10 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
 
       currentStepId: 'analysis',
 
-      autoTriggerStepId: null
+      autoTriggerStepId: null,
+      
+      autoMode: 'manual',
+      isPaused: false
 
     });
 
@@ -328,6 +344,38 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
 
   setIsGenerating: (value) => {
     set({ isGenerating: value });
+  },
+  
+  setAutoMode: (mode) => {
+    set({ autoMode: mode });
+  },
+  
+  setAutoRange: (start, end) => {
+    set({ autoRangeStart: start, autoRangeEnd: end });
+  },
+  
+  pauseGeneration: () => {
+    const { currentStepId, cancelStep } = get();
+    console.log(`[Workflow] Pausing generation. Aborting current step: ${currentStepId}`);
+    
+    // Set paused state
+    set({ 
+        isPaused: true,
+        isGenerating: false // Release lock
+    });
+    
+    // Abort current step (reset to idle)
+    cancelStep(currentStepId);
+  },
+  
+  resumeGeneration: () => {
+    const { currentStepId } = get();
+    console.log(`[Workflow] Resuming generation from step: ${currentStepId}`);
+    
+    set({ 
+        isPaused: false,
+        autoTriggerStepId: currentStepId // Trigger immediately
+    });
   }
 
 }));
