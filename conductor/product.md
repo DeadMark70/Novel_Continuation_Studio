@@ -34,7 +34,7 @@
     -   **Session History:** Each analysis starts a new isolated session, preserving the full context of that run.
     -   Local persistence (IndexedDB v3).
     -   Non-destructive History rollback (auto-saves current state before restoring).
-    -   Export to TXT (Formatted story including original and all chapters).
+        - Export to TXT: Allows selecting any session to export as a formatted story (including session-specific original content and chapters) with timestamped filenames.
 
 ## Default Prompts Configuration
 The application is built around these 5 specific prompt stages, using an automation-friendly template system with `{{placeholders}}`.
