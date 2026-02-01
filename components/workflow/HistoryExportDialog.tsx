@@ -10,14 +10,28 @@ import { ReadingRoom } from './ReadingRoom';
 import { useNovelStore } from '@/store/useNovelStore';
 import { downloadAsTxt } from '@/lib/utils';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Label } from '@/components/ui/label';
 
 export const HistoryExportDialog: React.FC = () => {
   const [isOpen, setIsOpen] = useState(false);
-  const { originalNovel, chapters } = useNovelStore();
+  const { sessions, currentSessionId, originalNovel, chapters } = useNovelStore();
+  const [selectedSessionId, setSelectedSessionId] = useState<string>(currentSessionId);
+
+  // Sync with current session when dialog opens or current session changes
+  React.useEffect(() => {
+    if (isOpen) {
+      setSelectedSessionId(currentSessionId);
+    }
+  }, [isOpen, currentSessionId]);
+
+  const selectedSession = sessions.find((s) => s.sessionId === selectedSessionId);
+  const displayOriginal = selectedSession ? selectedSession.content : originalNovel;
+  const displayChapters = selectedSession ? selectedSession.chapters : chapters;
+  const displayWordCount = selectedSession ? selectedSession.wordCount : (originalNovel.length);
 
   const handleExport = () => {
-    // Simple title for now, could be dynamic later
-    downloadAsTxt('Novel_Project', originalNovel, chapters);
+    downloadAsTxt('Novel_Project', displayOriginal, displayChapters);
   };
 
   return (
@@ -28,7 +42,7 @@ export const HistoryExportDialog: React.FC = () => {
           History & Export
         </Button>
       </DialogTrigger>
-      <DialogContent className="max-w-5xl h-[90vh] flex flex-col bg-card border-border">
+      <DialogContent className="w-[95vw] max-w-7xl h-[70vh] flex flex-col bg-card border-border">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <BookOpen className="size-5" />
@@ -69,15 +83,32 @@ export const HistoryExportDialog: React.FC = () => {
                     Export Protocol
                   </CardTitle>
                   <CardDescription>
-                    Download your entire project as a single formatted text file.
+                    Download your project as a single formatted text file.
                   </CardDescription>
                 </CardHeader>
-                <CardContent className="space-y-4">
+                <CardContent className="space-y-6">
+                  <div className="space-y-2">
+                    <Label className="text-xs uppercase tracking-wider text-muted-foreground">Select Session to Export</Label>
+                    <Select value={selectedSessionId} onValueChange={setSelectedSessionId}>
+                      <SelectTrigger className="w-full font-mono text-sm">
+                        <SelectValue placeholder="Select a session" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {sessions.map((session) => (
+                          <SelectItem key={session.sessionId} value={session.sessionId} className="font-mono text-xs">
+                            {session.sessionName} ({session.wordCount.toLocaleString()} words)
+                            {session.sessionId === currentSessionId && " [CURRENT]"}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
                   <div className="p-4 rounded-lg bg-primary/5 border border-primary/10 text-xs font-mono space-y-2">
                     <p className="text-primary font-bold">INCLUDED IN EXPORT:</p>
                     <ul className="list-disc list-inside text-muted-foreground">
-                      <li>Original Novel Content</li>
-                      <li>All Generated Chapters ({chapters.length})</li>
+                      <li>Original Novel ({displayWordCount.toLocaleString()} chars)</li>
+                      <li>All Generated Chapters ({displayChapters.length})</li>
                       <li>Export Timestamp</li>
                     </ul>
                   </div>
