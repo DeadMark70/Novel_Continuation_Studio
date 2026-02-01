@@ -1,0 +1,8 @@
+{
+  "track_id": "export_by_session_20260201",
+  "type": "feature",
+  "status": "new",
+  "created_at": "2026-02-01T15:56:00Z",
+  "updated_at": "2026-02-01T15:56:00Z",
+  "description": "Export by Session: Allow users to select a specific session to export instead of just the current one."
+}
