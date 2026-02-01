@@ -1,6 +1,6 @@
 # Implementation Plan: Chapter Automation Control (Phase 5)
 
-## Phase 1: Workflow Store Enhancement
+## Phase 1: Workflow Store Enhancement [checkpoint: d54b50c]
 - [x] Task: Update `WorkflowState` interface and implement new actions af16889
     - [ ] Add `autoMode`, `autoRangeStart`, `autoRangeEnd`, and `isPaused` to `WorkflowState`.
     - [ ] Implement `setAutoMode`, `setAutoRange`, `pauseGeneration`, and `resumeGeneration`.
@@ -10,10 +10,10 @@
 - [x] Task: Implement Abort/Pause logic af16889
     - [ ] **Write Tests:** Verify that `pauseGeneration` correctly sets `isPaused` and interacts with the generation mutex.
     - [ ] **Implement:** Ensure `pauseGeneration` can signal the active generation to abort (hooking into `AbortController` if applicable).
-- [ ] Task: Conductor - User Manual Verification 'Workflow Store Enhancement' (Protocol in workflow.md)
+- [x] Task: Conductor - User Manual Verification 'Workflow Store Enhancement' (Protocol in workflow.md)
 
 ## Phase 2: Context Accumulation Logic
-- [ ] Task: Update Prompt Engine for `{{GENERATED_CHAPTERS}}` optimization
+- [~] Task: Update Prompt Engine for `{{GENERATED_CHAPTERS}}` optimization
     - [ ] **Write Tests:** Create unit tests in `prompt-engine.test.ts` to verify the "last 2 chapters full + earlier summaries" logic.
     - [ ] **Implement:** Modify `prompt-engine.ts` to process generated chapters according to the 2-chapter full text + 500-char summary rule.
 - [ ] Task: Conductor - User Manual Verification 'Context Accumulation Logic' (Protocol in workflow.md)
