@@ -8,17 +8,17 @@
     - [x] Write/Update tests in `__tests__/utils.test.ts` to cover the new naming convention.
 
 ## Phase 2: UI Implementation
-- [ ] Task: Modify `HistoryExportDialog.tsx` to add Session Selection
-    - [ ] Import `useNovelStore` to access `sessions` and `currentSessionId`.
-    - [ ] Implement local state `selectedSessionId` initialized with `currentSessionId`.
-    - [ ] Add the `Select` component from `@/components/ui/select`.
-    - [ ] Populate the `Select` options with available sessions.
-- [ ] Task: Implement Dynamic Statistics Update
-    - [ ] Update the "INCLUDED IN EXPORT" section to display stats from the `selectedSession`.
-    - [ ] Ensure chapter count and word count reflect the selection.
-- [ ] Task: Update Export Execution
-    - [ ] Modify `handleExport` to use data from the `selectedSession` instead of global store defaults.
-- [ ] Task: Conductor - User Manual Verification 'UI Implementation' (Protocol in workflow.md)
+- [x] Task: Modify `HistoryExportDialog.tsx` to add Session Selection (46864df)
+    - [x] Import `useNovelStore` to access `sessions` and `currentSessionId`.
+    - [x] Implement local state `selectedSessionId` initialized with `currentSessionId`.
+    - [x] Add the `Select` component from `@/components/ui/select`.
+    - [x] Populate the `Select` options with available sessions.
+- [x] Task: Implement Dynamic Statistics Update (46864df)
+    - [x] Update the "INCLUDED IN EXPORT" section to display stats from the `selectedSession`.
+    - [x] Ensure chapter count and word count reflect the selection.
+- [x] Task: Update Export Execution (46864df)
+    - [x] Modify `handleExport` to use data from the `selectedSession` instead of global store defaults.
+- [~] Task: Conductor - User Manual Verification 'UI Implementation' (Protocol in workflow.md)
 
 ## Phase 3: Verification & Polish
 - [ ] Task: Manual Verification
