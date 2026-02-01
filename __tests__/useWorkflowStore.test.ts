@@ -165,6 +165,17 @@ describe('useWorkflowStore - Automation Actions', () => {
     expect(state.isPaused).toBe(false);
     expect(state.autoTriggerStepId).toBe(state.currentStepId);
   });
+
+  it('should reset autoMode to manual on error', () => {
+    act(() => {
+      useWorkflowStore.getState().setAutoMode('full_auto');
+      useWorkflowStore.getState().setStepError('continuation', 'API Error');
+    });
+    
+    const state = useWorkflowStore.getState();
+    expect(state.autoTriggerStepId).toBeNull();
+    expect(state.autoMode).toBe('manual');
+  });
 });
 
 describe('useWorkflowStore - Automation Logic', () => {

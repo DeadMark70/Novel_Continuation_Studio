@@ -327,7 +327,11 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
 
       },
 
-      autoTriggerStepId: null // Stop automation on error
+      autoTriggerStepId: null, // Stop automation on error
+      
+      autoMode: 'manual', // Force switch to manual on error
+      
+      isGenerating: false // Release lock if it was held (safety)
 
     }));
 
