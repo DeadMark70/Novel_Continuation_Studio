@@ -32,6 +32,24 @@ describe('Prompt Engine', () => {
     expect(result).toBe(expected);
   });
 
+  it('optimizes context for more than 2 chapters', () => {
+    const template = 'Prev: {{GENERATED_CHAPTERS}}';
+    const longText = 'A'.repeat(1000);
+    const result = injectPrompt(template, { 
+      previousChapters: [longText, 'Ch2', 'Ch3'] 
+    });
+    
+    expect(result).toContain('【第 1 章 - 摘要】');
+    expect(result).toContain('A'.repeat(500) + '...（後續省略）');
+    expect(result).not.toContain('A'.repeat(501)); // Should be truncated
+    
+    expect(result).toContain('【第 2 章 - 完整】');
+    expect(result).toContain('Ch2');
+    
+    expect(result).toContain('【第 3 章 - 完整】');
+    expect(result).toContain('Ch3');
+  });
+
   it('injects user notes before separator', () => {
     const template = 'Context\n---\nInstruction';
     const result = injectPrompt(template, { userNotes: 'Make it darker' });
