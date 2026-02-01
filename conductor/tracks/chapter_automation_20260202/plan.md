@@ -18,19 +18,19 @@
     - [ ] **Implement:** Modify `prompt-engine.ts` to process generated chapters according to the 2-chapter full text + 500-char summary rule.
 - [x] Task: Conductor - User Manual Verification 'Context Accumulation Logic' (Protocol in workflow.md)
 
-## Phase 3: UI Implementation
-- [~] Task: Create `AutoModeControl` component
+## Phase 3: UI Implementation [checkpoint: 5849e3c]
+- [x] Task: Create `AutoModeControl` component 5849e3c
     - [ ] **Write Tests:** Create `AutoModeControl.test.tsx` to verify mode switching and range selection UI.
     - [ ] **Implement:** Build the component using `shadcn/ui` (RadioGroup, Select, Button).
-- [ ] Task: Create `ProgressIndicator` component
+- [x] Task: Create `ProgressIndicator` component 5849e3c
     - [ ] **Write Tests:** Create `ProgressIndicator.test.tsx` to verify correct percentage calculation and label display.
     - [ ] **Implement:** Build the component using `shadcn/ui` Progress.
-- [ ] Task: Integrate into `StepContinuation.tsx`
+- [x] Task: Integrate into `StepContinuation.tsx` 5849e3c
     - [ ] **Implement:** Update the layout to show `AutoModeControl` when idle and `ProgressIndicator` + Pause button when generating.
-- [ ] Task: Conductor - User Manual Verification 'UI Implementation' (Protocol in workflow.md)
+- [x] Task: Conductor - User Manual Verification 'UI Implementation' (Protocol in workflow.md)
 
 ## Phase 4: Integration & Error Handling
-- [ ] Task: Implement Automation Error Handling
+- [~] Task: Implement Automation Error Handling
     - [ ] **Write Tests:** Simulate API failure during automation and verify fallback to Manual mode.
     - [ ] **Implement:** Update error catch blocks in `useWorkflowStore` to reset `autoMode` to `'manual'`.
 - [ ] Task: End-to-End Verification
