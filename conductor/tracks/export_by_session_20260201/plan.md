@@ -20,7 +20,7 @@
     - [x] Modify `handleExport` to use data from the `selectedSession` instead of global store defaults.
 - [x] Task: Conductor - User Manual Verification 'UI Implementation' (Protocol in workflow.md) (5c09213)
 
-## Phase 3: Verification & Polish
+## Phase 3: Verification & Polish [checkpoint: e411b9c]
 - [x] Task: Manual Verification
     - [x] Create multiple sessions with different content/chapters.
     - [x] Switch between sessions in the Export Tab.
@@ -29,4 +29,4 @@
     - [x] Verify the filename format: `novel_export_[timestamp].txt`.
 - [x] Task: Automated Testing
     - [x] Add a component test for `HistoryExportDialog` (if feasible with mocks) or ensure store updates are handled correctly.
-- [~] Task: Conductor - User Manual Verification 'Verification & Polish' (Protocol in workflow.md)
+- [x] Task: Conductor - User Manual Verification 'Verification & Polish' (Protocol in workflow.md) (e411b9c)
