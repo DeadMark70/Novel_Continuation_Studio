@@ -18,11 +18,19 @@ export function downloadAsTxt(title: string, original: string, chapters: string[
     content += `【CHAPTER ${index + 1}】\n\n${chapter}\n`;
   });
 
+  const now = new Date();
+  const timestamp = now.getFullYear().toString() +
+    (now.getMonth() + 1).toString().padStart(2, '0') +
+    now.getDate().toString().padStart(2, '0') + '-' +
+    now.getHours().toString().padStart(2, '0') +
+    now.getMinutes().toString().padStart(2, '0') +
+    now.getSeconds().toString().padStart(2, '0');
+
   const blob = new Blob([content], { type: 'text/plain' });
   const url = URL.createObjectURL(blob);
   const link = document.createElement('a');
   link.href = url;
-  link.download = `${title.replace(/\s+/g, '_')}_export.txt`;
+  link.download = `novel_export_${timestamp}.txt`;
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);
