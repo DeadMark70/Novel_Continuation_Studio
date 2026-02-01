@@ -12,14 +12,14 @@
     - [ ] **Implement:** Ensure `pauseGeneration` can signal the active generation to abort (hooking into `AbortController` if applicable).
 - [x] Task: Conductor - User Manual Verification 'Workflow Store Enhancement' (Protocol in workflow.md)
 
-## Phase 2: Context Accumulation Logic
-- [~] Task: Update Prompt Engine for `{{GENERATED_CHAPTERS}}` optimization
+## Phase 2: Context Accumulation Logic [checkpoint: 178c39d]
+- [x] Task: Update Prompt Engine for `{{GENERATED_CHAPTERS}}` optimization 3804158
     - [ ] **Write Tests:** Create unit tests in `prompt-engine.test.ts` to verify the "last 2 chapters full + earlier summaries" logic.
     - [ ] **Implement:** Modify `prompt-engine.ts` to process generated chapters according to the 2-chapter full text + 500-char summary rule.
-- [ ] Task: Conductor - User Manual Verification 'Context Accumulation Logic' (Protocol in workflow.md)
+- [x] Task: Conductor - User Manual Verification 'Context Accumulation Logic' (Protocol in workflow.md)
 
 ## Phase 3: UI Implementation
-- [ ] Task: Create `AutoModeControl` component
+- [~] Task: Create `AutoModeControl` component
     - [ ] **Write Tests:** Create `AutoModeControl.test.tsx` to verify mode switching and range selection UI.
     - [ ] **Implement:** Build the component using `shadcn/ui` (RadioGroup, Select, Button).
 - [ ] Task: Create `ProgressIndicator` component
