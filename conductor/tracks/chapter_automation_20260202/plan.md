@@ -4,10 +4,10 @@
 - [x] Task: Update `WorkflowState` interface and implement new actions af16889
     - [ ] Add `autoMode`, `autoRangeStart`, `autoRangeEnd`, and `isPaused` to `WorkflowState`.
     - [ ] Implement `setAutoMode`, `setAutoRange`, `pauseGeneration`, and `resumeGeneration`.
-- [~] Task: Modify `completeStep` logic for automation
+- [x] Task: Modify `completeStep` logic for automation a696ae7
     - [ ] **Write Tests:** Create unit tests in `useWorkflowStore.test.ts` to verify auto-triggering logic for 'manual', 'full_auto', and 'range' modes.
     - [ ] **Implement:** Update `completeStep` to check automation settings and set `autoTriggerStepId` after a delay if conditions are met.
-- [ ] Task: Implement Abort/Pause logic
+- [x] Task: Implement Abort/Pause logic af16889
     - [ ] **Write Tests:** Verify that `pauseGeneration` correctly sets `isPaused` and interacts with the generation mutex.
     - [ ] **Implement:** Ensure `pauseGeneration` can signal the active generation to abort (hooking into `AbortController` if applicable).
 - [ ] Task: Conductor - User Manual Verification 'Workflow Store Enhancement' (Protocol in workflow.md)
