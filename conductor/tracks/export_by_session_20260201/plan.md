@@ -1,6 +1,6 @@
 # Implementation Plan: Export Specific Session
 
-## Phase 1: Logic & Utility Updates
+## Phase 1: Logic & Utility Updates [checkpoint: f21a8c4]
 - [x] Task: Update `lib/utils.ts` to improve `downloadAsTxt` (18fb0ca)
     - [x] Modify `downloadAsTxt` to accept a custom filename or timestamp-based format.
     - [x] Ensure it correctly formats the session content and chapters.
