@@ -29,12 +29,12 @@
     - [ ] **Implement:** Update the layout to show `AutoModeControl` when idle and `ProgressIndicator` + Pause button when generating.
 - [x] Task: Conductor - User Manual Verification 'UI Implementation' (Protocol in workflow.md)
 
-## Phase 4: Integration & Error Handling [checkpoint: pending]
-- [x] Task: Implement Automation Error Handling 5849e3c
+## Phase 4: Integration & Error Handling [checkpoint: 3dcdc3c]
+- [x] Task: Implement Automation Error Handling 3dcdc3c
     - [ ] **Write Tests:** Simulate API failure during automation and verify fallback to Manual mode.
     - [ ] **Implement:** Update error catch blocks in `useWorkflowStore` to reset `autoMode` to `'manual'`.
-- [x] Task: End-to-End Verification 5849e3c
+- [x] Task: End-to-End Verification 3dcdc3c
     - [ ] **Manual Test:** Verify "Full Auto" from Chapter 2 to 5.
     - [ ] **Manual Test:** Verify "Range" mode (e.g., 2-3) and its stop behavior.
     - [ ] **Manual Test:** Verify immediate abort on "Pause" click.
-- [ ] Task: Conductor - User Manual Verification 'Integration & Error Handling' (Protocol in workflow.md)
+- [x] Task: Conductor - User Manual Verification 'Integration & Error Handling' (Protocol in workflow.md)
