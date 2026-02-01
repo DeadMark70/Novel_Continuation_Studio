@@ -21,7 +21,7 @@
     -   **Sequence Alpha (Step 1 -> 2):** Automated analysis leading to a user decision point.
     -   **User Decision Point:** User-defined "Plot Direction" input at Step 2.
     -   **Sequence Beta (Step 2 -> 3 -> 4):** Continuous automated generation from outline to the first chapter.
-    -   **Step 5 (Manual):** Perpetual generation triggered by the user.
+    -   **Step 5 (Automation Control):** Flexible continuation with Manual, Full Auto (Chapters 2-5), or Range modes.
 3.  **Prompt Engineering Panel:**
     -   Full edit access to the 5 core prompts.
     -   Adjustable word count targets.
