@@ -27,7 +27,7 @@ Add the new "Context" settings tab and relevant state variables.
     - [x] Ensure settings are correctly bound to the store and saved.
 - [ ] **Task: Conductor - User Manual Verification 'Phase 2: Configuration UI' (Protocol in workflow.md)**
 
-## Phase 3: Smart Truncation Logic
+## Phase 3: Smart Truncation Logic [checkpoint: be2b525]
 Implement the dual-end truncation in the prompt generation engine.
 
 - [x] **Task: Implement Dual-End Truncation in Prompt Engine** (3db3fac)
@@ -36,7 +36,7 @@ Implement the dual-end truncation in the prompt generation engine.
         - Large chapters (dual-end truncation with placeholder).
         - Chapter 1 (never truncated).
     - [x] Modify `lib/prompt-engine.ts` (specifically `injectPrompt` or summary generation logic) to use the new settings and truncation rules.
-- [ ] **Task: Verify End-to-End Workflow**
-    - [ ] Run full test suite `npm test` to ensure no regressions in prompt generation.
-    - [ ] Verify token efficiency manually by inspecting generated prompts in the console or debug logs.
+- [x] **Task: Verify End-to-End Workflow** (1ed6ba4)
+    - [x] Run full test suite `npm test` to ensure no regressions in prompt generation.
+    - [x] Verify token efficiency manually by inspecting generated prompts in the console or debug logs.
 - [ ] **Task: Conductor - User Manual Verification 'Phase 3: Smart Truncation Logic' (Protocol in workflow.md)**
