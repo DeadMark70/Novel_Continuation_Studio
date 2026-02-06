@@ -17,6 +17,9 @@
     -   Upload (paste or file).
     -   Full Story Reading Room (Side-by-side view of original vs. generated).
     -   Word count and reading time statistics.
+    -   **Context Optimization:** 
+        -   Automatic text normalization (whitespace compression, punctuation unification) on upload.
+        -   Smart Dual-End Truncation: Optimizes prompt length by keeping head/tail segments of early chapters while preserving Chapter 1 fully.
 2.  **5-Step Automated Workflow:**
     -   **Sequence Alpha (Step 1 -> 2):** Automated analysis leading to a user decision point.
     -   **User Decision Point:** User-defined "Plot Direction" input at Step 2.
@@ -27,6 +30,9 @@
     -   Adjustable word count targets.
     -   Outline direction presets (Deepen Conflict, Advance Plot, New Character, Strengthen Theme).
     -   Reset to default.
+    -   **Optimization Control:**
+        -   Configurable Truncation Threshold.
+        -   Adjustable Dual-End Buffer (characters to keep at each end).
 4.  **Real-time Streaming:**
     -   Visual feedback during generation (NVIDIA NIM).
     -   Pause/Cancel controls.
