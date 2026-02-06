@@ -66,4 +66,21 @@ describe('useSettingsStore', () => {
     expect(state.selectedModel).toBe('loaded-model');
     expect(state.customPrompts['prompt1']).toBe('custom');
   });
+
+  it('should update and persist context optimization settings', async () => {
+    await act(async () => {
+      await useSettingsStore.getState().updateContextSettings({
+        truncationThreshold: 1000,
+        dualEndBuffer: 500,
+      });
+    });
+
+    const state = useSettingsStore.getState();
+    expect(state.truncationThreshold).toBe(1000);
+    expect(state.dualEndBuffer).toBe(500);
+
+    const stored = await db.settings.get('global');
+    expect(stored?.truncationThreshold).toBe(1000);
+    expect(stored?.dualEndBuffer).toBe(500);
+  });
 });

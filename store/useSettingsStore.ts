@@ -6,12 +6,15 @@ interface SettingsState {
   selectedModel: string;
   recentModels: string[];
   customPrompts: Record<string, string>;
+  truncationThreshold: number;
+  dualEndBuffer: number;
   
   // Actions
   setApiKey: (key: string) => Promise<void>;
   setSelectedModel: (model: string) => Promise<void>;
   addRecentModel: (model: string) => Promise<void>;
   setCustomPrompt: (key: string, prompt: string) => Promise<void>;
+  updateContextSettings: (settings: Partial<Pick<SettingsState, 'truncationThreshold' | 'dualEndBuffer'>>) => Promise<void>;
   resetPrompt: (key: string) => Promise<void>;
   initialize: () => Promise<void>;
   persist: () => Promise<void>;
@@ -22,6 +25,8 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   selectedModel: 'meta/llama3-70b-instruct', // Default fallback
   recentModels: [],
   customPrompts: {},
+  truncationThreshold: 800,
+  dualEndBuffer: 400,
 
   setApiKey: async (key: string) => {
     set({ apiKey: key });
@@ -47,6 +52,11 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     await get().persist();
   },
 
+  updateContextSettings: async (settings) => {
+    set((state) => ({ ...state, ...settings }));
+    await get().persist();
+  },
+
   resetPrompt: async (key: string) => {
     const { customPrompts } = get();
     const newPrompts = { ...customPrompts };
@@ -64,6 +74,8 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
           selectedModel: settings.selectedModel || 'meta/llama3-70b-instruct',
           recentModels: settings.recentModels || [],
           customPrompts: settings.customPrompts || {},
+          truncationThreshold: settings.truncationThreshold ?? 800,
+          dualEndBuffer: settings.dualEndBuffer ?? 400,
         });
       }
     } catch (error) {
@@ -79,6 +91,8 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       selectedModel: state.selectedModel,
       recentModels: state.recentModels,
       customPrompts: state.customPrompts,
+      truncationThreshold: state.truncationThreshold,
+      dualEndBuffer: state.dualEndBuffer,
     });
   }
 }));
