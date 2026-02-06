@@ -5,6 +5,44 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
 
+export function normalizeNovelText(content: string): string {
+  if (!content) return '';
+
+  // 1. Punctuation Unification
+  const punctuationMap: Record<string, string> = {
+    '！': '!',
+    '？': '?',
+    '。': '.',
+    '，': ',',
+    '：': ':',
+    '；': ';',
+    '（': '(',
+    '）': ')',
+    '『': '"',
+    '』': '"',
+    '「': '"',
+    '」': '"',
+    '…': '...',
+    '—': '--',
+  };
+
+  let normalized = content;
+  for (const [full, half] of Object.entries(punctuationMap)) {
+    normalized = normalized.split(full).join(half);
+  }
+
+  // 2. Trim leading/trailing whitespace from every line
+  normalized = normalized
+    .split('\n')
+    .map((line) => line.trim())
+    .join('\n');
+
+  // 3. Compress 3+ consecutive newlines into 2
+  normalized = normalized.replace(/\n{3,}/g, '\n\n');
+
+  return normalized;
+}
+
 export function downloadAsTxt(title: string, original: string, chapters: string[]) {
   const separator = '\n\n' + '='.repeat(40) + '\n\n';
   

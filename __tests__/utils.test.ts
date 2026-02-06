@@ -1,7 +1,34 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { downloadAsTxt } from '../lib/utils';
+import { downloadAsTxt, normalizeNovelText } from '../lib/utils';
 
 describe('utils', () => {
+  describe('normalizeNovelText', () => {
+    it('compresses 3+ consecutive newlines into 2', () => {
+      const input = 'Line 1\n\n\n\nLine 2\n\n\nLine 3';
+      const expected = 'Line 1\n\nLine 2\n\nLine 3';
+      expect(normalizeNovelText(input)).toBe(expected);
+    });
+
+    it('trims leading/trailing whitespace from every line', () => {
+      const input = '  Line 1  \n\tLine 2\t\n  Line 3  ';
+      const expected = 'Line 1\nLine 2\nLine 3';
+      expect(normalizeNovelText(input)).toBe(expected);
+    });
+
+    it('unifies full-width punctuation', () => {
+      const input = '你好！这是一个测试。』『「」…—';
+      // Symbols: ！ -> !, 。 -> ., 』 -> ", 『 -> ", 「 -> ", 」 -> ", … -> ..., — -> --
+      const expected = '你好!这是一个测试.""""...--';
+      expect(normalizeNovelText(input)).toBe(expected);
+    });
+
+    it('handles combination of normalization rules', () => {
+      const input = '  Line 1  \n\n\n\n  你好！  \n\n  Line 3  ';
+      const expected = 'Line 1\n\n你好!\n\nLine 3';
+      expect(normalizeNovelText(input)).toBe(expected);
+    });
+  });
+
   describe('downloadAsTxt', () => {
     beforeEach(() => {
       // Mock browser APIs
