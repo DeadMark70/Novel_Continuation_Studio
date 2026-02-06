@@ -9,10 +9,10 @@ Implement the foundational text processing logic and integrate it into the novel
     - [x] Create TDD tests in `__tests__/utils.test.ts` for whitespace compression and punctuation unification.
     - [x] Implement `normalizeNovelText` in `lib/utils.ts`.
     - [x] Verify all tests pass and coverage is >90%.
-- [ ] **Task: Integrate Normalization into `useNovelStore`**
-    - [ ] Update `__tests__/useNovelStore.test.ts` to expect normalized text.
-    - [ ] Modify `setNovel` in `store/useNovelStore.ts` to call `normalizeNovelText`.
-    - [ ] Verify persistence still works as expected.
+- [x] **Task: Integrate Normalization into `useNovelStore`** (ae23481)
+    - [x] Update `__tests__/useNovelStore.test.ts` to expect normalized text.
+    - [x] Modify `setNovel` in `store/useNovelStore.ts` to call `normalizeNovelText`.
+    - [x] Verify persistence still works as expected.
 - [ ] **Task: Conductor - User Manual Verification 'Phase 1: Core Utilities & State Management' (Protocol in workflow.md)**
 
 ## Phase 2: Configuration UI
