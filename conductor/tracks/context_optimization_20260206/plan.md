@@ -15,7 +15,7 @@ Implement the foundational text processing logic and integrate it into the novel
     - [x] Verify persistence still works as expected.
 - [ ] **Task: Conductor - User Manual Verification 'Phase 1: Core Utilities & State Management' (Protocol in workflow.md)**
 
-## Phase 2: Configuration UI
+## Phase 2: Configuration UI [checkpoint: 624868b]
 Add the new "Context" settings tab and relevant state variables.
 
 - [x] **Task: Update `useSettingsStore` for Context Settings** (e7879e5)
