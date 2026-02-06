@@ -13,10 +13,25 @@ import { fetchModels } from '@/lib/nim-client';
 import { DEFAULT_PROMPTS } from '@/lib/prompts';
 
 export const SettingsPanel: React.FC = () => {
-  const { apiKey, selectedModel, recentModels, customPrompts, setApiKey, setSelectedModel, setCustomPrompt, resetPrompt, initialize } = useSettingsStore();
+  const { 
+    apiKey, 
+    selectedModel, 
+    recentModels, 
+    customPrompts, 
+    truncationThreshold,
+    dualEndBuffer,
+    setApiKey, 
+    setSelectedModel, 
+    setCustomPrompt, 
+    updateContextSettings,
+    resetPrompt, 
+    initialize 
+  } = useSettingsStore();
   
   const [localKey, setLocalKey] = useState(apiKey);
   const [localModel, setLocalModel] = useState(selectedModel);
+  const [localThreshold, setLocalThreshold] = useState(truncationThreshold);
+  const [localBuffer, setLocalBuffer] = useState(dualEndBuffer);
   const [availableModels, setAvailableModels] = useState<string[]>([]);
   const [isLoadingModels, setIsLoadingModels] = useState(false);
   const [isOpen, setIsOpen] = useState(false);
@@ -26,12 +41,18 @@ export const SettingsPanel: React.FC = () => {
       initialize();
       setLocalKey(apiKey);
       setLocalModel(selectedModel);
+      setLocalThreshold(truncationThreshold);
+      setLocalBuffer(dualEndBuffer);
     }
-  }, [isOpen, apiKey, selectedModel, initialize]);
+  }, [isOpen, apiKey, selectedModel, truncationThreshold, dualEndBuffer, initialize]);
 
   const handleSave = async () => {
     await setApiKey(localKey);
     await setSelectedModel(localModel);
+    await updateContextSettings({
+      truncationThreshold: localThreshold,
+      dualEndBuffer: localBuffer,
+    });
     setIsOpen(false);
   };
 
@@ -62,8 +83,9 @@ export const SettingsPanel: React.FC = () => {
         </DialogHeader>
         
         <Tabs defaultValue="general" className="w-full">
-          <TabsList className="grid w-full grid-cols-2">
+          <TabsList className="grid w-full grid-cols-3">
             <TabsTrigger value="general">General</TabsTrigger>
+            <TabsTrigger value="context">Context</TabsTrigger>
             <TabsTrigger value="prompts">Prompt Engineering</TabsTrigger>
           </TabsList>
           
@@ -95,13 +117,41 @@ export const SettingsPanel: React.FC = () => {
                 />
                 <datalist id="model-history">
                   {availableModels.length > 0 ? (
-                    availableModels.map(m => <option key={m} value={m} />)
+                    [...new Set(availableModels)].map((m, i) => <option key={`${m}-${i}`} value={m} />)
                   ) : (
-                    recentModels.map(m => <option key={m} value={m} />)
+                    [...new Set(recentModels)].map((m, i) => <option key={`${m}-${i}`} value={m} />)
                   )}
                 </datalist>
               </div>
               <p className="text-xs text-muted-foreground">Type to search or use fetched list.</p>
+            </div>
+          </TabsContent>
+
+          <TabsContent value="context" className="space-y-4 py-4" forceMount>
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="truncationThreshold">Truncation Threshold (Characters)</Label>
+                <Input 
+                  id="truncationThreshold"
+                  data-testid="threshold-input"
+                  type="number" 
+                  value={localThreshold} 
+                  onChange={(e) => setLocalThreshold(parseInt(e.target.value) || 0)} 
+                />
+                <p className="text-xs text-muted-foreground">Chapters longer than this will be truncated in prompts.</p>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="dualEndBuffer">Dual-End Buffer (Characters)</Label>
+                <Input 
+                  id="dualEndBuffer"
+                  data-testid="buffer-input"
+                  type="number" 
+                  value={localBuffer} 
+                  onChange={(e) => setLocalBuffer(parseInt(e.target.value) || 0)} 
+                />
+                <p className="text-xs text-muted-foreground">Characters to keep at each end of a truncated chapter.</p>
+              </div>
             </div>
           </TabsContent>
           
