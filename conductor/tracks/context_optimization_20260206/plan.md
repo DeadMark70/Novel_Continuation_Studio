@@ -21,10 +21,10 @@ Add the new "Context" settings tab and relevant state variables.
 - [x] **Task: Update `useSettingsStore` for Context Settings** (e7879e5)
     - [x] Add `truncationThreshold` (default 800) and `dualEndBuffer` (default 400) to `useSettingsStore.ts`.
     - [x] Update tests in `__tests__/useSettingsStore.test.ts`.
-- [ ] **Task: Implement Context Tab in `SettingsPanel`**
-    - [ ] Create `__tests__/SettingsPanel.test.tsx` (or update existing) to verify new tab rendering.
-    - [ ] Add the "Context" tab to `components/SettingsPanel.tsx` with input fields for threshold and buffer.
-    - [ ] Ensure settings are correctly bound to the store and saved.
+- [x] **Task: Implement Context Tab in `SettingsPanel`** (1e79a99)
+    - [x] Create `__tests__/SettingsPanel.test.tsx` (or update existing) to verify new tab rendering.
+    - [x] Add the "Context" tab to `components/SettingsPanel.tsx` with input fields for threshold and buffer.
+    - [x] Ensure settings are correctly bound to the store and saved.
 - [ ] **Task: Conductor - User Manual Verification 'Phase 2: Configuration UI' (Protocol in workflow.md)**
 
 ## Phase 3: Smart Truncation Logic
