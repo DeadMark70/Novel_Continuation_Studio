@@ -18,9 +18,9 @@ Implement the foundational text processing logic and integrate it into the novel
 ## Phase 2: Configuration UI
 Add the new "Context" settings tab and relevant state variables.
 
-- [ ] **Task: Update `useSettingsStore` for Context Settings**
-    - [ ] Add `truncationThreshold` (default 800) and `dualEndBuffer` (default 400) to `useSettingsStore.ts`.
-    - [ ] Update tests in `__tests__/useSettingsStore.test.ts`.
+- [x] **Task: Update `useSettingsStore` for Context Settings** (e7879e5)
+    - [x] Add `truncationThreshold` (default 800) and `dualEndBuffer` (default 400) to `useSettingsStore.ts`.
+    - [x] Update tests in `__tests__/useSettingsStore.test.ts`.
 - [ ] **Task: Implement Context Tab in `SettingsPanel`**
     - [ ] Create `__tests__/SettingsPanel.test.tsx` (or update existing) to verify new tab rendering.
     - [ ] Add the "Context" tab to `components/SettingsPanel.tsx` with input fields for threshold and buffer.
