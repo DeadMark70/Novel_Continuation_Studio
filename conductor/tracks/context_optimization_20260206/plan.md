@@ -2,7 +2,7 @@
 
 This plan focuses on implementing text normalization and smart dual-end truncation to optimize token usage and context management.
 
-## Phase 1: Core Utilities & State Management
+## Phase 1: Core Utilities & State Management [checkpoint: 847b25a]
 Implement the foundational text processing logic and integrate it into the novel storage flow.
 
 - [x] **Task: Implement `normalizeNovelText` Utility** (18ace1e)
