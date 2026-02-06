@@ -1,6 +1,7 @@
 import { useNovelStore } from '../store/useNovelStore';
+import { useWorkflowStore } from '../store/useWorkflowStore';
 import { act } from '@testing-library/react';
-import { db, saveNovel } from '../lib/db';
+import { db, saveNovel, generateSessionId } from '../lib/db';
 
 describe('useNovelStore Integration', () => {
   beforeEach(async () => {
@@ -9,16 +10,9 @@ describe('useNovelStore Integration', () => {
     }
     await db.novels.clear();
     act(() => {
-      useNovelStore.setState({
-        originalNovel: '',
-        wordCount: 0,
-        currentStep: 1,
-        analysis: '',
-        outline: '',
-        outlineDirection: '',
-        chapters: [],
-        history: [],
-      });
+        // Reset store state
+        useNovelStore.getState().startNewSession();
+        useWorkflowStore.getState().resetAllSteps();
     });
   });
 
@@ -36,69 +30,123 @@ describe('useNovelStore Integration', () => {
     
     const latest = await db.novels.toCollection().last();
     expect(latest?.content).toBe('Integration Test');
+    expect(latest?.sessionId).toBeDefined();
   });
 
-  it('should load history from database', async () => {
+  it('should normalize novel content when setting', async () => {
+    const rawContent = '  Line 1  \n\n\n\n你好！  ';
+    const expectedContent = 'Line 1\n\n你好!';
+    
+    await act(async () => {
+      await useNovelStore.getState().setNovel(rawContent);
+    });
+    
+    expect(useNovelStore.getState().originalNovel).toBe(expectedContent);
+    
+    const latest = await db.novels.toCollection().last();
+    expect(latest?.content).toBe(expectedContent);
+  });
+
+  it('should load sessions from database', async () => {
+    const session1 = generateSessionId();
     await saveNovel({
+      sessionId: session1,
       content: 'V1',
       wordCount: 2,
       currentStep: 1,
       analysis: '',
       outline: '',
       outlineDirection: '',
+      breakdown: '',
       chapters: []
-    }, true);
+    });
 
+    // Delay to ensure timestamp difference
+    await new Promise(r => setTimeout(r, 10));
+
+    const session2 = generateSessionId();
     await saveNovel({
+      sessionId: session2,
       content: 'V2',
       wordCount: 2,
       currentStep: 1,
       analysis: '',
       outline: '',
       outlineDirection: '',
+      breakdown: '',
       chapters: []
-    }, true);
+    });
 
     await act(async () => {
-      await useNovelStore.getState().loadHistory();
+      await useNovelStore.getState().loadSessions();
     });
 
     const state = useNovelStore.getState();
-    expect(state.history.length).toBe(2);
-    expect(state.history[0].content).toBe('V2');
+    expect(state.sessions.length).toBe(2);
+    // ordered by updatedAt desc
+    expect(state.sessions[0].content).toBe('V2');
   });
 
-  it('should rollback to a version after saving current state', async () => {
-    // 1. Setup initial state and save it
-    await act(async () => {
-      await useNovelStore.getState().setNovel('V1');
+  it('should switch sessions', async () => {
+    // 1. Create Session A in DB
+    const sessionA = generateSessionId();
+    await saveNovel({
+        sessionId: sessionA,
+        content: 'Content A',
+        wordCount: 10,
+        currentStep: 1,
+        analysis: 'Analysis A',
+        outline: '',
+        outlineDirection: '',
+        breakdown: '',
+        chapters: []
     });
 
-    // 2. Save V1 as a fixed version and then move to V2
+    // 2. Start new session (B) in Store
+    act(() => {
+        useNovelStore.getState().startNewSession();
+    });
+    // Need to set content to trigger persist or manually call persist? 
+    // setNovel calls persist.
     await act(async () => {
-      await useNovelStore.getState().persist(true); // Now we have two entries, both V1 for now
-      await useNovelStore.getState().setNovel('V2'); // Updates the latest entry to V2
+        await useNovelStore.getState().setNovel('Content B');
     });
 
-    const allVersions = await db.novels.orderBy('updatedAt').toArray();
-    const v1 = allVersions[0]; // The first one we saved
-    expect(v1.content).toBe('V1');
+    expect(useNovelStore.getState().originalNovel).toBe('Content B');
 
-    // 3. Rollback to V1
+    // 3. Load Session A
     await act(async () => {
-      await useNovelStore.getState().rollbackToVersion(v1);
+        await useNovelStore.getState().loadSession(sessionA);
     });
 
-    // 4. Verify current state is V1
-    expect(useNovelStore.getState().originalNovel).toBe('V1');
+    expect(useNovelStore.getState().currentSessionId).toBe(sessionA);
+    expect(useNovelStore.getState().originalNovel).toBe('Content A');
+    expect(useNovelStore.getState().analysis).toBe('Analysis A');
+    expect(useWorkflowStore.getState().steps.analysis.content).toBe('Analysis A');
+  });
 
-    // 5. Verify current state is V1 and previous is V2
-    const count = await db.novels.count();
-    expect(count).toBe(3); 
-    
-    const all = await db.novels.orderBy('updatedAt').reverse().toArray();
-    expect(all[0].content).toBe('V1'); // current (rolled back)
-    expect(all[1].content).toBe('V2'); // saved before rollback
-    expect(all[2].content).toBe('V1'); // original version 1
+  it('should clear workflow steps when starting a new session', async () => {
+    act(() => {
+      useWorkflowStore.getState().updateStepContent('analysis', 'Old analysis');
+      useWorkflowStore.getState().setStepError('analysis', 'Old error');
+      useNovelStore.getState().startNewSession();
+    });
+
+    const workflow = useWorkflowStore.getState();
+    const novel = useNovelStore.getState();
+    expect(workflow.steps.analysis.status).toBe('idle');
+    expect(workflow.steps.analysis.content).toBe('');
+    expect(workflow.currentStepId).toBe('analysis');
+    expect(novel.originalNovel).toBe('');
+    expect(novel.outlineDirection).toBe('');
+  });
+
+  it('should persist outline direction to database', async () => {
+    await act(async () => {
+      await useNovelStore.getState().setOutlineDirection('Add political intrigue');
+    });
+
+    const session = await db.novels.where('sessionId').equals(useNovelStore.getState().currentSessionId).first();
+    expect(session?.outlineDirection).toBe('Add political intrigue');
   });
 });

@@ -1,7 +1,13 @@
 import { create } from 'zustand';
-import { saveNovel, getLatestNovel, getNovelHistory, type NovelEntry } from '@/lib/db';
+import { saveNovel, getLatestNovel, getAllSessions, getSession, deleteSession, generateSessionId, type NovelEntry } from '@/lib/db';
+import { useWorkflowStore } from './useWorkflowStore';
+import { normalizeNovelText } from '@/lib/utils';
 
 interface NovelState {
+  // Session management
+  currentSessionId: string;
+  
+  // Novel content
   originalNovel: string;
   wordCount: number;
   
@@ -13,21 +19,25 @@ interface NovelState {
   breakdown: string;
   chapters: string[];
   
-  // History
-  history: NovelEntry[];
+  // Session list (history)
+  sessions: NovelEntry[];
   
   // Actions
   setNovel: (content: string) => Promise<void>;
   setStep: (step: number) => Promise<void>;
-  updateWorkflow: (data: Partial<Omit<NovelState, 'setNovel' | 'setStep' | 'updateWorkflow' | 'reset' | 'initialize' | 'persist' | 'loadHistory' | 'rollbackToVersion'>>) => Promise<void>;
+  updateWorkflow: (data: Partial<Pick<NovelState, 'analysis' | 'outline' | 'outlineDirection' | 'breakdown' | 'chapters'>>) => Promise<void>;
+  setOutlineDirection: (value: string) => Promise<void>;
   reset: () => Promise<void>;
   initialize: () => Promise<void>;
-  persist: (forceNew?: boolean) => Promise<void>;
-  loadHistory: () => Promise<void>;
-  rollbackToVersion: (version: NovelEntry) => Promise<void>;
+  persist: () => Promise<void>;
+  loadSessions: () => Promise<void>;
+  loadSession: (sessionId: string) => Promise<void>;
+  startNewSession: () => void;
+  deleteSessionById: (sessionId: string) => Promise<void>;
 }
 
 export const useNovelStore = create<NovelState>((set, get) => ({
+  currentSessionId: generateSessionId(),
   originalNovel: '',
   wordCount: 0,
   currentStep: 1,
@@ -36,11 +46,12 @@ export const useNovelStore = create<NovelState>((set, get) => ({
   outlineDirection: '',
   breakdown: '',
   chapters: [],
-  history: [],
+  sessions: [],
 
   setNovel: async (content: string) => {
-    const count = content.trim() ? content.trim().length : 0;
-    set({ originalNovel: content, wordCount: count });
+    const normalized = normalizeNovelText(content);
+    const count = normalized.length;
+    set({ originalNovel: normalized, wordCount: count });
     await get().persist();
   },
 
@@ -49,14 +60,25 @@ export const useNovelStore = create<NovelState>((set, get) => ({
     await get().persist();
   },
 
-  updateWorkflow: async (data: Partial<Omit<NovelState, 'setNovel' | 'setStep' | 'updateWorkflow' | 'reset' | 'initialize' | 'persist' | 'loadHistory' | 'rollbackToVersion'>>) => {
+  updateWorkflow: async (data) => {
     set((state) => ({ ...state, ...data }));
     await get().persist();
   },
 
-  persist: async (forceNew = false) => {
+  setOutlineDirection: async (value: string) => {
+    set({ outlineDirection: value });
+    await get().persist();
+  },
+
+  persist: async () => {
     const state = get();
+    
+    // Generate session name from first 20 chars of novel or "Untitled"
+    const sessionName = state.originalNovel.trim().substring(0, 30) || '未命名小說';
+    
     await saveNovel({
+      sessionId: state.currentSessionId,
+      sessionName: sessionName + (sessionName.length >= 30 ? '...' : ''),
       content: state.originalNovel,
       wordCount: state.wordCount,
       currentStep: state.currentStep,
@@ -65,37 +87,43 @@ export const useNovelStore = create<NovelState>((set, get) => ({
       outlineDirection: state.outlineDirection,
       breakdown: state.breakdown,
       chapters: state.chapters,
-    }, forceNew);
-    await get().loadHistory();
-  },
-
-  loadHistory: async () => {
-    const history = await getNovelHistory();
-    set({ history });
-  },
-
-  rollbackToVersion: async (version: NovelEntry) => {
-    // Save current state as a new version before rolling back (non-destructive)
-    await get().persist(true);
-    
-    // Update current state to version
-    set({
-      originalNovel: version.content,
-      wordCount: version.wordCount,
-      currentStep: version.currentStep,
-      analysis: version.analysis,
-      outline: version.outline,
-      outlineDirection: version.outlineDirection,
-      breakdown: version.breakdown,
-      chapters: version.chapters,
     });
-    
-    // Save the "rolled back" state as the latest entry
-    await get().persist();
+    await get().loadSessions();
   },
 
-  reset: async () => {
+  loadSessions: async () => {
+    const sessions = await getAllSessions();
+    set({ sessions });
+  },
+
+  loadSession: async (sessionId: string) => {
+    const session = await getSession(sessionId);
+    if (session) {
+      set({
+        currentSessionId: session.sessionId,
+        originalNovel: session.content,
+        wordCount: session.wordCount,
+        currentStep: session.currentStep,
+        analysis: session.analysis,
+        outline: session.outline,
+        outlineDirection: session.outlineDirection,
+        breakdown: session.breakdown,
+        chapters: session.chapters,
+      });
+      useWorkflowStore.getState().hydrateFromNovelSession({
+        currentStep: session.currentStep,
+        analysis: session.analysis,
+        outline: session.outline,
+        breakdown: session.breakdown,
+        chapters: session.chapters,
+      });
+    }
+  },
+
+  startNewSession: () => {
+    const newSessionId = generateSessionId();
     set({
+      currentSessionId: newSessionId,
       originalNovel: '',
       wordCount: 0,
       currentStep: 1,
@@ -105,6 +133,21 @@ export const useNovelStore = create<NovelState>((set, get) => ({
       breakdown: '',
       chapters: [],
     });
+    useWorkflowStore.getState().resetAllSteps();
+  },
+
+  deleteSessionById: async (sessionId: string) => {
+    await deleteSession(sessionId);
+    await get().loadSessions();
+    
+    // If deleted current session, start a new one
+    if (get().currentSessionId === sessionId) {
+      get().startNewSession();
+    }
+  },
+
+  reset: async () => {
+    get().startNewSession();
     await get().persist();
   },
 
@@ -112,6 +155,7 @@ export const useNovelStore = create<NovelState>((set, get) => ({
     const latest = await getLatestNovel();
     if (latest) {
       set({
+        currentSessionId: latest.sessionId,
         originalNovel: latest.content,
         wordCount: latest.wordCount,
         currentStep: latest.currentStep,
@@ -122,6 +166,6 @@ export const useNovelStore = create<NovelState>((set, get) => ({
         chapters: latest.chapters,
       });
     }
-    await get().loadHistory();
+    await get().loadSessions();
   },
 }));
