@@ -30,12 +30,12 @@ Add the new "Context" settings tab and relevant state variables.
 ## Phase 3: Smart Truncation Logic
 Implement the dual-end truncation in the prompt generation engine.
 
-- [ ] **Task: Implement Dual-End Truncation in Prompt Engine**
-    - [ ] Update `__tests__/prompt-engine.test.ts` with test cases for:
+- [x] **Task: Implement Dual-End Truncation in Prompt Engine** (3db3fac)
+    - [x] Update `__tests__/prompt-engine.test.ts` with test cases for:
         - Small chapters (no truncation).
         - Large chapters (dual-end truncation with placeholder).
         - Chapter 1 (never truncated).
-    - [ ] Modify `lib/prompt-engine.ts` (specifically `injectPrompt` or summary generation logic) to use the new settings and truncation rules.
+    - [x] Modify `lib/prompt-engine.ts` (specifically `injectPrompt` or summary generation logic) to use the new settings and truncation rules.
 - [ ] **Task: Verify End-to-End Workflow**
     - [ ] Run full test suite `npm test` to ensure no regressions in prompt generation.
     - [ ] Verify token efficiency manually by inspecting generated prompts in the console or debug logs.
