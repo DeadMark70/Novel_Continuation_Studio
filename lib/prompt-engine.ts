@@ -6,6 +6,8 @@ export interface PromptContext {
   previousChapters?: string[];
   userNotes?: string;
   nextChapterNumber?: number;
+  truncationThreshold?: number;
+  dualEndBuffer?: number;
 }
 
 /**
@@ -40,7 +42,45 @@ export function injectPrompt(template: string, context: PromptContext): string {
   }
 
   if (context.previousChapters && context.previousChapters.length > 0) {
-    const chaptersText = context.previousChapters.join('\n\n---\n\n');
+    const chapters = context.previousChapters;
+    const MAX_FULL_CHAPTERS = 2; // Only keep last 2 chapters fully
+    const threshold = context.truncationThreshold ?? 800;
+    const buffer = context.dualEndBuffer ?? 400;
+    
+    let chaptersText = '';
+    
+    if (chapters.length <= MAX_FULL_CHAPTERS) {
+      // Include all chapters if 2 or fewer
+      chaptersText = chapters.map((ch, i) => `【第 ${i + 1} 章】\n${ch}`).join('\n\n---\n\n');
+    } else {
+      // Summarize earlier chapters, keep last 2 full
+      const earlyChapters = chapters.slice(0, -MAX_FULL_CHAPTERS);
+      const recentChapters = chapters.slice(-MAX_FULL_CHAPTERS);
+      
+      // Create smart dual-end summaries for early chapters
+      const summaries = earlyChapters.map((ch, i) => {
+        const chapterNum = i + 1;
+        // NEVER truncate Chapter 1 or small chapters
+        if (chapterNum === 1 || ch.length <= threshold) {
+          return `【第 ${chapterNum} 章 - 完整】\n${ch}`;
+        }
+        
+        const head = ch.substring(0, buffer).trim();
+        const tail = ch.substring(ch.length - buffer).trim();
+        const omitted = ch.length - head.length - tail.length;
+        
+        return `【第 ${chapterNum} 章 - 摘要】\n${head}\n\n...[中間省略 ${omitted} 字]...\n\n${tail}`;
+      }).join('\n\n---\n\n');
+      
+      // Full text for recent chapters
+      const recentTexts = recentChapters.map((ch, i) => {
+        const chapterNum = earlyChapters.length + i + 1;
+        return `【第 ${chapterNum} 章 - 完整】\n${ch}`;
+      }).join('\n\n---\n\n');
+      
+      chaptersText = `${summaries}\n\n---\n\n${recentTexts}`;
+    }
+    
     result = result.replace(/{{GENERATED_CHAPTERS}}/g, chaptersText);
     // Legacy support
     result = result.replace(/\x5B插入前面所有已生成的章節\x5D|\x5B已生成的前面章節\x5D/g, chaptersText);

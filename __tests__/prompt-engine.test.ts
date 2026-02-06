@@ -36,18 +36,54 @@ describe('Prompt Engine', () => {
     const template = 'Prev: {{GENERATED_CHAPTERS}}';
     const longText = 'A'.repeat(1000);
     const result = injectPrompt(template, { 
-      previousChapters: [longText, 'Ch2', 'Ch3'] 
+      previousChapters: ['Ch1', longText, 'Ch3', 'Ch4'] 
     });
     
-    expect(result).toContain('【第 1 章 - 摘要】');
-    expect(result).toContain('A'.repeat(500) + '...（後續省略）');
-    expect(result).not.toContain('A'.repeat(501)); // Should be truncated
+    // Chapter 1 should be full
+    expect(result).toContain('【第 1 章 - 完整】');
+    expect(result).toContain('Ch1');
+
+    // Chapter 2 should be summarized (dual-end)
+    expect(result).toContain('【第 2 章 - 摘要】');
+    expect(result).toContain('A'.repeat(400));
+    expect(result).toContain('...[中間省略 200 字]...');
     
-    expect(result).toContain('【第 2 章 - 完整】');
-    expect(result).toContain('Ch2');
-    
+    // Chapters 3 & 4 should be full
     expect(result).toContain('【第 3 章 - 完整】');
     expect(result).toContain('Ch3');
+    expect(result).toContain('【第 4 章 - 完整】');
+    expect(result).toContain('Ch4');
+  });
+
+  it('uses smart dual-end truncation for early chapters', () => {
+    const template = 'Prev: {{GENERATED_CHAPTERS}}';
+    const longText = 'HEAD' + 'M'.repeat(1000) + 'TAIL';
+    // Use 4 chapters so Ch2 is an "early" chapter and can be truncated
+    const result = injectPrompt(template, { 
+      previousChapters: ['Ch1', longText, 'Ch3', 'Ch4'],
+      truncationThreshold: 500,
+      dualEndBuffer: 100
+    });
+    
+    expect(result).toContain('【第 2 章 - 摘要】');
+    expect(result).toContain('HEAD');
+    expect(result).toContain('TAIL');
+    expect(result).toContain('...[中間省略 808 字]...');
+    expect(result).not.toContain('M'.repeat(500)); // Should be truncated
+  });
+
+  it('never truncates Chapter 1', () => {
+    const template = 'Prev: {{GENERATED_CHAPTERS}}';
+    const longText = 'START' + 'M'.repeat(2000) + 'END';
+    const result = injectPrompt(template, { 
+      previousChapters: [longText, 'Ch2', 'Ch3'],
+      truncationThreshold: 500,
+      dualEndBuffer: 100
+    });
+    
+    expect(result).toContain('【第 1 章 - 完整】'); // Should NOT be "摘要"
+    expect(result).toContain(longText);
+    expect(result).not.toContain('...[中間省略');
   });
 
   it('injects user notes before separator', () => {
