@@ -5,12 +5,86 @@ export interface NimModel {
   owned_by: string;
 }
 
+export interface ModelCapability {
+  chatSupported: boolean;
+  thinkingSupported: 'supported' | 'unsupported' | 'unknown';
+  reason?: string;
+  checkedAt: number;
+  source: 'probe' | 'override';
+}
+
 export interface GenerateOptions {
   maxTokens?: number;
   temperature?: number;
   topP?: number;
+  frequencyPenalty?: number;
+  presencePenalty?: number;
+  seed?: number;
+  enableThinking?: boolean;
+  thinkingSupported?: boolean;
   timeout?: number;  // ms
+  maxRetries?: number;
+  retryDelay?: number;
+  retryableErrors?: number[];
+  onRetry?: (attempt: number, maxRetries: number, delay: number, error: unknown) => void;
   onError?: (error: unknown, context?: string) => void;
+}
+
+class NimHttpError extends Error {
+  constructor(
+    public readonly status: number,
+    message: string
+  ) {
+    super(message);
+    this.name = 'NimHttpError';
+  }
+}
+
+function createAbortError(): Error {
+  const error = new Error('Aborted');
+  error.name = 'AbortError';
+  return error;
+}
+
+function isAbortError(error: unknown): boolean {
+  return error instanceof Error && error.name === 'AbortError';
+}
+
+function isRetryableError(error: unknown, retryableErrors: number[]): boolean {
+  return error instanceof NimHttpError && retryableErrors.includes(error.status);
+}
+
+function waitWithAbort(ms: number, signal?: AbortSignal): Promise<void> {
+  return new Promise((resolve, reject) => {
+    if (ms <= 0) {
+      resolve();
+      return;
+    }
+
+    const timerId = setTimeout(() => {
+      cleanup();
+      resolve();
+    }, ms);
+
+    const onAbort = () => {
+      cleanup();
+      reject(createAbortError());
+    };
+
+    const cleanup = () => {
+      clearTimeout(timerId);
+      if (signal) signal.removeEventListener('abort', onAbort);
+    };
+
+    if (signal) {
+      if (signal.aborted) {
+        cleanup();
+        reject(createAbortError());
+        return;
+      }
+      signal.addEventListener('abort', onAbort, { once: true });
+    }
+  });
 }
 
 export async function fetchModels(apiKey?: string): Promise<NimModel[]> {
@@ -42,6 +116,33 @@ export async function fetchModels(apiKey?: string): Promise<NimModel[]> {
   }
 }
 
+export async function fetchModelCapability(
+  model: string,
+  apiKey?: string
+): Promise<ModelCapability> {
+  const headers: HeadersInit = {
+    'Content-Type': 'application/json',
+    'Accept': 'application/json',
+  };
+
+  if (apiKey) {
+    headers['Authorization'] = `Bearer ${apiKey.trim()}`;
+  }
+
+  const response = await fetch('/api/nim/capabilities', {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({ model }),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`Failed to probe model capability: ${response.status} - ${errorText}`);
+  }
+
+  return response.json() as Promise<ModelCapability>;
+}
+
 export async function* generateStream(
   prompt: string,
   model: string,
@@ -55,7 +156,16 @@ export async function* generateStream(
     maxTokens = 4096,
     temperature = 0.7,
     topP = 1,
-    timeout = 60000,
+    frequencyPenalty,
+    presencePenalty,
+    seed,
+    enableThinking = false,
+    thinkingSupported = false,
+    timeout = 180000, // 3 minutes timeout for slow APIs
+    maxRetries = 2,
+    retryDelay = 3000,
+    retryableErrors = [504, 502, 503],
+    onRetry,
     onError
   } = options || {};
 
@@ -64,88 +174,167 @@ export async function* generateStream(
     { role: 'user', content: prompt }
   ];
 
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), timeout);
-  
-  // Merge signals: either timeout or external user cancel
-  const mergedSignal = signal || controller.signal;
-  
-  // If external signal is provided, we need to listen to it to abort our controller too
-  if (signal) {
-    signal.addEventListener('abort', () => controller.abort());
-  }
+  let lastError: unknown = null;
 
-  try {
-    const headers: HeadersInit = {
-      'Content-Type': 'application/json',
-      'Accept': 'text/event-stream',
-    };
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), timeout);
+    const onExternalAbort = () => controller.abort();
 
-    if (apiKey) {
-      headers['Authorization'] = `Bearer ${apiKey.trim()}`;
+    if (signal) {
+      if (signal.aborted) {
+        controller.abort();
+      } else {
+        signal.addEventListener('abort', onExternalAbort, { once: true });
+      }
     }
 
-    const response = await fetch('/api/nim/generate', {
-      method: 'POST',
-      headers,
-      body: JSON.stringify({
-        model,
-        messages,
-        max_tokens: maxTokens,
-        temperature,
-        top_p: topP,
-      }),
-      signal: mergedSignal,
-    });
+    try {
+      const headers: HeadersInit = {
+        'Content-Type': 'application/json',
+        'Accept': 'text/event-stream',
+      };
 
-    clearTimeout(timeoutId);
-
-    if (!response.ok) {
-      if (response.status === 429) throw new Error('Rate limit exceeded');
-      if (response.status === 401) throw new Error('Invalid API key');
-      const errorText = await response.text();
-      throw new Error(`NIM API Error (${response.status}): ${errorText.slice(0, 200)}`);
-    }
-
-    if (!response.body) throw new Error('Response body is null');
-
-    const reader = response.body.getReader();
-    const decoder = new TextDecoder();
-    let buffer = '';
-
-    while (true) {
-      if (mergedSignal.aborted) {
-        reader.cancel();
-        break;
+      if (apiKey) {
+        headers['Authorization'] = `Bearer ${apiKey.trim()}`;
       }
 
-      const { done, value } = await reader.read();
-      if (done) break;
+      const response = await fetch('/api/nim/generate', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          model,
+          messages,
+          max_tokens: maxTokens,
+          temperature,
+          top_p: topP,
+          frequency_penalty: frequencyPenalty,
+          presence_penalty: presencePenalty,
+          seed,
+          chat_template_kwargs: enableThinking && thinkingSupported ? { thinking: true } : undefined,
+        }),
+        signal: controller.signal,
+      });
 
-      buffer += decoder.decode(value, { stream: true });
-      const lines = buffer.split('\n');
-      buffer = lines.pop() || '';
+      if (!response.ok) {
+        if (response.status === 429) throw new Error('Rate limit exceeded');
+        if (response.status === 401) throw new Error('Invalid API key');
+        const errorText = await response.text();
+        throw new NimHttpError(response.status, `NIM API Error (${response.status}): ${errorText.slice(0, 200)}`);
+      }
 
-      for (const line of lines) {
-        const trimmed = line.trim();
-        if (!trimmed || trimmed === 'data: [DONE]') continue;
-        if (trimmed.startsWith('data: ')) {
+      if (!response.body) throw new Error('Response body is null');
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+
+      while (true) {
+        if (controller.signal.aborted) {
+          await reader.cancel();
+          break;
+        }
+
+        const { done, value } = await reader.read();
+        if (done) {
+          console.log('[SSE] Stream ended (done=true)');
+          break;
+        }
+
+        const rawChunk = decoder.decode(value, { stream: true });
+        buffer += rawChunk;
+        
+        // Debug: Log first few raw chunks
+        if (buffer.length < 2000) {
+          console.log('[SSE] Raw chunk received:', rawChunk.substring(0, 200));
+        }
+        
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || '';
+
+        for (const line of lines) {
+          const trimmed = line.trim();
+          if (!trimmed || trimmed === 'data: [DONE]') continue;
+          if (trimmed.startsWith('data: ')) {
+            try {
+              const json = JSON.parse(trimmed.slice(6));
+              
+              // ✅ Check if API returned an error object
+              if (json.error) {
+                const errorMessage = json.error.message || json.error.type || 'Unknown API error';
+                console.error('[SSE] API Error in stream:', errorMessage);
+                throw new Error(`API Error: ${errorMessage}`);
+              }
+              
+              // Try multiple possible content locations
+              const content = json.choices?.[0]?.delta?.content 
+                || json.choices?.[0]?.message?.content
+                || json.content
+                || json.text;
+              
+              if (content) {
+                yield content;
+              }
+            } catch (e) {
+              if (e instanceof Error && e.message.startsWith('API Error:')) {
+                throw e;
+              }
+              onError?.(e, trimmed);
+              console.warn('Failed to parse SSE:', trimmed);
+            }
+          }
+        }
+      }
+
+      // Process any remaining content in buffer
+      if (buffer.trim()) {
+        const trimmed = buffer.trim();
+        if (trimmed !== 'data: [DONE]' && trimmed.startsWith('data: ')) {
           try {
             const json = JSON.parse(trimmed.slice(6));
             const content = json.choices?.[0]?.delta?.content;
             if (content) yield content;
-          } catch (e) {
-            onError?.(e, trimmed);
-            console.warn('Failed to parse SSE:', trimmed);
+          } catch {
+            console.warn('Failed to parse remaining SSE buffer:', trimmed);
           }
         }
       }
+
+      return;
+    } catch (error) {
+      lastError = error;
+
+      if (isAbortError(error)) {
+        if (signal?.aborted) {
+          throw new Error('Request cancelled');
+        }
+        throw new Error('Request timed out');
+      }
+
+      if (isRetryableError(error, retryableErrors) && attempt < maxRetries) {
+        const nextAttempt = attempt + 1;
+        const delay = retryDelay * Math.pow(2, attempt);
+        console.log(`[NIM] Retry ${nextAttempt}/${maxRetries} after ${delay}ms`);
+        onRetry?.(nextAttempt, maxRetries, delay, error);
+        try {
+          await waitWithAbort(delay, signal);
+        } catch (waitError) {
+          if (isAbortError(waitError) && signal?.aborted) {
+            throw new Error('Request cancelled');
+          }
+          throw waitError;
+        }
+        continue;
+      }
+
+      throw error;
+    } finally {
+      clearTimeout(timeoutId);
+      if (signal) {
+        signal.removeEventListener('abort', onExternalAbort);
+      }
     }
-  } catch (error) {
-    clearTimeout(timeoutId);
-    if (error instanceof Error && error.name === 'AbortError') {
-      throw new Error('Request cancelled or timed out');
-    }
-    throw error;
   }
+
+  throw lastError instanceof Error ? lastError : new Error('Unknown generation error');
 }

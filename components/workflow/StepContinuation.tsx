@@ -11,14 +11,15 @@ import { AutoModeControl } from './AutoModeControl';
 import { ProgressIndicator } from './ProgressIndicator';
 
 export const StepContinuation: React.FC = () => {
-  const { steps, isGenerating, isPaused } = useWorkflowStore();
-  const { chapters } = useNovelStore();
+  const { steps, isGenerating } = useWorkflowStore();
+  const { chapters, targetChapterCount } = useNovelStore();
   const { generate, stop } = useStepGenerator();
   
   const step = steps.continuation;
   
   // Calculate next chapter number (chapters array + 1)
   const nextChapterNumber = chapters.length + 1;
+  const totalChapterCount = Math.max(2, targetChapterCount ?? 5);
   const hasWrittenChapters = chapters.length > 0;
 
   return (
@@ -29,7 +30,7 @@ export const StepContinuation: React.FC = () => {
           {hasWrittenChapters && (
             <CardDescription className="flex items-center gap-1 mt-1">
               <BookOpen className="size-3" />
-              已生成 {chapters.length} 章
+              已生成 {chapters.length}/{totalChapterCount} 章
             </CardDescription>
           )}
         </div>
@@ -39,8 +40,9 @@ export const StepContinuation: React.FC = () => {
         {isGenerating ? (
           <ProgressIndicator 
             current={nextChapterNumber} 
-            total={5} 
-            onStop={stop} 
+            total={totalChapterCount} 
+            onStop={stop}
+            stopDisabled={step.status !== 'streaming'}
           />
         ) : (
           <AutoModeControl 

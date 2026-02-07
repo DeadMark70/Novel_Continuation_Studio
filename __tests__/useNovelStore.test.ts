@@ -58,7 +58,9 @@ describe('useNovelStore Integration', () => {
       outline: '',
       outlineDirection: '',
       breakdown: '',
-      chapters: []
+      chapters: [],
+      targetStoryWordCount: 20000,
+      targetChapterCount: 5
     });
 
     // Delay to ensure timestamp difference
@@ -74,7 +76,9 @@ describe('useNovelStore Integration', () => {
       outline: '',
       outlineDirection: '',
       breakdown: '',
-      chapters: []
+      chapters: [],
+      targetStoryWordCount: 25000,
+      targetChapterCount: 6
     });
 
     await act(async () => {
@@ -99,7 +103,9 @@ describe('useNovelStore Integration', () => {
         outline: '',
         outlineDirection: '',
         breakdown: '',
-        chapters: []
+        chapters: [],
+        targetStoryWordCount: 18000,
+        targetChapterCount: 4
     });
 
     // 2. Start new session (B) in Store
@@ -122,6 +128,8 @@ describe('useNovelStore Integration', () => {
     expect(useNovelStore.getState().currentSessionId).toBe(sessionA);
     expect(useNovelStore.getState().originalNovel).toBe('Content A');
     expect(useNovelStore.getState().analysis).toBe('Analysis A');
+    expect(useNovelStore.getState().targetStoryWordCount).toBe(18000);
+    expect(useNovelStore.getState().targetChapterCount).toBe(4);
     expect(useWorkflowStore.getState().steps.analysis.content).toBe('Analysis A');
   });
 
@@ -139,6 +147,8 @@ describe('useNovelStore Integration', () => {
     expect(workflow.currentStepId).toBe('analysis');
     expect(novel.originalNovel).toBe('');
     expect(novel.outlineDirection).toBe('');
+    expect(novel.targetStoryWordCount).toBe(20000);
+    expect(novel.targetChapterCount).toBe(5);
   });
 
   it('should persist outline direction to database', async () => {
@@ -148,5 +158,16 @@ describe('useNovelStore Integration', () => {
 
     const session = await db.novels.where('sessionId').equals(useNovelStore.getState().currentSessionId).first();
     expect(session?.outlineDirection).toBe('Add political intrigue');
+  });
+
+  it('should persist target story and chapter settings', async () => {
+    await act(async () => {
+      await useNovelStore.getState().setTargetStoryWordCount(30000);
+      await useNovelStore.getState().setTargetChapterCount(8);
+    });
+
+    const session = await db.novels.where('sessionId').equals(useNovelStore.getState().currentSessionId).first();
+    expect(session?.targetStoryWordCount).toBe(30000);
+    expect(session?.targetChapterCount).toBe(8);
   });
 });

@@ -12,6 +12,8 @@ export interface NovelEntry {
   outlineDirection: string;
   breakdown: string;
   chapters: string[];
+  targetStoryWordCount?: number;
+  targetChapterCount?: number;
   createdAt: number;
   updatedAt: number;
 }
@@ -24,6 +26,14 @@ export interface SettingsEntry {
   customPrompts: Record<string, string>;
   truncationThreshold?: number;
   dualEndBuffer?: number;
+  thinkingEnabled?: boolean;
+  modelCapabilities?: Record<string, {
+    chatSupported: boolean;
+    thinkingSupported: 'supported' | 'unsupported' | 'unknown';
+    reason?: string;
+    checkedAt: number;
+    source: 'probe' | 'override';
+  }>;
   updatedAt: number;
 }
 
@@ -44,6 +54,28 @@ export class NovelDatabase extends Dexie {
       novels: '++id, sessionId, updatedAt, createdAt',
       settings: 'id, updatedAt'
     });
+    this.version(4).stores({
+      novels: '++id, sessionId, updatedAt, createdAt',
+      settings: 'id, updatedAt'
+    }).upgrade(async (tx) => {
+      await tx.table('novels').toCollection().modify((entry: NovelEntry) => {
+        if (entry.targetStoryWordCount === undefined) {
+          entry.targetStoryWordCount = 20000;
+        }
+        if (entry.targetChapterCount === undefined) {
+          entry.targetChapterCount = 5;
+        }
+      });
+
+      await tx.table('settings').toCollection().modify((entry: SettingsEntry) => {
+        if (entry.thinkingEnabled === undefined) {
+          entry.thinkingEnabled = false;
+        }
+        if (!entry.modelCapabilities) {
+          entry.modelCapabilities = {};
+        }
+      });
+    });
   }
 }
 
@@ -55,6 +87,11 @@ export const db = new NovelDatabase();
  */
 export async function saveNovel(entry: Omit<NovelEntry, 'id' | 'updatedAt' | 'createdAt'>) {
   const now = Date.now();
+  const normalizedEntry: Omit<NovelEntry, 'id' | 'updatedAt' | 'createdAt'> = {
+    ...entry,
+    targetStoryWordCount: entry.targetStoryWordCount ?? 20000,
+    targetChapterCount: entry.targetChapterCount ?? 5,
+  };
   
   // Check if this session already exists
   const existing = await db.novels.where('sessionId').equals(entry.sessionId).first();
@@ -62,14 +99,14 @@ export async function saveNovel(entry: Omit<NovelEntry, 'id' | 'updatedAt' | 'cr
   if (existing && existing.id) {
     // Update existing session
     return await db.novels.update(existing.id, { 
-      ...entry, 
+      ...normalizedEntry,
       updatedAt: now,
       createdAt: existing.createdAt // Keep original creation time
     });
   } else {
     // Create new session
     return await db.novels.add({ 
-      ...entry, 
+      ...normalizedEntry, 
       createdAt: now,
       updatedAt: now 
     });

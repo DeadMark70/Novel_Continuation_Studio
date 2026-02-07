@@ -18,6 +18,8 @@ interface NovelState {
   outlineDirection: string;
   breakdown: string;
   chapters: string[];
+  targetStoryWordCount: number;
+  targetChapterCount: number;
   
   // Session list (history)
   sessions: NovelEntry[];
@@ -27,6 +29,8 @@ interface NovelState {
   setStep: (step: number) => Promise<void>;
   updateWorkflow: (data: Partial<Pick<NovelState, 'analysis' | 'outline' | 'outlineDirection' | 'breakdown' | 'chapters'>>) => Promise<void>;
   setOutlineDirection: (value: string) => Promise<void>;
+  setTargetStoryWordCount: (value: number) => Promise<void>;
+  setTargetChapterCount: (value: number) => Promise<void>;
   reset: () => Promise<void>;
   initialize: () => Promise<void>;
   persist: () => Promise<void>;
@@ -46,6 +50,8 @@ export const useNovelStore = create<NovelState>((set, get) => ({
   outlineDirection: '',
   breakdown: '',
   chapters: [],
+  targetStoryWordCount: 20000,
+  targetChapterCount: 5,
   sessions: [],
 
   setNovel: async (content: string) => {
@@ -70,6 +76,18 @@ export const useNovelStore = create<NovelState>((set, get) => ({
     await get().persist();
   },
 
+  setTargetStoryWordCount: async (value: number) => {
+    const safeValue = Math.max(5000, Math.min(50000, value));
+    set({ targetStoryWordCount: safeValue });
+    await get().persist();
+  },
+
+  setTargetChapterCount: async (value: number) => {
+    const safeValue = Math.max(3, Math.min(20, value));
+    set({ targetChapterCount: safeValue });
+    await get().persist();
+  },
+
   persist: async () => {
     const state = get();
     
@@ -87,6 +105,8 @@ export const useNovelStore = create<NovelState>((set, get) => ({
       outlineDirection: state.outlineDirection,
       breakdown: state.breakdown,
       chapters: state.chapters,
+      targetStoryWordCount: state.targetStoryWordCount,
+      targetChapterCount: state.targetChapterCount,
     });
     await get().loadSessions();
   },
@@ -109,6 +129,8 @@ export const useNovelStore = create<NovelState>((set, get) => ({
         outlineDirection: session.outlineDirection,
         breakdown: session.breakdown,
         chapters: session.chapters,
+        targetStoryWordCount: session.targetStoryWordCount ?? 20000,
+        targetChapterCount: session.targetChapterCount ?? 5,
       });
       useWorkflowStore.getState().hydrateFromNovelSession({
         currentStep: session.currentStep,
@@ -132,6 +154,8 @@ export const useNovelStore = create<NovelState>((set, get) => ({
       outlineDirection: '',
       breakdown: '',
       chapters: [],
+      targetStoryWordCount: 20000,
+      targetChapterCount: 5,
     });
     useWorkflowStore.getState().resetAllSteps();
   },
@@ -164,6 +188,8 @@ export const useNovelStore = create<NovelState>((set, get) => ({
         outlineDirection: latest.outlineDirection,
         breakdown: latest.breakdown,
         chapters: latest.chapters,
+        targetStoryWordCount: latest.targetStoryWordCount ?? 20000,
+        targetChapterCount: latest.targetChapterCount ?? 5,
       });
     }
     await get().loadSessions();

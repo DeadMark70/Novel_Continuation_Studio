@@ -2,6 +2,7 @@
 
 import React, { useEffect } from 'react';
 import { useNovelStore } from '@/store/useNovelStore';
+import { useSettingsStore } from '@/store/useSettingsStore';
 import { NovelStats } from '@/components/NovelStats';
 import { StoryUpload } from '@/components/StoryUpload';
 import { SettingsPanel } from '@/components/SettingsPanel';
@@ -11,11 +12,13 @@ import { Separator } from '@/components/ui/separator';
 import { Terminal, ShieldAlert } from 'lucide-react';
 
 export default function Home() {
-  const { initialize } = useNovelStore();
+  const { initialize: initializeNovel } = useNovelStore();
+  const { initialize: initializeSettings } = useSettingsStore();
 
   useEffect(() => {
-    initialize();
-  }, [initialize]);
+    initializeNovel();
+    initializeSettings();
+  }, [initializeNovel, initializeSettings]);
 
   return (
     <main className="min-h-screen bg-background text-foreground selection:bg-primary/30 selection:text-primary-foreground">

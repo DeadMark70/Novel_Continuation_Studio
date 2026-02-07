@@ -23,22 +23,29 @@
 2.  **5-Step Automated Workflow:**
     -   **Sequence Alpha (Step 1 -> 2):** Automated analysis leading to a user decision point.
     -   **User Decision Point:** User-defined "Plot Direction" input at Step 2.
+    -   **Workflow Customization:**
+        -   Adjustable final story target word count (`targetStoryWordCount`, default `20000`, range `5000-50000`) at Step 2.
+        -   Adjustable target chapter count (`targetChapterCount`, default `5`, range `3-20`) at Step 3.
     -   **Sequence Beta (Step 2 -> 3 -> 4):** Continuous automated generation from outline to the first chapter.
-    -   **Step 5 (Automation Control):** Flexible continuation with Manual, Full Auto (Chapters 2-5), or Range modes.
+    -   **Step 5 (Automation Control):** Flexible continuation with Manual, Full Auto, or Range modes, all bounded by `targetChapterCount` instead of hardcoded chapter limits.
 3.  **Prompt Engineering Panel:**
     -   Full edit access to the 5 core prompts.
-    -   Adjustable word count targets.
+    -   Adjustable final story word count target via prompt placeholders.
     -   Outline direction presets (Deepen Conflict, Advance Plot, New Character, Strengthen Theme).
     -   Reset to default.
     -   **Optimization Control:**
         -   Configurable Truncation Threshold.
         -   Adjustable Dual-End Buffer (characters to keep at each end).
-4.  **Real-time Streaming:**
+4.  **Model Capability Governance (NIM):**
+    -   Model capability probing for chat availability and thinking support.
+    -   Thinking mode toggle in settings with per-model support detection.
+    -   Unsupported models/parameters are surfaced in UI and blocked before generation when applicable.
+5.  **Real-time Streaming:**
     -   Visual feedback during generation (NVIDIA NIM).
     -   Pause/Cancel controls.
-5.  **Version Control (Session-Based):**
+6.  **Version Control (Session-Based):**
     -   **Session History:** Each analysis starts a new isolated session, preserving the full context of that run.
-    -   Local persistence (IndexedDB v3).
+    -   Local persistence (IndexedDB v4).
     -   Non-destructive History rollback (auto-saves current state before restoring).
         - Export to TXT: Allows selecting any session to export as a formatted story (including session-specific original content and chapters) with timestamped filenames.
 
@@ -90,13 +97,13 @@ The application is built around these 5 specific prompt stages, using an automat
 相信你的故事直覺，讓故事自然流動。不要刻意規劃「3 幕結構」或強制插入特定元素。
 
 **輸出格式：**
-分成 3-4 個清晰的情節段落，每段標註簡短標題。
+分成 3-4 個清晰的情節段落，每段標註簡短標題，並在開頭標出目標續寫小說總字數（{{TARGET_STORY_WORD_COUNT}} 字，若無額外要求預設 20000 字）。
 ```
 
 ### Prompt 3: Chapter Breakdown
 **Purpose:** Break the outline into a chapter framework.
 ```text
-將以下大綱分解為 5-7 個章節框架。
+將以下大綱分解為 {{TARGET_CHAPTER_COUNT}} 個章節框架。
 
 **續寫大綱：**
 {{OUTLINE_RESULT}}

@@ -1,8 +1,0 @@
-{
-  "track_id": "automated_workflow_20260129",
-  "type": "feature",
-  "status": "new",
-  "created_at": "2026-01-29T18:23:00Z",
-  "updated_at": "2026-01-29T18:23:00Z",
-  "description": "目前需要把Workflow Execution Phase I: Analysis ~V全都自動化 phase2需要讓使用者可以輸入文字來確定故事的大致走向 目前ERROR: DEFAULT_PROMPTS is not defined"
-}

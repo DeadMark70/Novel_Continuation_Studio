@@ -8,6 +8,8 @@ export interface PromptContext {
   nextChapterNumber?: number;
   truncationThreshold?: number;
   dualEndBuffer?: number;
+  targetStoryWordCount?: number;
+  targetChapterCount?: number;
 }
 
 /**
@@ -91,6 +93,12 @@ export function injectPrompt(template: string, context: PromptContext): string {
   if (context.nextChapterNumber !== undefined) {
     result = result.replace(/{{NEXT_CHAPTER_NUMBER}}/g, context.nextChapterNumber.toString());
   }
+
+  const targetStoryWordCount = context.targetStoryWordCount ?? 20000;
+  result = result.replace(/{{TARGET_STORY_WORD_COUNT}}/g, targetStoryWordCount.toString());
+
+  const targetChapterCount = context.targetChapterCount ?? 5;
+  result = result.replace(/{{TARGET_CHAPTER_COUNT}}/g, targetChapterCount.toString());
 
   // Handle User Notes / Direction
   if (context.userNotes) {

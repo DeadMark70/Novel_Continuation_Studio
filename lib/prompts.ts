@@ -13,7 +13,7 @@ export const DEFAULT_PROMPTS = {
 小說內容：
 {{NOVEL_TEXT}}`,
 
-  outline: `基於以下資訊，為這部小說生成續寫大綱。
+  outline: `基於以下資訊，為這部成人小說生成續寫大綱。
 
 **原始小說：**
 {{NOVEL_TEXT}}
@@ -37,9 +37,9 @@ export const DEFAULT_PROMPTS = {
 相信你的故事直覺，讓故事自然流動。不要刻意規劃「3 幕結構」或強制插入特定元素。
 
 **輸出格式：**
-分成 3-4 個清晰的情節段落，每段標註簡短標題。`,
+分成 3-4 個清晰的情節段落，每段標註簡短標題，並在開頭標出目標續寫小說總字數（{{TARGET_STORY_WORD_COUNT}} 字，若無額外要求預設 20000 字）。`,
 
-  breakdown: `將以下大綱分解為 5-7 個章節框架。
+  breakdown: `將以下大綱分解為 {{TARGET_CHAPTER_COUNT}} 個章節框架，並根據大綱標出的總字數來決定每一章的字數，要在每一章開頭去標出。
 
 **續寫大綱：**
 {{OUTLINE_RESULT}}

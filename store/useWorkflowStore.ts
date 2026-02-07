@@ -37,6 +37,15 @@ interface WorkflowState {
   setStepError: (stepId: WorkflowStepId, error: string) => void;
 
   resetWorkflow: () => void;
+  resetAllSteps: () => void;
+  forceResetGeneration: () => void;
+  hydrateFromNovelSession: (payload: {
+    currentStep?: number;
+    analysis: string;
+    outline: string;
+    breakdown: string;
+    chapters: string[];
+  }) => void;
 
   clearAutoTrigger: () => void;
   
@@ -70,6 +79,15 @@ const INITIAL_STEPS: Record<WorkflowStepId, WorkflowStepState> = {
 
 };
 
+function getTargetChapterCount(): number {
+  try {
+    const target = useNovelStore.getState().targetChapterCount ?? 5;
+    return Math.max(2, target);
+  } catch {
+    return 5;
+  }
+}
+
 
 
 export const useWorkflowStore = create<WorkflowState>((set, get) => ({
@@ -84,7 +102,7 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
   
   autoMode: 'manual',
   autoRangeStart: 2,
-  autoRangeEnd: 5,
+  autoRangeEnd: getTargetChapterCount(),
   isPaused: false,
 
 
@@ -219,6 +237,7 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
     const currentStepContent = get().steps[stepId].content;
     if (!currentStepContent || currentStepContent.trim().length === 0) {
       console.error(`[Workflow] Cannot auto-trigger next step: ${stepId} has no output (content length: ${currentStepContent?.length || 0})`);
+      set({ isGenerating: false });
       // Still open the next step panel but don't auto-trigger generation
       if (stepId === 'analysis') {
         set({ currentStepId: 'outline', autoTriggerStepId: null });
@@ -267,14 +286,15 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
       // Get fresh state for chapters count
       const updatedNovelStore = useNovelStore.getState();
       const currentChapterCount = updatedNovelStore.chapters ? updatedNovelStore.chapters.length : 0;
+      const targetChapterCount = Math.max(2, updatedNovelStore.targetChapterCount ?? 5);
       const { autoMode, autoRangeEnd, isPaused } = get();
       
-      console.log(`[Workflow] Continuation complete. Total chapters: ${currentChapterCount}. AutoMode: ${autoMode}, Paused: ${isPaused}`);
+      console.log(`[Workflow] Continuation complete. Total chapters: ${currentChapterCount}/${targetChapterCount}. AutoMode: ${autoMode}, Paused: ${isPaused}`);
       
       let nextAutoTriggerId: WorkflowStepId | null = null;
 
-      if (currentChapterCount >= 5) {
-         console.log('[Workflow] All 5 chapters completed!');
+      if (currentChapterCount >= targetChapterCount) {
+         console.log(`[Workflow] Target reached at ${targetChapterCount} chapters.`);
       } else if (isPaused) {
          console.log('[Workflow] Generation paused by user');
       } else {
@@ -350,10 +370,89 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
       autoTriggerStepId: null,
       
       autoMode: 'manual',
-      isPaused: false
+      autoRangeStart: 2,
+      autoRangeEnd: getTargetChapterCount(),
+      isPaused: false,
+      isGenerating: false
 
     });
 
+  },
+
+  resetAllSteps: () => {
+    set({
+      steps: JSON.parse(JSON.stringify(INITIAL_STEPS)),
+      currentStepId: 'analysis',
+      autoTriggerStepId: null,
+      autoMode: 'manual',
+      autoRangeStart: 2,
+      autoRangeEnd: getTargetChapterCount(),
+      isPaused: false,
+      isGenerating: false
+    });
+  },
+
+  forceResetGeneration: () => {
+    set({
+      isGenerating: false,
+      isPaused: false,
+      autoTriggerStepId: null
+    });
+  },
+
+  hydrateFromNovelSession: ({ currentStep = 1, analysis, outline, breakdown, chapters }) => {
+    const mapCurrentStepToId = (step: number): WorkflowStepId => {
+      if (step <= 1) return 'analysis';
+      if (step === 2) return 'outline';
+      if (step === 3) return 'breakdown';
+      if (step === 4) return 'chapter1';
+      return 'continuation';
+    };
+
+    const normalizedChapters = Array.isArray(chapters) ? chapters : [];
+    const chapter1Content = normalizedChapters[0] || '';
+
+    set({
+      steps: {
+        analysis: {
+          id: 'analysis',
+          status: analysis.trim() ? 'completed' : 'idle',
+          content: analysis,
+          error: undefined
+        },
+        outline: {
+          id: 'outline',
+          status: outline.trim() ? 'completed' : 'idle',
+          content: outline,
+          error: undefined
+        },
+        breakdown: {
+          id: 'breakdown',
+          status: breakdown.trim() ? 'completed' : 'idle',
+          content: breakdown,
+          error: undefined
+        },
+        chapter1: {
+          id: 'chapter1',
+          status: chapter1Content.trim() ? 'completed' : 'idle',
+          content: chapter1Content,
+          error: undefined
+        },
+        continuation: {
+          id: 'continuation',
+          status: 'idle',
+          content: '',
+          error: undefined
+        }
+      },
+      currentStepId: mapCurrentStepToId(currentStep),
+      autoTriggerStepId: null,
+      autoMode: 'manual',
+      autoRangeStart: 2,
+      autoRangeEnd: getTargetChapterCount(),
+      isPaused: false,
+      isGenerating: false
+    });
   },
 
 
@@ -386,7 +485,10 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
   },
   
   setAutoRange: (start, end) => {
-    set({ autoRangeStart: start, autoRangeEnd: end });
+    const maxChapter = getTargetChapterCount();
+    const clampedStart = Math.max(2, Math.min(start, maxChapter));
+    const clampedEnd = Math.max(clampedStart, Math.min(end, maxChapter));
+    set({ autoRangeStart: clampedStart, autoRangeEnd: clampedEnd });
   },
   
   pauseGeneration: () => {

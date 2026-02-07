@@ -5,11 +5,11 @@ import { useWorkflowStore } from '@/store/useWorkflowStore';
 import { useStepGenerator } from '@/hooks/useStepGenerator';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Play, StopCircle, RefreshCw } from 'lucide-react';
+import { Play, StopCircle, RefreshCw, ArrowDownRight } from 'lucide-react';
 import { Textarea } from '@/components/ui/textarea';
 
 export const StepChapter1: React.FC = () => {
-  const { steps } = useWorkflowStore();
+  const { steps, startStep } = useWorkflowStore();
   const { generate, stop } = useStepGenerator();
   
   const step = steps.chapter1;
@@ -21,8 +21,13 @@ export const StepChapter1: React.FC = () => {
       <CardHeader className="flex flex-row items-center justify-between pb-2">
         <CardTitle className="text-lg font-bold uppercase tracking-wider">Step 4: Chapter 1</CardTitle>
         <div className="flex gap-2">
+          {isCompleted && (
+             <Button size="sm" variant="outline" onClick={() => startStep('continuation')}>
+               Proceed to Phase V <ArrowDownRight className="size-4 ml-2" />
+             </Button>
+          )}
           {isStreaming ? (
-            <Button variant="destructive" size="sm" onClick={stop}>
+            <Button variant="destructive" size="sm" onClick={stop} disabled={step.status !== 'streaming'}>
               <StopCircle className="size-4 mr-2" /> Stop
             </Button>
           ) : (

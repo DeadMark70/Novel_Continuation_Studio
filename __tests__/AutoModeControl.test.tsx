@@ -1,6 +1,7 @@
 import { render, screen, fireEvent } from '@testing-library/react';
 import { AutoModeControl } from '../components/workflow/AutoModeControl';
 import { useWorkflowStore } from '../store/useWorkflowStore';
+import { useNovelStore } from '../store/useNovelStore';
 import { vi } from 'vitest';
 
 // Mock store
@@ -11,6 +12,9 @@ const mockStartStep = vi.fn();
 vi.mock('../store/useWorkflowStore', () => ({
   useWorkflowStore: vi.fn(),
 }));
+vi.mock('../store/useNovelStore', () => ({
+  useNovelStore: vi.fn(),
+}));
 
 // Mock Select component because Radix Select is hard to test in JSDOM sometimes without setup
 // But if it works in browser, we can try to rely on basic structure.
@@ -20,11 +24,14 @@ vi.mock('../store/useWorkflowStore', () => ({
 describe('AutoModeControl', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    (useNovelStore as any).mockReturnValue({
+      targetChapterCount: 7,
+    });
     (useWorkflowStore as any).mockImplementation((selector: any) => {
       const state = {
         autoMode: 'manual',
         autoRangeStart: 2,
-        autoRangeEnd: 5,
+        autoRangeEnd: 7,
         setAutoMode: mockSetAutoMode,
         setAutoRange: mockSetAutoRange,
         startStep: mockStartStep,
@@ -52,7 +59,7 @@ describe('AutoModeControl', () => {
         const state = {
           autoMode: 'range',
           autoRangeStart: 2,
-          autoRangeEnd: 5,
+          autoRangeEnd: 7,
           setAutoMode: mockSetAutoMode,
           setAutoRange: mockSetAutoRange,
           startStep: mockStartStep,
@@ -75,5 +82,10 @@ describe('AutoModeControl', () => {
     // I will use querySelector or assume text match works if file is utf8
     fireEvent.click(button);
     expect(mockStartStep).toHaveBeenCalled(); // Should call onStart prop
+  });
+
+  it('renders dynamic full auto chapter description', () => {
+    render(<AutoModeControl onStart={mockStartStep} />);
+    expect(screen.getByText('自動完成第 2-7 章')).toBeDefined();
   });
 });

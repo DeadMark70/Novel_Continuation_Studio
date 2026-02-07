@@ -94,8 +94,8 @@ export const HistoryExportDialog: React.FC = () => {
                         <SelectValue placeholder="Select a session" />
                       </SelectTrigger>
                       <SelectContent>
-                        {sessions.map((session) => (
-                          <SelectItem key={session.sessionId} value={session.sessionId} className="font-mono text-xs">
+                        {sessions.map((session, index) => (
+                          <SelectItem key={`${session.sessionId}-${index}`} value={session.sessionId} className="font-mono text-xs">
                             {session.sessionName} ({session.wordCount.toLocaleString()} words)
                             {session.sessionId === currentSessionId && " [CURRENT]"}
                           </SelectItem>

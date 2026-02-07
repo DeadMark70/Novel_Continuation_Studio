@@ -1,5 +1,7 @@
 import { create } from 'zustand';
 import { saveSettings, getSettings } from '@/lib/db';
+import { fetchModelCapability, type ModelCapability } from '@/lib/nim-client';
+import { getModelCapabilityOverride } from '@/lib/nim-model-overrides';
 
 interface SettingsState {
   apiKey: string;
@@ -8,12 +10,17 @@ interface SettingsState {
   customPrompts: Record<string, string>;
   truncationThreshold: number;
   dualEndBuffer: number;
+  thinkingEnabled: boolean;
+  modelCapabilities: Record<string, ModelCapability>;
   
   // Actions
   setApiKey: (key: string) => Promise<void>;
   setSelectedModel: (model: string) => Promise<void>;
   addRecentModel: (model: string) => Promise<void>;
   setCustomPrompt: (key: string, prompt: string) => Promise<void>;
+  setThinkingEnabled: (enabled: boolean) => Promise<void>;
+  upsertModelCapability: (model: string, capability: ModelCapability) => Promise<void>;
+  probeModelCapability: (model: string, apiKey?: string) => Promise<ModelCapability>;
   updateContextSettings: (settings: Partial<Pick<SettingsState, 'truncationThreshold' | 'dualEndBuffer'>>) => Promise<void>;
   resetPrompt: (key: string) => Promise<void>;
   initialize: () => Promise<void>;
@@ -27,6 +34,8 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   customPrompts: {},
   truncationThreshold: 800,
   dualEndBuffer: 400,
+  thinkingEnabled: false,
+  modelCapabilities: {},
 
   setApiKey: async (key: string) => {
     set({ apiKey: key });
@@ -35,7 +44,13 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
 
   setSelectedModel: async (model: string) => {
     set({ selectedModel: model });
-    await get().addRecentModel(model); // Also add to history
+    await get().addRecentModel(model);
+    try {
+      const capability = await get().probeModelCapability(model);
+      await get().upsertModelCapability(model, capability);
+    } catch (error) {
+      console.warn('Capability probe failed:', error);
+    }
   },
 
   addRecentModel: async (model: string) => {
@@ -50,6 +65,44 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     const { customPrompts } = get();
     set({ customPrompts: { ...customPrompts, [key]: prompt } });
     await get().persist();
+  },
+
+  setThinkingEnabled: async (enabled: boolean) => {
+    set({ thinkingEnabled: enabled });
+    await get().persist();
+  },
+
+  upsertModelCapability: async (model: string, capability: ModelCapability) => {
+    const { modelCapabilities } = get();
+    set({
+      modelCapabilities: {
+        ...modelCapabilities,
+        [model]: capability
+      }
+    });
+    await get().persist();
+  },
+
+  probeModelCapability: async (model: string, apiKeyOverride?: string) => {
+    const override = getModelCapabilityOverride(model);
+    const resolvedApiKey = apiKeyOverride ?? get().apiKey;
+
+    try {
+      const capability = await fetchModelCapability(model, resolvedApiKey);
+      return capability;
+    } catch (error) {
+      if (override) {
+        return override;
+      }
+
+      return {
+        chatSupported: true,
+        thinkingSupported: 'unknown',
+        reason: error instanceof Error ? error.message : 'Capability probe failed',
+        checkedAt: Date.now(),
+        source: 'probe',
+      };
+    }
   },
 
   updateContextSettings: async (settings) => {
@@ -76,6 +129,8 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
           customPrompts: settings.customPrompts || {},
           truncationThreshold: settings.truncationThreshold ?? 800,
           dualEndBuffer: settings.dualEndBuffer ?? 400,
+          thinkingEnabled: settings.thinkingEnabled ?? false,
+          modelCapabilities: settings.modelCapabilities ?? {},
         });
       }
     } catch (error) {
@@ -93,6 +148,8 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       customPrompts: state.customPrompts,
       truncationThreshold: state.truncationThreshold,
       dualEndBuffer: state.dualEndBuffer,
+      thinkingEnabled: state.thinkingEnabled,
+      modelCapabilities: state.modelCapabilities,
     });
   }
 }));

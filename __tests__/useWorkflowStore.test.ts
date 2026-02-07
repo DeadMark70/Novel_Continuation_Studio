@@ -23,7 +23,8 @@ describe('useWorkflowStore', () => {
       analysis: '',
       outline: '',
       breakdown: '',
-      chapters: []
+      chapters: [],
+      targetChapterCount: 5
     });
     act(() => {
       useWorkflowStore.getState().resetWorkflow();
@@ -138,6 +139,16 @@ describe('useWorkflowStore - Automation Actions', () => {
     expect(state.autoRangeEnd).toBe(4);
   });
 
+  it('should clamp auto range to target chapter count', () => {
+    act(() => {
+      useWorkflowStore.getState().setAutoRange(2, 10);
+    });
+
+    const state = useWorkflowStore.getState();
+    expect(state.autoRangeStart).toBe(2);
+    expect(state.autoRangeEnd).toBe(5);
+  });
+
   it('should pause generation and abort active step', () => {
     act(() => {
       useWorkflowStore.getState().startStep('continuation');
@@ -176,6 +187,40 @@ describe('useWorkflowStore - Automation Actions', () => {
     expect(state.autoTriggerStepId).toBeNull();
     expect(state.autoMode).toBe('manual');
   });
+
+  it('should force reset generation flags', () => {
+    act(() => {
+      useWorkflowStore.getState().setIsGenerating(true);
+      useWorkflowStore.getState().setAutoMode('full_auto');
+      useWorkflowStore.getState().resumeGeneration();
+      useWorkflowStore.getState().pauseGeneration();
+      useWorkflowStore.getState().forceResetGeneration();
+    });
+
+    const state = useWorkflowStore.getState();
+    expect(state.isGenerating).toBe(false);
+    expect(state.isPaused).toBe(false);
+    expect(state.autoTriggerStepId).toBeNull();
+  });
+
+  it('should reset all steps state', () => {
+    act(() => {
+      useWorkflowStore.getState().updateStepContent('analysis', 'temp');
+      useWorkflowStore.getState().setStepError('analysis', 'err');
+      useWorkflowStore.getState().setCurrentStep('continuation');
+      useWorkflowStore.getState().setAutoMode('full_auto');
+      useWorkflowStore.getState().setIsGenerating(true);
+      useWorkflowStore.getState().resetAllSteps();
+    });
+
+    const state = useWorkflowStore.getState();
+    expect(state.currentStepId).toBe('analysis');
+    expect(state.steps.analysis.status).toBe('idle');
+    expect(state.steps.analysis.content).toBe('');
+    expect(state.autoMode).toBe('manual');
+    expect(state.isGenerating).toBe(false);
+    expect(state.autoTriggerStepId).toBeNull();
+  });
 });
 
 describe('useWorkflowStore - Automation Logic', () => {
@@ -187,7 +232,8 @@ describe('useWorkflowStore - Automation Logic', () => {
       analysis: '',
       outline: '',
       breakdown: '',
-      chapters: ['Chapter 1'] 
+      chapters: ['Chapter 1'],
+      targetChapterCount: 5
     });
     act(() => {
       useWorkflowStore.getState().resetWorkflow();
@@ -204,7 +250,8 @@ describe('useWorkflowStore - Automation Logic', () => {
         analysis: '',
         outline: '',
         breakdown: '',
-        chapters: ['Chapter 1', 'Chapter 2'] 
+        chapters: ['Chapter 1', 'Chapter 2'],
+        targetChapterCount: 5
     });
 
     await act(async () => {
@@ -228,7 +275,8 @@ describe('useWorkflowStore - Automation Logic', () => {
         analysis: '',
         outline: '',
         breakdown: '',
-        chapters: ['Chapter 1', 'Chapter 2'] 
+        chapters: ['Chapter 1', 'Chapter 2'],
+        targetChapterCount: 5
     });
 
     await act(async () => {
@@ -252,7 +300,8 @@ describe('useWorkflowStore - Automation Logic', () => {
         analysis: '',
         outline: '',
         breakdown: '',
-        chapters: ['Chapter 1', 'Chapter 2'] 
+        chapters: ['Chapter 1', 'Chapter 2'],
+        targetChapterCount: 5
     });
 
     await act(async () => {
@@ -276,7 +325,45 @@ describe('useWorkflowStore - Automation Logic', () => {
         analysis: '',
         outline: '',
         breakdown: '',
-        chapters: ['Chapter 1', 'Chapter 2'] 
+        chapters: ['Chapter 1', 'Chapter 2'],
+        targetChapterCount: 5
+    });
+
+    await act(async () => {
+      await useWorkflowStore.getState().completeStep('continuation');
+    });
+
+    const state = useWorkflowStore.getState();
+    expect(state.autoTriggerStepId).toBeNull();
+  });
+
+  it('should release isGenerating lock when current step output is empty', async () => {
+    act(() => {
+      useWorkflowStore.getState().setIsGenerating(true);
+    });
+
+    await act(async () => {
+      await useWorkflowStore.getState().completeStep('analysis');
+    });
+
+    const state = useWorkflowStore.getState();
+    expect(state.isGenerating).toBe(false);
+  });
+
+  it('should stop auto-trigger when target chapter count is reached', async () => {
+    act(() => {
+      useWorkflowStore.getState().setAutoMode('full_auto');
+      useWorkflowStore.getState().updateStepContent('continuation', 'Chapter 3 Content');
+    });
+
+    mockGetState.mockReturnValue({
+      updateWorkflow: mockUpdateWorkflow,
+      startNewSession: mockStartNewSession,
+      analysis: '',
+      outline: '',
+      breakdown: '',
+      chapters: ['Chapter 1', 'Chapter 2', 'Chapter 3'],
+      targetChapterCount: 3
     });
 
     await act(async () => {

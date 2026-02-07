@@ -14,14 +14,19 @@
 ## State & Data
 - **Global State:** Zustand
     - **Workflow Store:** Manages execution phases and global generation locks (`isGenerating` mutex).
-    - **Novel Store:** Manages content persistence and session handling.
-- **Persistence:** IndexedDB with Dexie.js (Schema v3)
+    - **Novel Store:** Manages content persistence, session handling, and workflow customization targets (`targetStoryWordCount`, `targetChapterCount`).
+    - **Settings Store:** Manages NIM model settings, thinking mode toggle, and model capability cache.
+- **Persistence:** IndexedDB with Dexie.js (Schema v4)
     - **Schema:** Session-based storage (`sessionId` index) for multi-run history.
+    - **Current Version:** v4 (adds session-level workflow targets and settings capability metadata).
 
 ## AI & Integration
 - **LLM API:** NVIDIA NIM API
 - **Capabilities:** Server-Sent Events (SSE) for real-time streaming output
-- **Protocols:** Strict error object detection for HTTP 200 responses.
+- **Protocols:**
+    - Strict error object detection for HTTP 200 responses.
+    - Model capability probing route (`/api/nim/capabilities`) to detect chat/thinking support.
+    - Request parameter forwarding safeguards in `/api/nim/generate` (including `chat_template_kwargs`, penalties, and seed).
 
 ## Development Tools
 - **Agent:** Gemini CLI (Coding Agent)

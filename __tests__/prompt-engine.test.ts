@@ -103,4 +103,16 @@ describe('Prompt Engine', () => {
     expect(result).toContain('Just Context');
     expect(result).toContain('Add zombies');
   });
+
+  it('injects target story word count placeholder', () => {
+    const template = 'Target: {{TARGET_STORY_WORD_COUNT}}';
+    const result = injectPrompt(template, { targetStoryWordCount: 30000 });
+    expect(result).toBe('Target: 30000');
+  });
+
+  it('injects target chapter count placeholder', () => {
+    const template = 'Chapters: {{TARGET_CHAPTER_COUNT}}';
+    const result = injectPrompt(template, { targetChapterCount: 7 });
+    expect(result).toBe('Chapters: 7');
+  });
 });

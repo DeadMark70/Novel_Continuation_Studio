@@ -10,7 +10,9 @@ vi.mock('../components/workflow/AutoModeControl', () => ({
   AutoModeControl: () => <div data-testid="auto-mode-control" />
 }));
 vi.mock('../components/workflow/ProgressIndicator', () => ({
-  ProgressIndicator: () => <div data-testid="progress-indicator" />
+  ProgressIndicator: ({ total }: { total: number }) => (
+    <div data-testid="progress-indicator">progress-total-{total}</div>
+  )
 }));
 vi.mock('../store/useWorkflowStore');
 vi.mock('../store/useNovelStore');
@@ -25,7 +27,8 @@ describe('StepContinuation', () => {
       isPaused: false
     });
     (useNovelStore as any).mockReturnValue({
-      chapters: ['Ch1']
+      chapters: ['Ch1'],
+      targetChapterCount: 7
     });
     (useStepGenerator as any).mockReturnValue({
       generate: vi.fn(),
@@ -47,6 +50,7 @@ describe('StepContinuation', () => {
     });
     render(<StepContinuation />);
     expect(screen.getByTestId('progress-indicator')).toBeDefined();
+    expect(screen.getByText('progress-total-7')).toBeDefined();
     expect(screen.queryByTestId('auto-mode-control')).toBeNull();
   });
 });

@@ -14,6 +14,10 @@ describe('useSettingsStore', () => {
         selectedModel: 'meta/llama3-70b-instruct',
         recentModels: [],
         customPrompts: {},
+        truncationThreshold: 800,
+        dualEndBuffer: 400,
+        thinkingEnabled: false,
+        modelCapabilities: {},
       });
     });
   });
@@ -54,6 +58,15 @@ describe('useSettingsStore', () => {
       selectedModel: 'loaded-model',
       recentModels: ['loaded-model'],
       customPrompts: { prompt1: 'custom' },
+      thinkingEnabled: true,
+      modelCapabilities: {
+        'loaded-model': {
+          chatSupported: true,
+          thinkingSupported: 'supported',
+          checkedAt: Date.now(),
+          source: 'probe'
+        }
+      },
       updatedAt: Date.now()
     });
 
@@ -65,6 +78,8 @@ describe('useSettingsStore', () => {
     expect(state.apiKey).toBe('loaded-key');
     expect(state.selectedModel).toBe('loaded-model');
     expect(state.customPrompts['prompt1']).toBe('custom');
+    expect(state.thinkingEnabled).toBe(true);
+    expect(state.modelCapabilities['loaded-model']?.thinkingSupported).toBe('supported');
   });
 
   it('should update and persist context optimization settings', async () => {
@@ -82,5 +97,26 @@ describe('useSettingsStore', () => {
     const stored = await db.settings.get('global');
     expect(stored?.truncationThreshold).toBe(1000);
     expect(stored?.dualEndBuffer).toBe(500);
+  });
+
+  it('should update and persist thinking settings and capability map', async () => {
+    await act(async () => {
+      await useSettingsStore.getState().setThinkingEnabled(true);
+      await useSettingsStore.getState().upsertModelCapability('model-a', {
+        chatSupported: true,
+        thinkingSupported: 'unsupported',
+        reason: 'Model does not support thinking',
+        checkedAt: Date.now(),
+        source: 'probe'
+      });
+    });
+
+    const state = useSettingsStore.getState();
+    expect(state.thinkingEnabled).toBe(true);
+    expect(state.modelCapabilities['model-a']?.thinkingSupported).toBe('unsupported');
+
+    const stored = await db.settings.get('global');
+    expect(stored?.thinkingEnabled).toBe(true);
+    expect(stored?.modelCapabilities?.['model-a']?.chatSupported).toBe(true);
   });
 });

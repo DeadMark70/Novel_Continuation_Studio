@@ -23,7 +23,9 @@ describe('NovelDatabase', () => {
       outline: '',
       outlineDirection: '',
       breakdown: '',
-      chapters: []
+      chapters: [],
+      targetStoryWordCount: 20000,
+      targetChapterCount: 5
     });
 
     const latest = await getLatestNovel();
@@ -42,7 +44,9 @@ describe('NovelDatabase', () => {
       outline: '',
       outlineDirection: '',
       breakdown: '',
-      chapters: []
+      chapters: [],
+      targetStoryWordCount: 22000,
+      targetChapterCount: 6
     });
 
     await saveNovel({
@@ -54,7 +58,9 @@ describe('NovelDatabase', () => {
       outline: '',
       outlineDirection: '',
       breakdown: '',
-      chapters: []
+      chapters: [],
+      targetStoryWordCount: 25000,
+      targetChapterCount: 7
     });
 
     const count = await db.novels.count();
@@ -64,6 +70,8 @@ describe('NovelDatabase', () => {
     expect(latest?.content).toBe('Updated');
     expect(latest?.currentStep).toBe(2);
     expect(latest?.analysis).toBe('Some analysis');
+    expect(latest?.targetStoryWordCount).toBe(25000);
+    expect(latest?.targetChapterCount).toBe(7);
   });
 
   it('should create separate entries for different sessions', async () => {
@@ -77,7 +85,9 @@ describe('NovelDatabase', () => {
       outline: '',
       outlineDirection: '',
       breakdown: '',
-      chapters: []
+      chapters: [],
+      targetStoryWordCount: 20000,
+      targetChapterCount: 5
     });
 
     // Small delay to ensure timestamp difference
@@ -93,7 +103,9 @@ describe('NovelDatabase', () => {
       outline: '',
       outlineDirection: '',
       breakdown: '',
-      chapters: []
+      chapters: [],
+      targetStoryWordCount: 21000,
+      targetChapterCount: 6
     });
 
     const count = await db.novels.count();
@@ -104,5 +116,24 @@ describe('NovelDatabase', () => {
     // getNovelHistory returns reverse chronological order (latest updated first)
     expect(history[0].content).toBe('Session 2'); 
     expect(history[1].content).toBe('Session 1');
+  });
+
+  it('should backfill target fields when omitted', async () => {
+    const sessionId = generateSessionId();
+    await saveNovel({
+      sessionId,
+      content: 'Legacy payload',
+      wordCount: 14,
+      currentStep: 1,
+      analysis: '',
+      outline: '',
+      outlineDirection: '',
+      breakdown: '',
+      chapters: []
+    });
+
+    const latest = await getLatestNovel();
+    expect(latest?.targetStoryWordCount).toBe(20000);
+    expect(latest?.targetChapterCount).toBe(5);
   });
 });

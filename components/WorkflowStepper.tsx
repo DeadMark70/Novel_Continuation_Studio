@@ -13,17 +13,47 @@ import { CheckCircle2, Circle, Loader2, AlertCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 export const WorkflowStepper: React.FC = () => {
-  const { steps, currentStepId, autoTriggerStepId, clearAutoTrigger } = useWorkflowStore();
+  const { steps, currentStepId, autoTriggerStepId, clearAutoTrigger, setCurrentStep } = useWorkflowStore();
   const { generate } = useStepGenerator();
 
   // Automation Effect
   useEffect(() => {
     if (autoTriggerStepId) {
+      // ✅ Safeguard: Check global isGenerating mutex lock first
+      const { isGenerating } = useWorkflowStore.getState();
+      if (isGenerating) {
+        console.warn(`[Automation] Cannot trigger ${autoTriggerStepId}: Global isGenerating lock is active. Clearing autoTrigger.`);
+        clearAutoTrigger();
+        return;
+      }
+
+      // Also check streaming status as backup
+      const isAnyStepStreaming = Object.values(steps).some(step => step.status === 'streaming');
+      if (isAnyStepStreaming) {
+        console.warn(`[Automation] Cannot trigger ${autoTriggerStepId}: Another step is still streaming. Clearing autoTrigger.`);
+        clearAutoTrigger();
+        return;
+      }
+
       console.log(`[Automation] Triggering step: ${autoTriggerStepId}`);
-      generate(autoTriggerStepId);
-      // clearAutoTrigger is handled inside startStep which is called by generate
+      // Add a small delay to ensure state updates utilize fresh closures and UI is ready
+      const timer = setTimeout(() => {
+        // Double-check both locks before actually generating
+        const state = useWorkflowStore.getState();
+        if (state.isGenerating) {
+          console.warn(`[Automation] Aborted trigger for ${autoTriggerStepId}: isGenerating became true during delay.`);
+          return;
+        }
+        const stillStreaming = Object.values(state.steps).some(s => s.status === 'streaming');
+        if (stillStreaming) {
+          console.warn(`[Automation] Aborted trigger for ${autoTriggerStepId}: State changed to streaming during delay.`);
+          return;
+        }
+        generate(autoTriggerStepId);
+      }, 100);
+      return () => clearTimeout(timer);
     }
-  }, [autoTriggerStepId, generate]);
+  }, [autoTriggerStepId, generate, steps, clearAutoTrigger]);
 
   const getStatusIcon = (stepId: WorkflowStepId) => {
     const status = steps[stepId].status;
@@ -35,7 +65,14 @@ export const WorkflowStepper: React.FC = () => {
 
   return (
     <div className="w-full space-y-4">
-      <Accordion type="single" collapsible defaultValue="analysis" value={currentStepId} className="w-full space-y-2 border-none">
+      <Accordion 
+        type="single" 
+        collapsible 
+        defaultValue="analysis" 
+        value={currentStepId} 
+        onValueChange={(val) => setCurrentStep(val as WorkflowStepId)}
+        className="w-full space-y-2 border-none"
+      >
         <AccordionItem value="analysis" className="border rounded-lg bg-card/30 overflow-hidden">
           <AccordionTrigger className="px-4 py-3 hover:no-underline hover:bg-card/50">
             <div className="flex items-center gap-3">

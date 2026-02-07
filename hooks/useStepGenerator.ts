@@ -33,8 +33,25 @@ export function useStepGenerator() {
     try {
       // 2. Prepare Context & Prompt
       // Get fresh state directly from stores to avoid stale closures during automation
-      const { apiKey, selectedModel, customPrompts, truncationThreshold, dualEndBuffer } = useSettingsStore.getState(); // <-- FRESH
-      const { originalNovel, analysis, outline, breakdown, chapters } = useNovelStore.getState(); // <-- FRESH
+      const {
+        apiKey,
+        selectedModel,
+        customPrompts,
+        truncationThreshold,
+        dualEndBuffer,
+        thinkingEnabled,
+        modelCapabilities,
+      } = useSettingsStore.getState();
+      const {
+        originalNovel,
+        analysis,
+        outline,
+        breakdown,
+        chapters,
+        targetStoryWordCount,
+        targetChapterCount,
+      } = useNovelStore.getState();
+      const modelCapability = modelCapabilities[selectedModel];
 
       console.log(`[Generator] Generating ${stepId}. Reading from NovelStore:`);
       console.log(`  - Analysis length: ${analysis?.length || 0}`);
@@ -55,8 +72,16 @@ export function useStepGenerator() {
         userNotes,
         nextChapterNumber: chapters.length + 1,
         truncationThreshold,
-        dualEndBuffer
+        dualEndBuffer,
+        targetStoryWordCount,
+        targetChapterCount
       });
+
+      if (modelCapability && !modelCapability.chatSupported) {
+        throw new Error(`Model "${selectedModel}" is marked as unavailable: ${modelCapability.reason || 'Unsupported model.'}`);
+      }
+
+      const canUseThinking = Boolean(thinkingEnabled && modelCapability?.thinkingSupported === 'supported');
 
       // 3. Stream
       const stream = generateStream(
@@ -65,6 +90,8 @@ export function useStepGenerator() {
         apiKey, 
         undefined, 
         {
+          enableThinking: thinkingEnabled,
+          thinkingSupported: canUseThinking,
           onRetry: (attempt, maxRetries, delay) => {
             console.log(`[Generator] Retrying request ${attempt}/${maxRetries} after ${delay}ms`);
           }

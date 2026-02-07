@@ -3,73 +3,119 @@
 import React from 'react';
 import { useNovelStore } from '@/store/useNovelStore';
 import { Button } from '@/components/ui/button';
-import { RotateCcw, Clock, Hash } from 'lucide-react';
-import { Card, CardContent } from '@/components/ui/card';
+import { Clock, FileText, Trash2, CheckCircle, Plus } from 'lucide-react';
 
 export const VersionList: React.FC = () => {
-  const { history, rollbackToVersion } = useNovelStore();
+  const { sessions, currentSessionId, loadSession, deleteSessionById, startNewSession } = useNovelStore();
 
   const formatDate = (timestamp: number) => {
-    return new Date(timestamp).toLocaleString('zh-TW', {
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-      second: '2-digit'
-    });
+    const date = new Date(timestamp);
+    const now = new Date();
+    const diffDays = Math.floor((now.getTime() - date.getTime()) / (1000 * 60 * 60 * 24));
+    
+    if (diffDays === 0) {
+      return '今天 ' + date.toLocaleTimeString('zh-TW', { hour: '2-digit', minute: '2-digit' });
+    } else if (diffDays === 1) {
+      return '昨天 ' + date.toLocaleTimeString('zh-TW', { hour: '2-digit', minute: '2-digit' });
+    } else if (diffDays < 7) {
+      return `${diffDays} 天前`;
+    } else {
+      return date.toLocaleDateString('zh-TW', { month: 'short', day: 'numeric' });
+    }
   };
 
-  if (history.length === 0) {
+  if (sessions.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center h-64 text-muted-foreground">
-        <Clock className="size-8 mb-2 opacity-20" />
-        <p className="text-sm">No version history found.</p>
+        <FileText className="size-8 mb-2 opacity-20" />
+        <p className="text-sm">尚無任何創作記錄</p>
+        <p className="text-xs mt-1">開始新的分析後，會自動保存到這裡</p>
+        <Button 
+          variant="outline" 
+          size="sm" 
+          className="mt-4 gap-2"
+          onClick={startNewSession}
+        >
+          <Plus className="size-4" />
+          新建創作
+        </Button>
       </div>
     );
   }
 
   return (
-    <div className="space-y-4 overflow-y-auto pr-2 h-full">
-      {history.map((version, index) => (
-        <Card key={version.id || index} className="bg-card/50 border-border hover:border-primary/50 transition-colors">
-          <CardContent className="p-4 flex items-center justify-between">
-            <div className="space-y-1">
-              <div className="flex items-center gap-2">
-                <span className="text-sm font-bold text-primary font-mono">
-                  Version {history.length - index}
-                </span>
-                <span className="text-[10px] bg-primary/10 text-primary px-1.5 py-0.5 rounded font-mono uppercase tracking-tighter">
-                  Step {version.currentStep}
-                </span>
-              </div>
-              <div className="flex items-center gap-4 text-[10px] text-muted-foreground font-mono">
+    <div className="flex flex-col h-full">
+      {/* New Session Button */}
+      <Button 
+        variant="outline" 
+        size="sm" 
+        className="mb-3 gap-2 shrink-0"
+        onClick={startNewSession}
+      >
+        <Plus className="size-4" />
+        新建創作
+      </Button>
+      
+      {/* Session List */}
+      <div className="space-y-1 overflow-y-auto pr-2 flex-1">
+      {sessions.map((session, index) => {
+        const isActive = session.sessionId === currentSessionId;
+        
+        return (
+          <div
+            key={session.sessionId || `session-${index}`}
+            className={`
+              group flex items-center gap-3 p-3 rounded-lg cursor-pointer transition-all
+              ${isActive 
+                ? 'bg-primary/10 border border-primary/30' 
+                : 'hover:bg-card/80 border border-transparent hover:border-border'
+              }
+            `}
+            onClick={() => !isActive && loadSession(session.sessionId)}
+          >
+            {/* Icon */}
+            <div className={`
+              shrink-0 size-8 rounded-full flex items-center justify-center
+              ${isActive ? 'bg-primary text-primary-foreground' : 'bg-muted'}
+            `}>
+              {isActive ? <CheckCircle className="size-4" /> : <FileText className="size-4" />}
+            </div>
+            
+            {/* Content */}
+            <div className="flex-1 min-w-0">
+              <p className={`text-sm font-medium truncate ${isActive ? 'text-primary' : ''}`}>
+                {session.sessionName || '未命名小說'}
+              </p>
+              <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
                 <span className="flex items-center gap-1">
                   <Clock className="size-3" />
-                  {formatDate(version.updatedAt)}
+                  {formatDate(session.updatedAt)}
                 </span>
-                <span className="flex items-center gap-1">
-                  <Hash className="size-3" />
-                  {version.wordCount.toLocaleString()} words
-                </span>
+                <span>•</span>
+                <span>{session.chapters?.length || 0} 章</span>
+                <span>•</span>
+                <span>{session.wordCount?.toLocaleString() || 0} 字</span>
               </div>
             </div>
-
+            
+            {/* Delete button */}
             <Button
-              variant="outline"
-              size="sm"
-              className="gap-2 h-8 text-xs font-mono uppercase tracking-wider hover:bg-primary hover:text-primary-foreground"
-              onClick={() => {
-                if (window.confirm('Are you sure you want to rollback? The current state will be saved as a new version first.')) {
-                  rollbackToVersion(version);
+              variant="ghost"
+              size="icon"
+              className="shrink-0 size-7 opacity-0 group-hover:opacity-100 transition-opacity hover:bg-destructive/20 hover:text-destructive"
+              onClick={(e) => {
+                e.stopPropagation();
+                if (window.confirm('確定要刪除這個創作記錄嗎？此操作無法撤銷。')) {
+                  deleteSessionById(session.sessionId);
                 }
               }}
             >
-              <RotateCcw className="size-3" />
-              Rollback
+              <Trash2 className="size-3.5" />
             </Button>
-          </CardContent>
-        </Card>
-      ))}
+          </div>
+        );
+      })}
+      </div>
     </div>
   );
 };

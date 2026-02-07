@@ -8,9 +8,10 @@ interface ProgressIndicatorProps {
   current: number;
   total: number;
   onStop: () => void;
+  stopDisabled?: boolean;
 }
 
-export function ProgressIndicator({ current, total, onStop }: ProgressIndicatorProps) {
+export function ProgressIndicator({ current, total, onStop, stopDisabled = false }: ProgressIndicatorProps) {
   const { pauseGeneration } = useWorkflowStore();
   const percentage = Math.min(100, Math.max(0, (current / total) * 100));
 
@@ -29,6 +30,7 @@ export function ProgressIndicator({ current, total, onStop }: ProgressIndicatorP
           variant="destructive" 
           size="sm" 
           onClick={handleStop}
+          disabled={stopDisabled}
           className="h-8 px-3"
         >
           <StopCircle className="mr-2 h-4 w-4" />

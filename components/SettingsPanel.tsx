@@ -5,6 +5,7 @@ import { useSettingsStore } from '@/store/useSettingsStore';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Switch } from '@/components/ui/switch';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
@@ -20,9 +21,14 @@ export const SettingsPanel: React.FC = () => {
     customPrompts, 
     truncationThreshold,
     dualEndBuffer,
+    thinkingEnabled,
+    modelCapabilities,
     setApiKey, 
     setSelectedModel, 
     setCustomPrompt, 
+    setThinkingEnabled,
+    upsertModelCapability,
+    probeModelCapability,
     updateContextSettings,
     resetPrompt, 
     initialize 
@@ -32,9 +38,21 @@ export const SettingsPanel: React.FC = () => {
   const [localModel, setLocalModel] = useState(selectedModel);
   const [localThreshold, setLocalThreshold] = useState(truncationThreshold);
   const [localBuffer, setLocalBuffer] = useState(dualEndBuffer);
+  const [localThinkingEnabled, setLocalThinkingEnabled] = useState(thinkingEnabled);
   const [availableModels, setAvailableModels] = useState<string[]>([]);
   const [isLoadingModels, setIsLoadingModels] = useState(false);
+  const [isProbingCapability, setIsProbingCapability] = useState(false);
   const [isOpen, setIsOpen] = useState(false);
+
+  const activeCapability = modelCapabilities[localModel] ?? modelCapabilities[selectedModel];
+  const thinkingSupportState = activeCapability?.thinkingSupported ?? 'unknown';
+  const isThinkingUnsupported = thinkingSupportState === 'unsupported';
+  const thinkingBlockedReason = isThinkingUnsupported
+    ? (activeCapability?.reason ?? 'Current model does not support thinking mode.')
+    : '';
+  const capabilitySummary = activeCapability
+    ? `Chat: ${activeCapability.chatSupported ? 'supported' : 'unsupported'} | Thinking: ${activeCapability.thinkingSupported}`
+    : 'Capability unknown. Probe or save model selection to detect support.';
 
   useEffect(() => {
     if (isOpen) {
@@ -43,17 +61,39 @@ export const SettingsPanel: React.FC = () => {
       setLocalModel(selectedModel);
       setLocalThreshold(truncationThreshold);
       setLocalBuffer(dualEndBuffer);
+      setLocalThinkingEnabled(thinkingEnabled);
     }
-  }, [isOpen, apiKey, selectedModel, truncationThreshold, dualEndBuffer, initialize]);
+  }, [isOpen, apiKey, selectedModel, truncationThreshold, dualEndBuffer, thinkingEnabled, initialize]);
 
   const handleSave = async () => {
+    const canEnableThinking = thinkingSupportState !== 'unsupported';
     await setApiKey(localKey);
     await setSelectedModel(localModel);
+    await setThinkingEnabled(canEnableThinking ? localThinkingEnabled : false);
     await updateContextSettings({
       truncationThreshold: localThreshold,
       dualEndBuffer: localBuffer,
     });
     setIsOpen(false);
+  };
+
+  const handleProbeCapability = async () => {
+    if (!localModel.trim()) {
+      return;
+    }
+    setIsProbingCapability(true);
+    try {
+      const capability = await probeModelCapability(localModel, localKey);
+      await upsertModelCapability(localModel, capability);
+      if (capability.thinkingSupported === 'unsupported') {
+        setLocalThinkingEnabled(false);
+      }
+    } catch (error) {
+      console.error(error);
+      alert('Failed to probe model capability.');
+    } finally {
+      setIsProbingCapability(false);
+    }
   };
 
   const handleFetchModels = async () => {
@@ -123,7 +163,38 @@ export const SettingsPanel: React.FC = () => {
                   )}
                 </datalist>
               </div>
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleProbeCapability}
+                  disabled={isProbingCapability || !localModel.trim()}
+                >
+                  {isProbingCapability ? 'Probing...' : 'Probe Capability'}
+                </Button>
+              </div>
+              <p className="text-xs text-muted-foreground">{capabilitySummary}</p>
+              {thinkingBlockedReason && (
+                <p className="text-xs text-destructive">{thinkingBlockedReason}</p>
+              )}
               <p className="text-xs text-muted-foreground">Type to search or use fetched list.</p>
+            </div>
+
+            <div className="space-y-2 rounded-lg border border-border/70 p-3">
+              <div className="flex items-center justify-between gap-4">
+                <div className="space-y-1">
+                  <Label htmlFor="thinking-mode-toggle">Thinking Mode</Label>
+                  <p className="text-xs text-muted-foreground">
+                    Enable only when the selected model supports thinking parameters.
+                  </p>
+                </div>
+                <Switch
+                  id="thinking-mode-toggle"
+                  checked={localThinkingEnabled}
+                  onCheckedChange={setLocalThinkingEnabled}
+                  disabled={isThinkingUnsupported}
+                />
+              </div>
             </div>
           </TabsContent>
 
