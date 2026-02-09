@@ -1,7 +1,7 @@
 import { render, screen, fireEvent } from '@testing-library/react';
 import { ProgressIndicator } from '../components/workflow/ProgressIndicator';
 import { useWorkflowStore } from '../store/useWorkflowStore';
-import { vi } from 'vitest';
+import { vi, beforeEach, describe, expect, it } from 'vitest';
 
 const mockPauseGeneration = vi.fn();
 const mockStop = vi.fn();
@@ -10,11 +10,20 @@ vi.mock('../store/useWorkflowStore', () => ({
   useWorkflowStore: vi.fn(),
 }));
 
+type ProgressWorkflowState = {
+  pauseGeneration: typeof mockPauseGeneration;
+};
+
+const useWorkflowStoreMock = useWorkflowStore as unknown as ReturnType<typeof vi.fn>;
+
 describe('ProgressIndicator', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    (useWorkflowStore as any).mockReturnValue({
+    const state: ProgressWorkflowState = {
       pauseGeneration: mockPauseGeneration
+    };
+    useWorkflowStoreMock.mockImplementation((selector?: (value: ProgressWorkflowState) => unknown) => {
+      return selector ? selector(state) : state;
     });
   });
 

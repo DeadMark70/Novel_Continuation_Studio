@@ -12,6 +12,10 @@ import { Textarea } from '@/components/ui/textarea';
 import { Settings, Save, RotateCcw } from 'lucide-react';
 import { fetchModels } from '@/lib/nim-client';
 import { DEFAULT_PROMPTS } from '@/lib/prompts';
+import {
+  getEffectiveThinkingSupportState,
+  isThinkingUnsupported as isThinkingCapabilityUnsupported
+} from '@/lib/thinking-mode';
 
 export const SettingsPanel: React.FC = () => {
   const { 
@@ -42,16 +46,17 @@ export const SettingsPanel: React.FC = () => {
   const [availableModels, setAvailableModels] = useState<string[]>([]);
   const [isLoadingModels, setIsLoadingModels] = useState(false);
   const [isProbingCapability, setIsProbingCapability] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
   const [isOpen, setIsOpen] = useState(false);
 
   const activeCapability = modelCapabilities[localModel] ?? modelCapabilities[selectedModel];
-  const thinkingSupportState = activeCapability?.thinkingSupported ?? 'unknown';
-  const isThinkingUnsupported = thinkingSupportState === 'unsupported';
+  const thinkingSupportState = getEffectiveThinkingSupportState(activeCapability);
+  const isThinkingUnsupported = isThinkingCapabilityUnsupported(activeCapability);
   const thinkingBlockedReason = isThinkingUnsupported
     ? (activeCapability?.reason ?? 'Current model does not support thinking mode.')
     : '';
   const capabilitySummary = activeCapability
-    ? `Chat: ${activeCapability.chatSupported ? 'supported' : 'unsupported'} | Thinking: ${activeCapability.thinkingSupported}`
+    ? `Chat: ${activeCapability.chatSupported ? 'supported' : 'unsupported'} | Thinking: ${thinkingSupportState}`
     : 'Capability unknown. Probe or save model selection to detect support.';
 
   useEffect(() => {
@@ -67,14 +72,19 @@ export const SettingsPanel: React.FC = () => {
 
   const handleSave = async () => {
     const canEnableThinking = thinkingSupportState !== 'unsupported';
-    await setApiKey(localKey);
-    await setSelectedModel(localModel);
-    await setThinkingEnabled(canEnableThinking ? localThinkingEnabled : false);
-    await updateContextSettings({
-      truncationThreshold: localThreshold,
-      dualEndBuffer: localBuffer,
-    });
-    setIsOpen(false);
+    setIsSaving(true);
+    try {
+      await setApiKey(localKey);
+      await setSelectedModel(localModel);
+      await setThinkingEnabled(canEnableThinking ? localThinkingEnabled : false);
+      await updateContextSettings({
+        truncationThreshold: localThreshold,
+        dualEndBuffer: localBuffer,
+      });
+      setIsOpen(false);
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const handleProbeCapability = async () => {
@@ -85,7 +95,7 @@ export const SettingsPanel: React.FC = () => {
     try {
       const capability = await probeModelCapability(localModel, localKey);
       await upsertModelCapability(localModel, capability);
-      if (capability.thinkingSupported === 'unsupported') {
+      if (isThinkingCapabilityUnsupported(capability)) {
         setLocalThinkingEnabled(false);
       }
     } catch (error) {
@@ -258,9 +268,9 @@ export const SettingsPanel: React.FC = () => {
         </Tabs>
 
         <DialogFooter>
-          <Button onClick={handleSave}>
+          <Button onClick={handleSave} disabled={isSaving}>
             <Save className="size-4 mr-2" />
-            Save Configuration
+            {isSaving ? 'Saving...' : 'Save Configuration'}
           </Button>
         </DialogFooter>
       </DialogContent>

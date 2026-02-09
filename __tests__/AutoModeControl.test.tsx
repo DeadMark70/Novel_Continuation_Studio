@@ -2,7 +2,7 @@ import { render, screen, fireEvent } from '@testing-library/react';
 import { AutoModeControl } from '../components/workflow/AutoModeControl';
 import { useWorkflowStore } from '../store/useWorkflowStore';
 import { useNovelStore } from '../store/useNovelStore';
-import { vi } from 'vitest';
+import { vi, beforeEach, describe, expect, it } from 'vitest';
 
 // Mock store
 const mockSetAutoMode = vi.fn();
@@ -16,27 +16,47 @@ vi.mock('../store/useNovelStore', () => ({
   useNovelStore: vi.fn(),
 }));
 
-// Mock Select component because Radix Select is hard to test in JSDOM sometimes without setup
-// But if it works in browser, we can try to rely on basic structure.
-// However, since we are using shadcn components which use Radix, simpler to mock them if needed.
-// But let's try real components first with getByTestId.
+type AutoModeState = {
+  autoMode: 'manual' | 'full_auto' | 'range';
+  autoRangeStart: number;
+  autoRangeEnd: number;
+  setAutoMode: typeof mockSetAutoMode;
+  setAutoRange: typeof mockSetAutoRange;
+  startStep: typeof mockStartStep;
+};
+
+type NovelState = {
+  targetChapterCount: number;
+};
+
+const useNovelStoreMock = useNovelStore as unknown as ReturnType<typeof vi.fn>;
+const useWorkflowStoreMock = useWorkflowStore as unknown as ReturnType<typeof vi.fn>;
+
+function mockNovelStoreState(state: NovelState): void {
+  useNovelStoreMock.mockImplementation((selector?: (value: NovelState) => unknown) => {
+    return selector ? selector(state) : state;
+  });
+}
+
+function mockWorkflowStoreState(state: AutoModeState): void {
+  useWorkflowStoreMock.mockImplementation((selector?: (value: AutoModeState) => unknown) => {
+    return selector ? selector(state) : state;
+  });
+}
 
 describe('AutoModeControl', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    (useNovelStore as any).mockReturnValue({
+    mockNovelStoreState({
       targetChapterCount: 7,
     });
-    (useWorkflowStore as any).mockImplementation((selector: any) => {
-      const state = {
-        autoMode: 'manual',
-        autoRangeStart: 2,
-        autoRangeEnd: 7,
-        setAutoMode: mockSetAutoMode,
-        setAutoRange: mockSetAutoRange,
-        startStep: mockStartStep,
-      };
-      return selector ? selector(state) : state;
+    mockWorkflowStoreState({
+      autoMode: 'manual',
+      autoRangeStart: 2,
+      autoRangeEnd: 7,
+      setAutoMode: mockSetAutoMode,
+      setAutoRange: mockSetAutoRange,
+      startStep: mockStartStep,
     });
   });
 
@@ -55,17 +75,14 @@ describe('AutoModeControl', () => {
 
   it('shows range selectors only in range mode', () => {
     // Override mock for this test
-    (useWorkflowStore as any).mockImplementation((selector: any) => {
-        const state = {
-          autoMode: 'range',
-          autoRangeStart: 2,
-          autoRangeEnd: 7,
-          setAutoMode: mockSetAutoMode,
-          setAutoRange: mockSetAutoRange,
-          startStep: mockStartStep,
-        };
-        return selector ? selector(state) : state;
-      });
+    mockWorkflowStoreState({
+      autoMode: 'range',
+      autoRangeStart: 2,
+      autoRangeEnd: 7,
+      setAutoMode: mockSetAutoMode,
+      setAutoRange: mockSetAutoRange,
+      startStep: mockStartStep,
+    });
 
     render(<AutoModeControl onStart={mockStartStep} />);
     expect(screen.getByTestId('range-selector')).toBeDefined();
@@ -73,15 +90,9 @@ describe('AutoModeControl', () => {
 
   it('calls startStep when Start button clicked', () => {
     render(<AutoModeControl onStart={mockStartStep} />);
-    const button = screen.getByRole('button', { name: /開始生成/i }); // Regex matching might still be flaky if encoding bad
-    // fallback to getByText if role fails? Or add testid to button
-    // Let's try getByText
-    // fireEvent.click(screen.getByText(/開始生成/i)); 
-    // Wait, let's just use getByRole which is better practice, but text matching relies on string.
-    
-    // I will use querySelector or assume text match works if file is utf8
+    const button = screen.getByRole('button', { name: /開始生成/i });
     fireEvent.click(button);
-    expect(mockStartStep).toHaveBeenCalled(); // Should call onStart prop
+    expect(mockStartStep).toHaveBeenCalled();
   });
 
   it('renders dynamic full auto chapter description', () => {

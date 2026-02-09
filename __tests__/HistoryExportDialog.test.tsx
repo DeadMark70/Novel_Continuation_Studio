@@ -1,71 +1,107 @@
 import { render, screen, fireEvent } from '@testing-library/react';
+import { type ChangeEvent, type ReactNode } from 'react';
+import { vi, describe, it, expect, beforeEach } from 'vitest';
 import { HistoryExportDialog } from '../components/workflow/HistoryExportDialog';
 import { useNovelStore } from '../store/useNovelStore';
-import { vi, describe, it, expect, beforeEach } from 'vitest';
 
-// Mock the store
 vi.mock('../store/useNovelStore', () => ({
   useNovelStore: vi.fn(),
 }));
 
-// Mock utils
 vi.mock('../lib/utils', () => ({
   downloadAsTxt: vi.fn(),
-  cn: (...args: any[]) => args.filter(Boolean).join(' '),
+  cn: (...args: Array<string | false | null | undefined>) => args.filter(Boolean).join(' '),
 }));
 
-// Mock UI components directly
+type WithChildren = { children?: ReactNode };
+type DialogProps = WithChildren & { open?: boolean; onOpenChange?: (open: boolean) => void };
+type ButtonProps = WithChildren & { onClick?: () => void; className?: string };
+type TabsContentProps = WithChildren & { value?: string };
+type SelectProps = WithChildren & {
+  value?: string;
+  onValueChange?: (value: string) => void;
+};
+type SelectItemProps = WithChildren & { value: string };
+
 vi.mock('@/components/ui/dialog', () => ({
-  Dialog: ({ children }: any) => <div data-testid="dialog-root">{children}</div>,
-  DialogTrigger: ({ children }: any) => <div data-testid="dialog-trigger">{children}</div>,
-  DialogContent: ({ children }: any) => <div data-testid="dialog-content">{children}</div>,
-  DialogHeader: ({ children }: any) => <div>{children}</div>,
-  DialogTitle: ({ children }: any) => <div>{children}</div>,
+  Dialog: ({ children }: DialogProps) => <div data-testid="dialog-root">{children}</div>,
+  DialogTrigger: ({ children }: WithChildren) => <div data-testid="dialog-trigger">{children}</div>,
+  DialogContent: ({ children }: WithChildren) => <div data-testid="dialog-content">{children}</div>,
+  DialogHeader: ({ children }: WithChildren) => <div>{children}</div>,
+  DialogTitle: ({ children }: WithChildren) => <div>{children}</div>,
 }));
 
 vi.mock('@/components/ui/button', () => ({
-  Button: ({ children, onClick, className }: any) => (
-    <button onClick={onClick} className={className}>{children}</button>
+  Button: ({ children, onClick, className }: ButtonProps) => (
+    <button onClick={onClick} className={className}>
+      {children}
+    </button>
   ),
 }));
 
 vi.mock('@/components/ui/tabs', () => ({
-  Tabs: ({ children }: any) => <div>{children}</div>,
-  TabsList: ({ children }: any) => <div>{children}</div>,
-  TabsTrigger: ({ children }: any) => <button>{children}</button>,
-  TabsContent: ({ children, value }: any) => value === 'export' ? <div>{children}</div> : null,
+  Tabs: ({ children }: WithChildren) => <div>{children}</div>,
+  TabsList: ({ children }: WithChildren) => <div>{children}</div>,
+  TabsTrigger: ({ children }: WithChildren) => <button>{children}</button>,
+  TabsContent: ({ children, value }: TabsContentProps) => (value === 'export' ? <div>{children}</div> : null),
 }));
 
 vi.mock('@/components/ui/select', () => ({
-  Select: ({ children, value, onValueChange }: any) => (
-    <select data-testid="select-root" value={value} onChange={(e) => onValueChange(e.target.value)}>
+  Select: ({ children, value, onValueChange }: SelectProps) => (
+    <select
+      data-testid="select-root"
+      value={value}
+      onChange={(e: ChangeEvent<HTMLSelectElement>) => onValueChange?.(e.target.value)}
+    >
       {children}
     </select>
   ),
-  SelectTrigger: ({ children }: any) => <div>{children}</div>,
-  SelectValue: ({ placeholder }: any) => <span>{placeholder}</span>,
-  SelectContent: ({ children }: any) => <>{children}</>,
-  SelectItem: ({ children, value }: any) => <option value={value}>{children}</option>,
+  SelectTrigger: () => null,
+  SelectValue: () => null,
+  SelectContent: ({ children }: WithChildren) => <>{children}</>,
+  SelectItem: ({ children, value }: SelectItemProps) => <option value={value}>{children}</option>,
 }));
 
 vi.mock('@/components/ui/card', () => ({
-  Card: ({ children }: any) => <div>{children}</div>,
-  CardHeader: ({ children }: any) => <div>{children}</div>,
-  CardTitle: ({ children }: any) => <div>{children}</div>,
-  CardDescription: ({ children }: any) => <div>{children}</div>,
-  CardContent: ({ children }: any) => <div>{children}</div>,
+  Card: ({ children }: WithChildren) => <div>{children}</div>,
+  CardHeader: ({ children }: WithChildren) => <div>{children}</div>,
+  CardTitle: ({ children }: WithChildren) => <div>{children}</div>,
+  CardDescription: ({ children }: WithChildren) => <div>{children}</div>,
+  CardContent: ({ children }: WithChildren) => <div>{children}</div>,
 }));
 
 vi.mock('@/components/ui/label', () => ({
-  Label: ({ children }: any) => <label>{children}</label>,
+  Label: ({ children }: WithChildren) => <label>{children}</label>,
 }));
 
-// Mock sub-components
-vi.mock('./VersionList', () => ({ VersionList: () => <div>VersionList</div> }));
-vi.mock('./ReadingRoom', () => ({ ReadingRoom: () => <div>ReadingRoom</div> }));
+vi.mock('../components/workflow/VersionList', () => ({
+  VersionList: () => <div>VersionList</div>,
+}));
+
+vi.mock('../components/workflow/ReadingRoom', () => ({
+  ReadingRoom: () => <div>ReadingRoom</div>,
+}));
+
+type Session = {
+  sessionId: string;
+  sessionName: string;
+  content: string;
+  chapters: string[];
+  wordCount: number;
+  currentStep: number;
+};
+
+type NovelStoreSlice = {
+  sessions: Session[];
+  currentSessionId: string;
+  originalNovel: string;
+  chapters: string[];
+};
+
+const useNovelStoreMock = useNovelStore as unknown as ReturnType<typeof vi.fn>;
 
 describe('HistoryExportDialog', () => {
-  const mockSessions = [
+  const mockSessions: Session[] = [
     {
       sessionId: 'session-1',
       sessionName: 'Session 1',
@@ -86,24 +122,25 @@ describe('HistoryExportDialog', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    (useNovelStore as any).mockReturnValue({
+
+    const state: NovelStoreSlice = {
       sessions: mockSessions,
       currentSessionId: 'session-1',
       originalNovel: 'Original 1',
       chapters: ['C1-1', 'C1-2'],
+    };
+
+    useNovelStoreMock.mockImplementation((selector?: (value: NovelStoreSlice) => unknown) => {
+      return selector ? selector(state) : state;
     });
   });
 
   it('renders correctly and allows session selection', () => {
     render(<HistoryExportDialog />);
-    
-    // In our simplified mock, children are always rendered but might be hidden by CSS in real app
-    // For testing the logic, we check if the content is there
+
     expect(screen.getByText(/Export Protocol/i)).toBeDefined();
     expect(screen.getByText(/Select Session to Export/i)).toBeDefined();
-    
-    const select = screen.getByTestId('select-root');
-    expect(select).toBeDefined();
+    expect(screen.getByTestId('select-root')).toBeDefined();
   });
 
   it('displays the correct stats for the default session', () => {
@@ -116,8 +153,7 @@ describe('HistoryExportDialog', () => {
   it('updates stats when a different session is selected', () => {
     render(<HistoryExportDialog />);
 
-    const select = screen.getByTestId('select-root');
-    fireEvent.change(select, { target: { value: 'session-2' } });
+    fireEvent.change(screen.getByTestId('select-root'), { target: { value: 'session-2' } });
 
     expect(screen.getByText(/Original Novel \(50 chars\)/i)).toBeDefined();
     expect(screen.getByText(/All Generated Chapters \(1\)/i)).toBeDefined();

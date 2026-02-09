@@ -3,7 +3,7 @@ import { StepContinuation } from '../components/workflow/StepContinuation';
 import { useWorkflowStore } from '../store/useWorkflowStore';
 import { useNovelStore } from '../store/useNovelStore';
 import { useStepGenerator } from '../hooks/useStepGenerator';
-import { vi } from 'vitest';
+import { vi, beforeEach, describe, expect, it } from 'vitest';
 
 // Mocks
 vi.mock('../components/workflow/AutoModeControl', () => ({
@@ -18,22 +18,57 @@ vi.mock('../store/useWorkflowStore');
 vi.mock('../store/useNovelStore');
 vi.mock('../hooks/useStepGenerator');
 
+type ContinuationStepState = {
+  content: string;
+  status: 'idle' | 'streaming' | 'completed' | 'error';
+};
+
+type StepContinuationWorkflowState = {
+  steps: { continuation: ContinuationStepState };
+  isGenerating: boolean;
+  isPaused: boolean;
+};
+
+type StepContinuationNovelState = {
+  chapters: string[];
+  targetChapterCount: number;
+};
+
+type StepGeneratorState = {
+  generate: ReturnType<typeof vi.fn>;
+  stop: ReturnType<typeof vi.fn>;
+};
+
+const useWorkflowStoreMock = useWorkflowStore as unknown as ReturnType<typeof vi.fn>;
+const useNovelStoreMock = useNovelStore as unknown as ReturnType<typeof vi.fn>;
+const useStepGeneratorMock = useStepGenerator as unknown as ReturnType<typeof vi.fn>;
+
 describe('StepContinuation', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    (useWorkflowStore as any).mockReturnValue({
+    const workflowState: StepContinuationWorkflowState = {
       steps: { continuation: { content: '', status: 'idle' } },
       isGenerating: false,
       isPaused: false
-    });
-    (useNovelStore as any).mockReturnValue({
+    };
+    const novelState: StepContinuationNovelState = {
       chapters: ['Ch1'],
       targetChapterCount: 7
-    });
-    (useStepGenerator as any).mockReturnValue({
+    };
+    const stepGeneratorState: StepGeneratorState = {
       generate: vi.fn(),
       stop: vi.fn()
+    };
+
+    useWorkflowStoreMock.mockImplementation(
+      (selector?: (value: StepContinuationWorkflowState) => unknown) => {
+        return selector ? selector(workflowState) : workflowState;
+      }
+    );
+    useNovelStoreMock.mockImplementation((selector?: (value: StepContinuationNovelState) => unknown) => {
+      return selector ? selector(novelState) : novelState;
     });
+    useStepGeneratorMock.mockReturnValue(stepGeneratorState);
   });
 
   it('renders AutoModeControl when not generating', () => {
@@ -43,11 +78,17 @@ describe('StepContinuation', () => {
   });
 
   it('renders ProgressIndicator when generating', () => {
-    (useWorkflowStore as any).mockReturnValue({
+    const workflowState: StepContinuationWorkflowState = {
       steps: { continuation: { content: 'generating...', status: 'streaming' } },
       isGenerating: true,
       isPaused: false
-    });
+    };
+    useWorkflowStoreMock.mockImplementation(
+      (selector?: (value: StepContinuationWorkflowState) => unknown) => {
+        return selector ? selector(workflowState) : workflowState;
+      }
+    );
+
     render(<StepContinuation />);
     expect(screen.getByTestId('progress-indicator')).toBeDefined();
     expect(screen.getByText('progress-total-7')).toBeDefined();

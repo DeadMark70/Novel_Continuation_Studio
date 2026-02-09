@@ -1,7 +1,6 @@
 import { render, screen } from '@testing-library/react';
 import { ReadingRoom } from '../components/workflow/ReadingRoom';
 import { useNovelStore } from '../store/useNovelStore';
-import { vi } from 'vitest';
 
 describe('ReadingRoom', () => {
   it('renders original novel and chapters', () => {

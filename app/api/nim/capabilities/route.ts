@@ -4,6 +4,7 @@ const NIM_API_BASE = 'https://integrate.api.nvidia.com/v1';
 
 type ProbeStatus = {
   ok: boolean;
+  status?: number;
   reason?: string;
 };
 
@@ -39,7 +40,7 @@ async function runProbe(apiKey: string, payload: ProbeRequestPayload): Promise<P
 
   if (!response.ok) {
     const message = await readErrorMessage(response);
-    return { ok: false, reason: `HTTP ${response.status}: ${message}` };
+    return { ok: false, status: response.status, reason: `HTTP ${response.status}: ${message}` };
   }
 
   try {
@@ -52,6 +53,29 @@ async function runProbe(apiKey: string, payload: ProbeRequestPayload): Promise<P
   }
 
   return { ok: true };
+}
+
+function isDefinitiveThinkingUnsupported(probe: ProbeStatus): boolean {
+  if (probe.ok) {
+    return false;
+  }
+
+  if (probe.status !== 400 && probe.status !== 422) {
+    return false;
+  }
+
+  const reason = probe.reason?.toLowerCase() ?? '';
+  if (!reason) {
+    return true;
+  }
+
+  return (
+    reason.includes('thinking') ||
+    reason.includes('chat_template_kwargs') ||
+    reason.includes('unsupported') ||
+    reason.includes('unknown field') ||
+    reason.includes('invalid field')
+  );
 }
 
 export async function POST(request: Request) {
@@ -81,6 +105,16 @@ export async function POST(request: Request) {
 
     const chatProbe = await runProbe(apiKey, basePayload);
     if (!chatProbe.ok) {
+      if (chatProbe.status === 429) {
+        return NextResponse.json({
+          chatSupported: true,
+          thinkingSupported: 'unknown',
+          reason: 'Capability probe rate-limited (HTTP 429). Please retry shortly.',
+          checkedAt: Date.now(),
+          source: 'probe',
+        });
+      }
+
       return NextResponse.json({
         chatSupported: false,
         thinkingSupported: 'unsupported',
@@ -95,10 +129,31 @@ export async function POST(request: Request) {
       chat_template_kwargs: { thinking: true },
     });
 
+    if (!thinkingProbe.ok) {
+      if (thinkingProbe.status === 429) {
+        return NextResponse.json({
+          chatSupported: true,
+          thinkingSupported: 'unknown',
+          reason: 'Thinking capability probe rate-limited (HTTP 429). Please retry shortly.',
+          checkedAt: Date.now(),
+          source: 'probe',
+        });
+      }
+
+      const isUnsupported = isDefinitiveThinkingUnsupported(thinkingProbe);
+      return NextResponse.json({
+        chatSupported: true,
+        thinkingSupported: isUnsupported ? 'unsupported' : 'unknown',
+        reason: thinkingProbe.reason,
+        checkedAt: Date.now(),
+        source: 'probe',
+      });
+    }
+
     return NextResponse.json({
       chatSupported: true,
-      thinkingSupported: thinkingProbe.ok ? 'supported' : 'unsupported',
-      reason: thinkingProbe.ok ? undefined : thinkingProbe.reason,
+      thinkingSupported: 'supported',
+      reason: undefined,
       checkedAt: Date.now(),
       source: 'probe',
     });

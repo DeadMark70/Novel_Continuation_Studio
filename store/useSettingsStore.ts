@@ -3,6 +3,22 @@ import { saveSettings, getSettings } from '@/lib/db';
 import { fetchModelCapability, type ModelCapability } from '@/lib/nim-client';
 import { getModelCapabilityOverride } from '@/lib/nim-model-overrides';
 
+const CAPABILITY_CACHE_TTL_MS = 10 * 60 * 1000;
+
+function isCapabilityFresh(capability?: ModelCapability): boolean {
+  if (!capability) {
+    return false;
+  }
+  return Date.now() - capability.checkedAt < CAPABILITY_CACHE_TTL_MS;
+}
+
+function isRateLimitReason(reason?: string): boolean {
+  if (!reason) {
+    return false;
+  }
+  return reason.includes('429') || reason.toLowerCase().includes('too many requests');
+}
+
 interface SettingsState {
   apiKey: string;
   selectedModel: string;
@@ -45,12 +61,20 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   setSelectedModel: async (model: string) => {
     set({ selectedModel: model });
     await get().addRecentModel(model);
-    try {
-      const capability = await get().probeModelCapability(model);
-      await get().upsertModelCapability(model, capability);
-    } catch (error) {
-      console.warn('Capability probe failed:', error);
+
+    const existingCapability = get().modelCapabilities[model];
+    if (isCapabilityFresh(existingCapability)) {
+      return;
     }
+
+    void (async () => {
+      try {
+        const capability = await get().probeModelCapability(model);
+        await get().upsertModelCapability(model, capability);
+      } catch (error) {
+        console.warn('Capability probe failed:', error);
+      }
+    })();
   },
 
   addRecentModel: async (model: string) => {
@@ -86,13 +110,25 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   probeModelCapability: async (model: string, apiKeyOverride?: string) => {
     const override = getModelCapabilityOverride(model);
     const resolvedApiKey = apiKeyOverride ?? get().apiKey;
+    const existingCapability = get().modelCapabilities[model];
 
     try {
       const capability = await fetchModelCapability(model, resolvedApiKey);
+      if (
+        capability.thinkingSupported === 'unknown' &&
+        isRateLimitReason(capability.reason) &&
+        existingCapability
+      ) {
+        return existingCapability;
+      }
       return capability;
     } catch (error) {
       if (override) {
         return override;
+      }
+
+      if (existingCapability) {
+        return existingCapability;
       }
 
       return {

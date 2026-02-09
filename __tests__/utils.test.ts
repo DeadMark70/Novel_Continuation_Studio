@@ -36,22 +36,21 @@ describe('utils', () => {
       global.URL.revokeObjectURL = vi.fn();
       
       // Mock Blob as a constructor
-      global.Blob = vi.fn().mockImplementation(function(this: any, content: any, options: any) {
-        this.content = content;
-        this.options = options;
+      const blobMock = vi.fn().mockImplementation(function(this: object) {
         return this;
-      }) as any;
+      });
+      global.Blob = blobMock as unknown as typeof Blob;
       
       // Mock document.createElement
-      document.createElement = vi.fn().mockImplementation((tagName) => {
+      document.createElement = vi.fn().mockImplementation((tagName: string) => {
         if (tagName === 'a') {
           return {
             href: '',
             download: '',
             click: vi.fn(),
-          };
+          } as unknown as HTMLElement;
         }
-        return {};
+        return {} as HTMLElement;
       });
       document.body.appendChild = vi.fn();
       document.body.removeChild = vi.fn();
@@ -67,7 +66,7 @@ describe('utils', () => {
       // Verify Blob creation
       expect(global.Blob).toHaveBeenCalled();
       const blobCall = vi.mocked(global.Blob).mock.calls[0];
-      const content = blobCall[0][0];
+      const content = String(blobCall?.[0]?.[0] ?? '');
 
       expect(content).toContain('TITLE: Test Novel');
       expect(content).toContain('【ORIGINAL NOVEL】');

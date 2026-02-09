@@ -5,6 +5,7 @@ import { useNovelStore } from '@/store/useNovelStore';
 import { generateStream } from '@/lib/nim-client';
 import { injectPrompt } from '@/lib/prompt-engine';
 import { DEFAULT_PROMPTS } from '@/lib/prompts';
+import { canAttemptThinking } from '@/lib/thinking-mode';
 
 export function useStepGenerator() {
   const { startStep, updateStepContent, completeStep, setStepError, cancelStep, forceResetGeneration } = useWorkflowStore();
@@ -81,7 +82,7 @@ export function useStepGenerator() {
         throw new Error(`Model "${selectedModel}" is marked as unavailable: ${modelCapability.reason || 'Unsupported model.'}`);
       }
 
-      const canUseThinking = Boolean(thinkingEnabled && modelCapability?.thinkingSupported === 'supported');
+      const canUseThinking = canAttemptThinking(thinkingEnabled, modelCapability);
 
       // 3. Stream
       const stream = generateStream(
@@ -90,7 +91,7 @@ export function useStepGenerator() {
         apiKey, 
         undefined, 
         {
-          enableThinking: thinkingEnabled,
+          enableThinking: canUseThinking,
           thinkingSupported: canUseThinking,
           onRetry: (attempt, maxRetries, delay) => {
             console.log(`[Generator] Retrying request ${attempt}/${maxRetries} after ${delay}ms`);
