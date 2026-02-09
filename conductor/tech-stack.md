@@ -26,7 +26,10 @@
 - **Protocols:**
     - Strict error object detection for HTTP 200 responses.
     - Model capability probing route (`/api/nim/capabilities`) to detect chat/thinking support.
+    - Capability semantics differentiate temporary probe failure (`unknown`) vs explicit incompatibility (`unsupported`).
     - Request parameter forwarding safeguards in `/api/nim/generate` (including `chat_template_kwargs`, penalties, and seed).
+    - Streaming client uses inactivity timeout with retry on timeout errors for slow models.
+    - Route segment duration hint on `/api/nim/generate`: `maxDuration = 300`.
 
 ## Development Tools
 - **Agent:** Gemini CLI (Coding Agent)

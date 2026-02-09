@@ -12,3 +12,4 @@
 ## Management
 - [Tracks Registry](./tracks.md)
 - [Tracks Directory](./tracks/)
+- [Agent Handoff](../agent.md)

@@ -38,10 +38,13 @@
         -   Adjustable Dual-End Buffer (characters to keep at each end).
 4.  **Model Capability Governance (NIM):**
     -   Model capability probing for chat availability and thinking support.
+    -   Probe results distinguish transient unknown vs definitive unsupported states.
     -   Thinking mode toggle in settings with per-model support detection.
     -   Unsupported models/parameters are surfaced in UI and blocked before generation when applicable.
 5.  **Real-time Streaming:**
     -   Visual feedback during generation (NVIDIA NIM).
+    -   Inactivity-based timeout strategy for slow models (instead of fixed total request timeout).
+    -   Retry flow also covers timeout failures to improve recovery on unstable/slow upstream behavior.
     -   Pause/Cancel controls.
 6.  **Version Control (Session-Based):**
     -   **Session History:** Each analysis starts a new isolated session, preserving the full context of that run.
