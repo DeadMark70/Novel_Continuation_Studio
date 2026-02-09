@@ -238,5 +238,96 @@ describe('NIM Client', () => {
       await expect(streamPromise).rejects.toThrow('Request cancelled');
       expect(global.fetch).toHaveBeenCalledTimes(1);
     });
+
+    it('throws timeout error when stream stays inactive past timeout', async () => {
+      (global.fetch as unknown as ReturnType<typeof vi.fn>).mockImplementation(
+        (_url: string, init?: RequestInit) =>
+          new Promise((_resolve, reject) => {
+            const requestSignal = init?.signal;
+            if (!requestSignal) {
+              return;
+            }
+            if (requestSignal.aborted) {
+              const abortedError = new Error('Aborted');
+              abortedError.name = 'AbortError';
+              reject(abortedError);
+              return;
+            }
+            requestSignal.addEventListener(
+              'abort',
+              () => {
+                const abortedError = new Error('Aborted');
+                abortedError.name = 'AbortError';
+                reject(abortedError);
+              },
+              { once: true }
+            );
+          })
+      );
+
+      await expect(
+        collectStream(
+          generateStream('prompt', 'model-id', 'api-key', undefined, {
+            timeout: 10,
+            maxRetries: 0,
+          })
+        )
+      ).rejects.toThrow('Request timed out');
+    });
+
+    it('retries after timeout and can recover on next attempt', async () => {
+      const recoveredStream = new ReadableStream({
+        start(controller) {
+          const encoder = new TextEncoder();
+          controller.enqueue(encoder.encode('data: {"choices":[{"delta":{"content":"Recovered"}}]}\n\n'));
+          controller.enqueue(encoder.encode('data: [DONE]\n\n'));
+          controller.close();
+        },
+      });
+
+      (global.fetch as unknown as ReturnType<typeof vi.fn>)
+        .mockImplementationOnce(
+          (_url: string, init?: RequestInit) =>
+            new Promise((_resolve, reject) => {
+              const requestSignal = init?.signal;
+              if (!requestSignal) {
+                return;
+              }
+              if (requestSignal.aborted) {
+                const abortedError = new Error('Aborted');
+                abortedError.name = 'AbortError';
+                reject(abortedError);
+                return;
+              }
+              requestSignal.addEventListener(
+                'abort',
+                () => {
+                  const abortedError = new Error('Aborted');
+                  abortedError.name = 'AbortError';
+                  reject(abortedError);
+                },
+                { once: true }
+              );
+            })
+        )
+        .mockResolvedValueOnce({
+          ok: true,
+          body: recoveredStream,
+        });
+
+      const onRetry = vi.fn();
+      const result = await collectStream(
+        generateStream('prompt', 'model-id', 'api-key', undefined, {
+          timeout: 10,
+          maxRetries: 1,
+          retryDelay: 1,
+          onRetry,
+        })
+      );
+
+      expect(result).toBe('Recovered');
+      expect(global.fetch).toHaveBeenCalledTimes(2);
+      expect(onRetry).toHaveBeenCalledWith(1, 1, 1, expect.any(Error));
+    });
   });
 });

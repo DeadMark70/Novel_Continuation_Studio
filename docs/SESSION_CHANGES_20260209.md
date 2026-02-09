@@ -3,6 +3,7 @@
 ## Scope
 - Fix `thinking mode` lockout after a failed capability probe.
 - Restore green checks for TypeScript and ESLint in the current workspace.
+- Fix NIM slow-model timeout failures during streaming generation.
 
 ## Core Fixes
 
@@ -36,6 +37,20 @@
   - `__tests__/ReadingRoom.test.tsx`
   - `__tests__/SettingsPanel.test.tsx`
 - Added `coverage/**` ignore in `eslint.config.mjs` to avoid linting generated artifacts.
+
+### 3. NIM streaming timeout resilience
+- `lib/nim-client.ts`
+  - Replaced fixed total request timeout with inactivity-based timeout.
+  - Default inactivity timeout is now model-aware:
+    - Thinking requests: 10 minutes
+    - Non-thinking requests: 5 minutes
+  - Added timeout retry behavior (same retry flow as transient upstream failures).
+- `app/api/nim/generate/route.ts`
+  - Added `export const maxDuration = 300` to allow longer server-side execution windows on supporting platforms.
+- `__tests__/nim-client.test.ts`
+  - Added timeout regression tests:
+    - hard timeout when no stream activity
+    - recovery after timeout via retry
 
 ## Verification
 - `npx tsc --noEmit` passes.

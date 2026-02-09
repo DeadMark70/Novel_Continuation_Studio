@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 
 const NIM_API_BASE = 'https://integrate.api.nvidia.com/v1';
+export const maxDuration = 300;
 
 export async function POST(request: Request) {
   const authHeader = request.headers.get('Authorization');

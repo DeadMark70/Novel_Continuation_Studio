@@ -22,7 +22,10 @@ export interface GenerateOptions {
   seed?: number;
   enableThinking?: boolean;
   thinkingSupported?: boolean;
-  timeout?: number;  // ms
+  // Inactivity timeout (ms): applies to first-byte wait and stream gaps.
+  // Legacy alias: `timeout`.
+  timeout?: number;
+  inactivityTimeout?: number;
   maxRetries?: number;
   retryDelay?: number;
   retryableErrors?: number[];
@@ -52,6 +55,10 @@ function isAbortError(error: unknown): boolean {
 
 function isRetryableError(error: unknown, retryableErrors: number[]): boolean {
   return error instanceof NimHttpError && retryableErrors.includes(error.status);
+}
+
+function isTimeoutError(error: unknown): boolean {
+  return error instanceof Error && error.message === 'Request timed out';
 }
 
 function waitWithAbort(ms: number, signal?: AbortSignal): Promise<void> {
@@ -161,13 +168,21 @@ export async function* generateStream(
     seed,
     enableThinking = false,
     thinkingSupported = false,
-    timeout = 180000, // 3 minutes timeout for slow APIs
+    timeout,
+    inactivityTimeout,
     maxRetries = 2,
     retryDelay = 3000,
     retryableErrors = [504, 502, 503],
     onRetry,
     onError
   } = options || {};
+
+  const resolvedInactivityTimeout = Math.max(
+    0,
+    inactivityTimeout ??
+      timeout ??
+      (enableThinking && thinkingSupported ? 10 * 60 * 1000 : 5 * 60 * 1000)
+  );
 
   const messages = [
     ...(systemPrompt ? [{ role: 'system', content: systemPrompt }] : []),
@@ -178,8 +193,25 @@ export async function* generateStream(
 
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), timeout);
     const onExternalAbort = () => controller.abort();
+    let timeoutId: ReturnType<typeof setTimeout> | null = null;
+
+    const resetTimeout = () => {
+      if (resolvedInactivityTimeout <= 0) {
+        return;
+      }
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
+      timeoutId = setTimeout(() => controller.abort(), resolvedInactivityTimeout);
+    };
+
+    const clearTimeoutGuard = () => {
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+        timeoutId = null;
+      }
+    };
 
     if (signal) {
       if (signal.aborted) {
@@ -190,6 +222,7 @@ export async function* generateStream(
     }
 
     try {
+      resetTimeout();
       const headers: HeadersInit = {
         'Content-Type': 'application/json',
         'Accept': 'text/event-stream',
@@ -215,6 +248,7 @@ export async function* generateStream(
         }),
         signal: controller.signal,
       });
+      resetTimeout();
 
       if (!response.ok) {
         if (response.status === 429) throw new Error('Rate limit exceeded');
@@ -236,6 +270,7 @@ export async function* generateStream(
         }
 
         const { done, value } = await reader.read();
+        resetTimeout();
         if (done) {
           console.log('[SSE] Stream ended (done=true)');
           break;
@@ -302,20 +337,23 @@ export async function* generateStream(
 
       return;
     } catch (error) {
-      lastError = error;
-
+      let normalizedError: unknown = error;
       if (isAbortError(error)) {
         if (signal?.aborted) {
           throw new Error('Request cancelled');
         }
-        throw new Error('Request timed out');
+        normalizedError = new Error('Request timed out');
       }
+      lastError = normalizedError;
 
-      if (isRetryableError(error, retryableErrors) && attempt < maxRetries) {
+      if (
+        (isRetryableError(normalizedError, retryableErrors) || isTimeoutError(normalizedError)) &&
+        attempt < maxRetries
+      ) {
         const nextAttempt = attempt + 1;
         const delay = retryDelay * Math.pow(2, attempt);
         console.log(`[NIM] Retry ${nextAttempt}/${maxRetries} after ${delay}ms`);
-        onRetry?.(nextAttempt, maxRetries, delay, error);
+        onRetry?.(nextAttempt, maxRetries, delay, normalizedError);
         try {
           await waitWithAbort(delay, signal);
         } catch (waitError) {
@@ -327,9 +365,9 @@ export async function* generateStream(
         continue;
       }
 
-      throw error;
+      throw normalizedError;
     } finally {
-      clearTimeout(timeoutId);
+      clearTimeoutGuard();
       if (signal) {
         signal.removeEventListener('abort', onExternalAbort);
       }
