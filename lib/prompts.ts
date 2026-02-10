@@ -1,4 +1,14 @@
-const CHAPTER1_COMPRESSED_PROMPT = `基於所有前置資訊，撰寫續寫的第一章。
+const ADULT_FICTION_GUARDRAILS = `**成人創作前提（硬性）**
+- 所有角色必須為 18 歲以上虛構成年人。
+- 不得引入未成年角色或任何未成年相關情節。
+- 若原文存在年齡模糊描述，續寫時需明確以成年人方式表述。`;
+
+const EROTIC_CONTINUATION_FOCUS = `**成人向續寫重點**
+- 張力先於事件：先鋪陳心理、權力互動、期待與壓力，再推進場景。
+- 感官與心理並行：描寫需同時包含情緒動機與角色反應，避免只堆砌刺激詞。
+- 人設不可漂移：親密互動與邊界變化必須符合既有角色弧線。`;
+
+const CHAPTER1_COMPRESSED_PROMPT = `基於所有前置資訊，撰寫續寫的第一章（成人向長篇）。
 
 **壓縮上下文：**
 {{COMPRESSED_CONTEXT}}
@@ -29,10 +39,12 @@ const CHAPTER1_COMPRESSED_PROMPT = `基於所有前置資訊，撰寫續寫的�
 - 你已有充足上下文，直接開始創作
 - 保持與原小說相同的風格和節奏
 - 自然展開章節框架中的情節點
+${EROTIC_CONTINUATION_FOCUS}
+${ADULT_FICTION_GUARDRAILS}
 
 **輸出：** 直接輸出小說文本，無需分析或註釋。`;
 
-const CHAPTER1_RAW_PROMPT = `基於原文與前置分析，撰寫續寫的第一章（未啟用壓縮模式）。
+const CHAPTER1_RAW_PROMPT = `基於原文與前置分析，撰寫續寫的第一章（成人向，未啟用壓縮模式）。
 
 **原文全文：**
 {{NOVEL_TEXT}}
@@ -54,10 +66,12 @@ const CHAPTER1_RAW_PROMPT = `基於原文與前置分析，撰寫續寫的第一
 - 必須延續原文人物設定、語氣與敘事節奏
 - 不新增原文不存在的重大世界觀設定
 - 嚴格對齊章節框架要點，但可自然調整場景細節
+${EROTIC_CONTINUATION_FOCUS}
+${ADULT_FICTION_GUARDRAILS}
 
 **輸出：** 直接輸出小說文本，無需分析或註釋。`;
 
-const CONTINUATION_COMPRESSED_PROMPT = `基於所有資訊和已生成的章節，撰寫下一章。
+const CONTINUATION_COMPRESSED_PROMPT = `基於所有資訊和已生成章節，撰寫下一章（成人向長篇續寫）。
 
 **壓縮上下文：**
 {{COMPRESSED_CONTEXT}}
@@ -91,10 +105,12 @@ const CONTINUATION_COMPRESSED_PROMPT = `基於所有資訊和已生成的章節�
 - 自然銜接前面的內容
 - 不重複任何情節、對白或描寫
 - 推進角色的心理和行為發展
+${EROTIC_CONTINUATION_FOCUS}
+${ADULT_FICTION_GUARDRAILS}
 
 **輸出：** 直接輸出小說文本，無需分析或註釋。`;
 
-const CONTINUATION_RAW_PROMPT = `基於原文與已生成章節，撰寫下一章（未啟用壓縮模式）。
+const CONTINUATION_RAW_PROMPT = `基於原文與已生成章節，撰寫下一章（成人向，未啟用壓縮模式）。
 
 **原文全文：**
 {{NOVEL_TEXT}}
@@ -119,6 +135,8 @@ const CONTINUATION_RAW_PROMPT = `基於原文與已生成章節，撰寫下一�
 - 自然銜接前章並延續原文語感
 - 不重複任何情節、對白或描寫
 - 角色行為必須與前文設定一致
+${EROTIC_CONTINUATION_FOCUS}
+${ADULT_FICTION_GUARDRAILS}
 
 **輸出：** 直接輸出小說文本，無需分析或註釋。`;
 
@@ -152,13 +170,19 @@ export const DEFAULT_PROMPTS = {
 【最終壓縮上下文】
 - 將角色卡 + 風格指南 + 壓縮大綱 + 證據包合併為可直接給續寫模型的上下文（保留小說語感，不要寫成教科書）。`,
 
-  analysis: `你是一位專業的小說分析師。我將提供一部小說內容，請進行以下分析：
+  analysis: `你是一位專業的成人向小說分析師。我將提供一部小說內容，請進行以下分析：
 
 1. 故事背景：時代、地點、社會設定
 2. 主要角色：身份、性格、關係動態
 3. 故事進展：已發生的關鍵情節與未回收伏筆
 4. 敘事風格：文字速度、心理描寫深度、對白特點
-5. 核心主題：情欲元素、權力動態、角色的限制或被動狀態
+5. 核心主題：情欲元素、權力動態、角色邊界與主導/被動狀態
+6. 親密場景機制：張力如何被建立、升溫、回落，哪些寫法最像原作
+
+請另外輸出：
+- 「角色不可改動清單」至少 6 條
+- 「續寫風格硬規則」至少 8 條（可執行，避免空泛）
+${ADULT_FICTION_GUARDRAILS}
 
 以 1000-1500 字總結這部小說的核心特徵，為續寫提供清晰的基礎。
 
@@ -186,11 +210,16 @@ export const DEFAULT_PROMPTS = {
 
 請生成一份 5000-8000 字的續寫大綱，要求：
 
+- 成人內容深化（核心要求）：
+  - 以心理拉扯與權力動態作為推進引擎，不是單次事件堆疊
+  - 每段情節都需標明：角色動機、情緒變化、關係位移
+  - 親密戲份需服務角色弧線與主線衝突，不能脫節
 - 自然延續現有故事，不強行突轉
 - 保持原有的敘事風格 and 主題元素
 - 讓角色的行為和心理有邏輯演變
 - 在核心主題（如限制、被動、權力動態）上深化發展
 {{USER_DIRECTION_REQUIREMENT}}
+${ADULT_FICTION_GUARDRAILS}
 
 **創作原則：**
 相信你的故事直覺，讓故事自然流動。不要刻意規劃「3 幕結構」或強制插入特定元素。
