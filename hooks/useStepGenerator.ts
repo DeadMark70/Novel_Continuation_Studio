@@ -240,8 +240,10 @@ export function useStepGenerator() {
                 apiKey,
                 undefined,
                 {
-                  enableThinking: canUseThinking,
-                  thinkingSupported: canUseThinking,
+                  // Phase 0 tasks favor stability over deep reasoning. Disable thinking kwargs
+                  // to avoid model-specific template incompatibilities (e.g. Mistral tokenizer errors).
+                  enableThinking: false,
+                  thinkingSupported: false,
                   onRetry: (retryAttempt, maxRetries, delay) => {
                     console.log(`[Compression:${task.id}] Retrying request ${retryAttempt}/${maxRetries} after ${delay}ms`);
                   }
@@ -255,7 +257,12 @@ export function useStepGenerator() {
 
               const section = extractCompressionSection(output, task.labels);
               if (!section.trim()) {
-                throw new Error(`Missing section for ${task.id}`);
+                // Fall back to raw output when marker extraction fails.
+                // This keeps pipeline moving and avoids hard-fail on minor format drift.
+                taskStatuses[task.id] = 'fallback';
+                progressRows.push(`${task.statusLabel}: marker missing, fallback to raw output`);
+                renderProgress();
+                return output.trim();
               }
 
               taskDurationsMs[task.id] = Date.now() - startedAt;
