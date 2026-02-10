@@ -27,7 +27,7 @@ export const StepChapter1: React.FC = () => {
              </Button>
           )}
           {isStreaming ? (
-            <Button variant="destructive" size="sm" onClick={stop} disabled={step.status !== 'streaming'}>
+            <Button variant="destructive" size="sm" onClick={stop}>
               <StopCircle className="size-4 mr-2" /> Stop
             </Button>
           ) : (

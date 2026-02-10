@@ -24,6 +24,10 @@ type PromptKey = keyof typeof DEFAULT_PROMPTS;
 const PROMPT_TAB_ITEMS: Array<{ key: PromptKey; label: string }> = [
   { key: 'analysis', label: 'Analysis' },
   { key: 'compression', label: 'Compression' },
+  { key: 'compressionRoleCards', label: 'Compression Role Cards' },
+  { key: 'compressionStyleGuide', label: 'Compression Style Guide' },
+  { key: 'compressionPlotLedger', label: 'Compression Plot Ledger' },
+  { key: 'compressionEvidencePack', label: 'Compression Evidence Pack' },
   { key: 'outlineCompressed', label: 'Outline (Compressed)' },
   { key: 'outlineRaw', label: 'Outline (Raw)' },
   { key: 'breakdown', label: 'Breakdown' },

@@ -8,7 +8,10 @@ import { DEFAULT_PROMPTS } from '@/lib/prompts';
 import { canAttemptThinking } from '@/lib/thinking-mode';
 import {
   buildCompressionSource,
-  parseCompressionArtifacts,
+  buildCompressedContext,
+  extractCompressionSection,
+  DEFAULT_COMPRESSION_PIPELINE_PARALLELISM,
+  type CompressionTaskId,
   shouldRunCompression,
 } from '@/lib/compression';
 import { runConsistencyCheck } from '@/lib/consistency-checker';
@@ -29,6 +32,34 @@ function resolvePromptTemplateKey(stepId: WorkflowStepId, useCompressedContext: 
   }
 
   return stepId;
+}
+
+interface CompressionPipelineTask {
+  id: Exclude<CompressionTaskId, 'synthesis'>;
+  statusLabel: string;
+  promptKey: PromptTemplateKey;
+  labels: string[];
+}
+
+async function runWithConcurrency<T>(
+  tasks: Array<() => Promise<T>>,
+  concurrency: number
+): Promise<T[]> {
+  const safeConcurrency = Math.max(1, Math.floor(concurrency));
+  const results: T[] = new Array(tasks.length);
+  let cursor = 0;
+
+  async function worker(): Promise<void> {
+    while (cursor < tasks.length) {
+      const current = cursor;
+      cursor += 1;
+      results[current] = await tasks[current]();
+    }
+  }
+
+  const workers = Array.from({ length: Math.min(safeConcurrency, tasks.length) }, () => worker());
+  await Promise.all(workers);
+  return results;
 }
 
 export function useStepGenerator() {
@@ -87,6 +118,10 @@ export function useStepGenerator() {
         compressedContext,
       } = useNovelStore.getState();
       const modelCapability = modelCapabilities[selectedModel];
+      if (modelCapability && !modelCapability.chatSupported) {
+        throw new Error(`Model "${selectedModel}" is marked as unavailable: ${modelCapability.reason || 'Unsupported model.'}`);
+      }
+      const canUseThinking = canAttemptThinking(thinkingEnabled, modelCapability);
       const sourceChars = originalNovel?.length ?? 0;
       const compressionActive = shouldRunCompression(
         compressionMode,
@@ -151,6 +186,185 @@ export function useStepGenerator() {
           await completeStep(stepId);
           return;
         }
+        const builtSource = buildCompressionSource(originalNovel, {
+          chunkSize: compressionChunkSize,
+          overlap: compressionChunkOverlap,
+          maxSegments: compressionEvidenceSegments,
+        });
+        const compressionChunkCount = builtSource.chunkCount;
+        const compressionSampledChunkCount = builtSource.sampledChunkCount;
+        const resolvedOriginalNovel = builtSource.sourceText;
+        let compressionOutlineTargetRange = '';
+        if (sourceChars <= 70000) {
+          compressionOutlineTargetRange = '5000-7000';
+        } else if (sourceChars <= 85000) {
+          compressionOutlineTargetRange = '7000-8500';
+        } else {
+          compressionOutlineTargetRange = '8500-10000';
+        }
+        const taskStatuses: Record<string, 'ok' | 'retry' | 'fallback' | 'failed'> = {};
+        const taskDurationsMs: Record<string, number> = {};
+        const progressRows: string[] = [];
+        const renderProgress = () => {
+          updateStepContent(stepId, ['【Phase 0 Pipeline】', ...progressRows].join('\n'));
+        };
+
+        const runTask = async (
+          task: CompressionPipelineTask
+        ): Promise<string> => {
+          let attempt = 0;
+          while (attempt < 2) {
+            const startedAt = Date.now();
+            attempt += 1;
+            progressRows.push(`${task.statusLabel}: running (attempt ${attempt})`);
+            renderProgress();
+            try {
+              const template = (
+                customPrompts[task.promptKey] ||
+                DEFAULT_PROMPTS[task.promptKey] ||
+                customPrompts.compression ||
+                DEFAULT_PROMPTS.compression
+              );
+
+              const prompt = injectPrompt(template, {
+                originalNovel: resolvedOriginalNovel,
+                compressionOutlineTargetRange,
+                compressionChunkCount,
+                compressionSampledChunkCount,
+              });
+
+              let output = '';
+              const stream = generateStream(
+                prompt,
+                selectedModel,
+                apiKey,
+                undefined,
+                {
+                  enableThinking: canUseThinking,
+                  thinkingSupported: canUseThinking,
+                  onRetry: (retryAttempt, maxRetries, delay) => {
+                    console.log(`[Compression:${task.id}] Retrying request ${retryAttempt}/${maxRetries} after ${delay}ms`);
+                  }
+                },
+                abortControllerRef.current?.signal
+              );
+
+              for await (const chunk of stream) {
+                output += chunk;
+              }
+
+              const section = extractCompressionSection(output, task.labels);
+              if (!section.trim()) {
+                throw new Error(`Missing section for ${task.id}`);
+              }
+
+              taskDurationsMs[task.id] = Date.now() - startedAt;
+              taskStatuses[task.id] = attempt > 1 ? 'retry' : 'ok';
+              progressRows.push(`${task.statusLabel}: done (${taskDurationsMs[task.id]}ms)`);
+              renderProgress();
+              return section;
+            } catch (taskError) {
+              if (
+                taskError instanceof Error &&
+                (taskError.name === 'AbortError' || taskError.message === 'Request cancelled')
+              ) {
+                throw taskError;
+              }
+              taskDurationsMs[task.id] = Date.now() - startedAt;
+              if (attempt >= 2) {
+                taskStatuses[task.id] = 'failed';
+                progressRows.push(`${task.statusLabel}: failed (${taskDurationsMs[task.id]}ms)`);
+                renderProgress();
+                throw taskError;
+              }
+              progressRows.push(`${task.statusLabel}: retrying`);
+              renderProgress();
+            }
+          }
+          throw new Error(`Compression task ${task.id} failed`);
+        };
+
+        const tasks: CompressionPipelineTask[] = [
+          {
+            id: 'roleCards',
+            statusLabel: 'A Role Cards',
+            promptKey: 'compressionRoleCards',
+            labels: ['角色卡', 'Character Cards'],
+          },
+          {
+            id: 'styleGuide',
+            statusLabel: 'B Style Guide',
+            promptKey: 'compressionStyleGuide',
+            labels: ['風格指南', 'Style Guide'],
+          },
+          {
+            id: 'plotLedger',
+            statusLabel: 'C Plot Ledger',
+            promptKey: 'compressionPlotLedger',
+            labels: ['壓縮大綱', 'Compression Outline'],
+          },
+          {
+            id: 'evidencePack',
+            statusLabel: 'D Evidence Pack',
+            promptKey: 'compressionEvidencePack',
+            labels: ['證據包', 'Evidence Pack'],
+          },
+        ];
+
+        const taskRunners = tasks.map((task) => async () => ({
+          task,
+          section: await runTask(task),
+        }));
+
+        const taskResults = await runWithConcurrency(
+          taskRunners,
+          DEFAULT_COMPRESSION_PIPELINE_PARALLELISM
+        );
+
+        const artifactMap = Object.fromEntries(
+          taskResults.map((result) => [result.task.id, result.section])
+        ) as Record<Exclude<CompressionTaskId, 'synthesis'>, string>;
+
+        const deterministicCompressedContext = buildCompressedContext({
+          characterCards: artifactMap.roleCards ?? '',
+          styleGuide: artifactMap.styleGuide ?? '',
+          compressionOutline: artifactMap.plotLedger ?? '',
+          evidencePack: artifactMap.evidencePack ?? '',
+        });
+
+        taskStatuses.synthesis = 'ok';
+        taskDurationsMs.synthesis = 0;
+        progressRows.push('E Programmatic Merge: done (0ms)');
+        renderProgress();
+
+        const artifacts = {
+          characterCards: artifactMap.roleCards ?? '',
+          styleGuide: artifactMap.styleGuide ?? '',
+          compressionOutline: artifactMap.plotLedger ?? '',
+          evidencePack: artifactMap.evidencePack ?? '',
+          compressedContext: deterministicCompressedContext,
+        };
+        const compressedChars = artifacts.compressedContext.length;
+        content = artifacts.compressedContext;
+        updateStepContent(stepId, content);
+        await useNovelStore.getState().updateWorkflow({
+          ...artifacts,
+          compressionMeta: {
+            sourceChars,
+            compressedChars,
+            ratio: sourceChars > 0 ? Number((compressedChars / sourceChars).toFixed(4)) : 0,
+            chunkCount: compressionChunkCount || compressionSampledChunkCount,
+            generatedAt: Date.now(),
+            skipped: false,
+            pipelineVersion: 'v2',
+            taskStatus: taskStatuses,
+            taskDurationsMs,
+            synthesisFallback: false,
+          },
+        });
+
+        await completeStep(stepId);
+        return;
       }
 
       const resolvedPromptTemplateKey = resolvePromptTemplateKey(stepId, canUseCompressedContext);
@@ -162,29 +376,8 @@ export function useStepGenerator() {
       );
       if (!template) throw new Error(`No prompt template found for ${stepId}`);
 
-      let compressionChunkCount = 0;
-      let compressionSampledChunkCount = 0;
       let resolvedOriginalNovel = originalNovel;
-      let compressionOutlineTargetRange = '';
-
-      if (stepId === 'compression') {
-        const builtSource = buildCompressionSource(originalNovel, {
-          chunkSize: compressionChunkSize,
-          overlap: compressionChunkOverlap,
-          maxSegments: compressionEvidenceSegments,
-        });
-        resolvedOriginalNovel = builtSource.sourceText;
-        compressionChunkCount = builtSource.chunkCount;
-        compressionSampledChunkCount = builtSource.sampledChunkCount;
-
-        if (sourceChars <= 70000) {
-          compressionOutlineTargetRange = '5000-7000';
-        } else if (sourceChars <= 85000) {
-          compressionOutlineTargetRange = '7000-8500';
-        } else {
-          compressionOutlineTargetRange = '8500-10000';
-        }
-      } else if (canUseCompressedContext) {
+      if (canUseCompressedContext) {
         resolvedOriginalNovel = compressedContext;
       }
 
@@ -205,16 +398,7 @@ export function useStepGenerator() {
         styleGuide,
         compressionOutline,
         evidencePack,
-        compressionOutlineTargetRange,
-        compressionChunkCount,
-        compressionSampledChunkCount,
       });
-
-      if (modelCapability && !modelCapability.chatSupported) {
-        throw new Error(`Model "${selectedModel}" is marked as unavailable: ${modelCapability.reason || 'Unsupported model.'}`);
-      }
-
-      const canUseThinking = canAttemptThinking(thinkingEnabled, modelCapability);
 
       // 3. Stream
       const stream = generateStream(
@@ -256,25 +440,6 @@ export function useStepGenerator() {
         updateStepContent(stepId, content);
         // Wait for state to propagate
         await new Promise(resolve => setTimeout(resolve, 100));
-      }
-
-      // 4. Complete - content is already in workflowStore via updateStepContent
-      // completeStep will sync to novelStore, release the isGenerating lock, and handle automation timing
-      if (stepId === 'compression') {
-        const parsed = parseCompressionArtifacts(content);
-        const compressedChars = parsed.compressedContext.length;
-
-        await useNovelStore.getState().updateWorkflow({
-          ...parsed,
-          compressionMeta: {
-            sourceChars,
-            compressedChars,
-            ratio: sourceChars > 0 ? Number((compressedChars / sourceChars).toFixed(4)) : 0,
-            chunkCount: compressionChunkCount || compressionSampledChunkCount,
-            generatedAt: Date.now(),
-            skipped: false,
-          },
-        });
       }
 
       await completeStep(stepId);

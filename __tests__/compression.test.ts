@@ -1,7 +1,9 @@
 import {
   buildCompressionSource,
+  extractCompressionSection,
   parseCompressionArtifacts,
   shouldRunCompression,
+  validateCompressionSections,
 } from '../lib/compression';
 
 describe('compression helpers', () => {
@@ -45,5 +47,31 @@ describe('compression helpers', () => {
     expect(parsed.compressionOutline).toBe('O1');
     expect(parsed.evidencePack).toBe('E1');
     expect(parsed.compressedContext).toBe('C1');
+  });
+
+  it('extracts a single section by markers', () => {
+    const output = ['【角色卡】', 'R2', '【風格指南】', 'S2'].join('\n');
+    expect(extractCompressionSection(output, ['角色卡'])).toBe('R2');
+    expect(extractCompressionSection(output, ['風格指南'])).toBe('S2');
+  });
+
+  it('validates composed compression context sections', () => {
+    const good = [
+      '【角色卡】',
+      'A',
+      '【風格指南】',
+      'B',
+      '【壓縮大綱】',
+      'C',
+      '【證據包】',
+      'D',
+    ].join('\n');
+    const bad = ['【角色卡】', 'A', '【風格指南】', 'B'].join('\n');
+
+    expect(validateCompressionSections(good)).toEqual({ ok: true, missing: [] });
+    const badResult = validateCompressionSections(bad);
+    expect(badResult.ok).toBe(false);
+    expect(badResult.missing).toContain('壓縮大綱');
+    expect(badResult.missing).toContain('證據包');
   });
 });

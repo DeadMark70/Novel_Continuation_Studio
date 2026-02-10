@@ -16,6 +16,10 @@ export interface CompressionMeta {
   generatedAt: number;
   skipped?: boolean;
   reason?: string;
+  pipelineVersion?: string;
+  taskStatus?: Record<string, 'ok' | 'retry' | 'fallback' | 'failed'>;
+  taskDurationsMs?: Record<string, number>;
+  synthesisFallback?: boolean;
 }
 
 export interface CompressionSourceConfig {
@@ -24,11 +28,20 @@ export interface CompressionSourceConfig {
   maxSegments: number;
 }
 
+export type CompressionTaskId =
+  | 'roleCards'
+  | 'styleGuide'
+  | 'plotLedger'
+  | 'evidencePack'
+  | 'synthesis';
+
 export const DEFAULT_COMPRESSION_MODE: CompressionMode = 'auto';
 export const DEFAULT_COMPRESSION_AUTO_THRESHOLD = 20000;
 export const DEFAULT_COMPRESSION_CHUNK_SIZE = 6000;
 export const DEFAULT_COMPRESSION_CHUNK_OVERLAP = 400;
 export const DEFAULT_COMPRESSION_EVIDENCE_SEGMENTS = 10;
+export const DEFAULT_COMPRESSION_PIPELINE_PARALLELISM = 4;
+export const DEFAULT_COMPRESSION_ENABLE_SYNTHESIS = true;
 
 const SECTION_MARKER = /【[^】]+】/g;
 
@@ -60,6 +73,10 @@ function extractByMarkers(output: string, labels: string[]): string {
     return tail.slice(0, nextMarkerIndex).trim();
   }
   return '';
+}
+
+export function extractCompressionSection(output: string, labels: string[]): string {
+  return extractByMarkers(output, labels);
 }
 
 export function shouldRunCompression(
@@ -149,6 +166,23 @@ export function buildCompressedContext(artifacts: Omit<CompressionArtifacts, 'co
   ].filter(Boolean);
 
   return sections.join('\n\n');
+}
+
+export function validateCompressionSections(text: string): { ok: boolean; missing: string[] } {
+  const missing: string[] = [];
+  if (!extractByMarkers(text, ['角色卡', 'Character Cards'])) {
+    missing.push('角色卡');
+  }
+  if (!extractByMarkers(text, ['風格指南', 'Style Guide'])) {
+    missing.push('風格指南');
+  }
+  if (!extractByMarkers(text, ['壓縮大綱', 'Compression Outline'])) {
+    missing.push('壓縮大綱');
+  }
+  if (!extractByMarkers(text, ['證據包', 'Evidence Pack'])) {
+    missing.push('證據包');
+  }
+  return { ok: missing.length === 0, missing };
 }
 
 export function parseCompressionArtifacts(output: string): CompressionArtifacts {

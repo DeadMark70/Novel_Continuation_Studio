@@ -22,7 +22,7 @@ export const StepAnalysis: React.FC = () => {
         <CardTitle className="text-lg font-bold uppercase tracking-wider">Step 1: Novel Analysis</CardTitle>
         <div className="flex gap-2">
           {isStreaming ? (
-            <Button variant="destructive" size="sm" onClick={stop} disabled={step.status !== 'streaming'}>
+            <Button variant="destructive" size="sm" onClick={stop}>
               <StopCircle className="size-4 mr-2" /> Stop
             </Button>
           ) : (

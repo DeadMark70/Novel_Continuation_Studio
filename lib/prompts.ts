@@ -215,6 +215,85 @@ ${ADULT_FICTION_GUARDRAILS}
 
 **輸出：** 直接輸出小說文本，無需分析或註釋。`;
 
+const COMPRESSION_ROLE_CARDS_PROMPT = `你是長篇成人小說壓縮流程中的「角色卡抽取器」。
+
+**來源片段（共 {{COMPRESSION_CHUNK_COUNT}} 段，抽樣 {{COMPRESSION_SAMPLED_CHUNK_COUNT}} 段）：**
+{{NOVEL_TEXT}}
+
+---
+
+請只輸出以下單一段落（不得新增其他段）：
+
+【角色卡】
+- 每位角色請包含：姓名/別稱、身份、核心慾望、弱點、關係網、成長弧、不可改設定（3條）
+- 只保留與後續續寫最相關角色，避免冗長背景
+- 所有角色皆為成年虛構人物`;
+
+const COMPRESSION_STYLE_GUIDE_PROMPT = `你是長篇成人小說壓縮流程中的「風格指南抽取器」。
+
+**來源片段（共 {{COMPRESSION_CHUNK_COUNT}} 段，抽樣 {{COMPRESSION_SAMPLED_CHUNK_COUNT}} 段）：**
+{{NOVEL_TEXT}}
+
+---
+
+請只輸出以下單一段落（不得新增其他段）：
+
+【風格指南】
+- 敘事視角、時態習慣、句長偏好、對話比例、張力節奏、常用語感、禁忌風格
+- 列出 8 條「續寫必遵守規則」
+- 風格描述需可執行，避免抽象空話`;
+
+const COMPRESSION_PLOT_LEDGER_PROMPT = `你是長篇成人小說壓縮流程中的「劇情骨架與伏筆 ledger 抽取器」。
+
+**來源片段（共 {{COMPRESSION_CHUNK_COUNT}} 段，抽樣 {{COMPRESSION_SAMPLED_CHUNK_COUNT}} 段）：**
+{{NOVEL_TEXT}}
+
+---
+
+請只輸出以下單一段落（不得新增其他段）：
+
+【壓縮大綱】
+- 依原文重建主線與必要支線，目標長度 {{COMPRESSION_OUTLINE_TARGET_RANGE}} 字
+- 必含：章節主旨、必留事件、伏筆與回收點、可刪/可合併建議
+- 明確標示仍未回收的伏筆`;
+
+const COMPRESSION_EVIDENCE_PACK_PROMPT = `你是長篇成人小說壓縮流程中的「證據包抽取器」。
+
+**來源片段（共 {{COMPRESSION_CHUNK_COUNT}} 段，抽樣 {{COMPRESSION_SAMPLED_CHUNK_COUNT}} 段）：**
+{{NOVEL_TEXT}}
+
+---
+
+請只輸出以下單一段落（不得新增其他段）：
+
+【證據包】
+- 請列出 6-12 段關鍵場景證據，每段包含：
+  1) 場景標籤（開場/引爆/轉折/低谷/高潮/收束/角色定錨）
+  2) 原文摘錄（盡量忠實）
+  3) 為何關鍵（1-2句）
+- 片段需分散於全書，不可集中在結尾`;
+
+const COMPRESSION_SYNTHESIS_PROMPT = `你是壓縮流程的最終彙整器。請將以下四份子結果整編成可直接給續寫模型使用的最終上下文。
+
+【角色卡】
+{{CHARACTER_CARDS}}
+
+【風格指南】
+{{STYLE_GUIDE}}
+
+【壓縮大綱】
+{{COMPRESSION_OUTLINE}}
+
+【證據包】
+{{EVIDENCE_PACK}}
+
+---
+
+輸出要求：
+- 請輸出完整四段：` + '`【角色卡】`' + `、` + '`【風格指南】`' + `、` + '`【壓縮大綱】`' + `、` + '`【證據包】`' + `
+- 最後再輸出：` + '`【最終壓縮上下文】`' + `（整合版本，保留小說語感，非教科書）
+- 不得新增原文不存在的重大事件或人設`;
+
 export const DEFAULT_PROMPTS = {
   compression: `你是一位長篇小說壓縮編輯。請根據以下小說片段建立可續寫的高保真壓縮上下文。
 
@@ -244,6 +323,16 @@ export const DEFAULT_PROMPTS = {
 
 【最終壓縮上下文】
 - 將角色卡 + 風格指南 + 壓縮大綱 + 證據包合併為可直接給續寫模型的上下文（保留小說語感，不要寫成教科書）。`,
+
+  compressionRoleCards: COMPRESSION_ROLE_CARDS_PROMPT,
+
+  compressionStyleGuide: COMPRESSION_STYLE_GUIDE_PROMPT,
+
+  compressionPlotLedger: COMPRESSION_PLOT_LEDGER_PROMPT,
+
+  compressionEvidencePack: COMPRESSION_EVIDENCE_PACK_PROMPT,
+
+  compressionSynthesis: COMPRESSION_SYNTHESIS_PROMPT,
 
   analysis: `你是一位專業的成人向小說分析師。我將提供一部小說內容，請進行以下分析：
 
