@@ -13,9 +13,15 @@ import { Textarea } from '@/components/ui/textarea';
 
 const MIN_TARGET_STORY_WORD_COUNT = 5000;
 const MAX_TARGET_STORY_WORD_COUNT = 50000;
+const MIN_TARGET_CHAPTER_COUNT = 3;
+const MAX_TARGET_CHAPTER_COUNT = 20;
 
 function clampStoryWordCount(value: number): number {
   return Math.max(MIN_TARGET_STORY_WORD_COUNT, Math.min(MAX_TARGET_STORY_WORD_COUNT, value));
+}
+
+function clampChapterCount(value: number): number {
+  return Math.max(MIN_TARGET_CHAPTER_COUNT, Math.min(MAX_TARGET_CHAPTER_COUNT, value));
 }
 
 export const StepOutline: React.FC = () => {
@@ -25,10 +31,13 @@ export const StepOutline: React.FC = () => {
     setOutlineDirection,
     targetStoryWordCount,
     setTargetStoryWordCount,
+    targetChapterCount,
+    setTargetChapterCount,
   } = useNovelStore();
   const { generate, stop } = useStepGenerator();
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const [storyWordCountInput, setStoryWordCountInput] = React.useState(targetStoryWordCount.toString());
+  const [chapterCountInput, setChapterCountInput] = React.useState(targetChapterCount.toString());
   
   const step = steps.outline;
   const isStreaming = step.status === 'streaming';
@@ -46,11 +55,22 @@ export const StepOutline: React.FC = () => {
     setStoryWordCountInput(targetStoryWordCount.toString());
   }, [targetStoryWordCount]);
 
+  useEffect(() => {
+    setChapterCountInput(targetChapterCount.toString());
+  }, [targetChapterCount]);
+
   const commitStoryWordCount = async (rawValue: string) => {
     const parsed = parseInt(rawValue, 10);
     const safeValue = Number.isFinite(parsed) ? clampStoryWordCount(parsed) : targetStoryWordCount;
     setStoryWordCountInput(safeValue.toString());
     await setTargetStoryWordCount(safeValue);
+  };
+
+  const commitTargetChapterCount = async (rawValue: string) => {
+    const parsed = parseInt(rawValue, 10);
+    const safeValue = Number.isFinite(parsed) ? clampChapterCount(parsed) : targetChapterCount;
+    setChapterCountInput(safeValue.toString());
+    await setTargetChapterCount(safeValue);
   };
 
   return (
@@ -97,6 +117,28 @@ export const StepOutline: React.FC = () => {
             />
             <span className="text-xs text-muted-foreground">
               Range: {MIN_TARGET_STORY_WORD_COUNT}-{MAX_TARGET_STORY_WORD_COUNT}
+            </span>
+          </div>
+        </div>
+
+        <div className="space-y-2 rounded-lg border border-cyan-500/20 bg-card/30 p-3">
+          <Label htmlFor="target-chapter-count" className="text-xs font-mono text-cyan-500 font-bold">
+            TARGET CHAPTER COUNT (FOR PHASE 3 AUTO-RUN)
+          </Label>
+          <div className="flex items-center gap-3">
+            <Input
+              id="target-chapter-count"
+              type="number"
+              min={MIN_TARGET_CHAPTER_COUNT}
+              max={MAX_TARGET_CHAPTER_COUNT}
+              step={1}
+              value={chapterCountInput}
+              onChange={(event) => setChapterCountInput(event.target.value)}
+              onBlur={() => void commitTargetChapterCount(chapterCountInput)}
+              className="w-32"
+            />
+            <span className="text-xs text-muted-foreground">
+              Range: {MIN_TARGET_CHAPTER_COUNT}-{MAX_TARGET_CHAPTER_COUNT}
             </span>
           </div>
         </div>
