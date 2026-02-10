@@ -13,6 +13,20 @@ import {
 } from '@/lib/compression';
 import { runConsistencyCheck } from '@/lib/consistency-checker';
 
+type PromptTemplateKey = keyof typeof DEFAULT_PROMPTS;
+
+function resolvePromptTemplateKey(stepId: WorkflowStepId, useCompressedContext: boolean): PromptTemplateKey {
+  if (stepId === 'chapter1') {
+    return useCompressedContext ? 'chapter1Compressed' : 'chapter1Raw';
+  }
+
+  if (stepId === 'continuation') {
+    return useCompressedContext ? 'continuationCompressed' : 'continuationRaw';
+  }
+
+  return stepId;
+}
+
 export function useStepGenerator() {
   const { startStep, updateStepContent, completeStep, setStepError, cancelStep, forceResetGeneration } = useWorkflowStore();
   
@@ -135,7 +149,13 @@ export function useStepGenerator() {
         }
       }
 
-      const template = customPrompts[stepId] || DEFAULT_PROMPTS[stepId]; 
+      const resolvedPromptTemplateKey = resolvePromptTemplateKey(stepId, canUseCompressedContext);
+      const template = (
+        customPrompts[resolvedPromptTemplateKey] ||
+        customPrompts[stepId] ||
+        DEFAULT_PROMPTS[resolvedPromptTemplateKey] ||
+        DEFAULT_PROMPTS[stepId]
+      );
       if (!template) throw new Error(`No prompt template found for ${stepId}`);
 
       let compressionChunkCount = 0;

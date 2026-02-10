@@ -1,3 +1,127 @@
+const CHAPTER1_COMPRESSED_PROMPT = `基於所有前置資訊，撰寫續寫的第一章。
+
+**壓縮上下文：**
+{{COMPRESSED_CONTEXT}}
+
+**角色卡：**
+{{CHARACTER_CARDS}}
+
+**風格指南：**
+{{STYLE_GUIDE}}
+
+**證據包：**
+{{EVIDENCE_PACK}}
+
+**故事分析：**
+{{ANALYSIS_RESULT}}
+
+**續寫大綱：**
+{{OUTLINE_RESULT}}
+
+**章節框架：**
+{{CHAPTER_BREAKDOWN}}
+
+---
+
+**任務：** 撰寫第一章，字數 4000-5000 字。
+
+**要求：**
+- 你已有充足上下文，直接開始創作
+- 保持與原小說相同的風格和節奏
+- 自然展開章節框架中的情節點
+
+**輸出：** 直接輸出小說文本，無需分析或註釋。`;
+
+const CHAPTER1_RAW_PROMPT = `基於原文與前置分析，撰寫續寫的第一章（未啟用壓縮模式）。
+
+**原文全文：**
+{{NOVEL_TEXT}}
+
+**故事分析：**
+{{ANALYSIS_RESULT}}
+
+**續寫大綱：**
+{{OUTLINE_RESULT}}
+
+**章節框架：**
+{{CHAPTER_BREAKDOWN}}
+
+---
+
+**任務：** 撰寫第一章，字數 4000-5000 字。
+
+**要求：**
+- 必須延續原文人物設定、語氣與敘事節奏
+- 不新增原文不存在的重大世界觀設定
+- 嚴格對齊章節框架要點，但可自然調整場景細節
+
+**輸出：** 直接輸出小說文本，無需分析或註釋。`;
+
+const CONTINUATION_COMPRESSED_PROMPT = `基於所有資訊和已生成的章節，撰寫下一章。
+
+**壓縮上下文：**
+{{COMPRESSED_CONTEXT}}
+
+**角色卡：**
+{{CHARACTER_CARDS}}
+
+**風格指南：**
+{{STYLE_GUIDE}}
+
+**證據包：**
+{{EVIDENCE_PACK}}
+
+**故事分析：**
+{{ANALYSIS_RESULT}}
+
+**續寫大綱：**
+{{OUTLINE_RESULT}}
+
+**章節框架：**
+{{CHAPTER_BREAKDOWN}}
+
+**已生成的章節：**
+{{GENERATED_CHAPTERS}}
+
+---
+
+**任務：** 撰寫第 {{NEXT_CHAPTER_NUMBER}} 章，字數 4000-5000 字。
+
+**要求：**
+- 自然銜接前面的內容
+- 不重複任何情節、對白或描寫
+- 推進角色的心理和行為發展
+
+**輸出：** 直接輸出小說文本，無需分析或註釋。`;
+
+const CONTINUATION_RAW_PROMPT = `基於原文與已生成章節，撰寫下一章（未啟用壓縮模式）。
+
+**原文全文：**
+{{NOVEL_TEXT}}
+
+**故事分析：**
+{{ANALYSIS_RESULT}}
+
+**續寫大綱：**
+{{OUTLINE_RESULT}}
+
+**章節框架：**
+{{CHAPTER_BREAKDOWN}}
+
+**已生成的章節：**
+{{GENERATED_CHAPTERS}}
+
+---
+
+**任務：** 撰寫第 {{NEXT_CHAPTER_NUMBER}} 章，字數 4000-5000 字。
+
+**要求：**
+- 自然銜接前章並延續原文語感
+- 不重複任何情節、對白或描寫
+- 角色行為必須與前文設定一致
+
+**輸出：** 直接輸出小說文本，無需分析或註釋。`;
+
 export const DEFAULT_PROMPTS = {
   compression: `你是一位長篇小說壓縮編輯。請根據以下小說片段建立可續寫的高保真壓縮上下文。
 
@@ -92,76 +216,19 @@ export const DEFAULT_PROMPTS = {
 
 讓故事自己決定節奏，保持章節邊界清晰合理。輸出格式簡潔，便於程式解析。`,
 
-  chapter1: `基於所有前置資訊，撰寫續寫的第一章。
+  chapter1Compressed: CHAPTER1_COMPRESSED_PROMPT,
 
-**壓縮上下文：**
-{{COMPRESSED_CONTEXT}}
+  chapter1Raw: CHAPTER1_RAW_PROMPT,
 
-**角色卡：**
-{{CHARACTER_CARDS}}
+  continuationCompressed: CONTINUATION_COMPRESSED_PROMPT,
 
-**風格指南：**
-{{STYLE_GUIDE}}
+  continuationRaw: CONTINUATION_RAW_PROMPT,
 
-**證據包：**
-{{EVIDENCE_PACK}}
+  // Backward compatibility fallback for existing custom prompt keys.
+  chapter1: CHAPTER1_COMPRESSED_PROMPT,
 
-**故事分析：**
-{{ANALYSIS_RESULT}}
-
-**續寫大綱：**
-{{OUTLINE_RESULT}}
-
-**章節框架：**
-{{CHAPTER_BREAKDOWN}}
-
----
-
-**任務：** 撰寫第一章，字數 4000-5000 字。
-
-**要求：**
-- 你已有充足上下文，直接開始創作
-- 保持與原小說相同的風格和節奏
-- 自然展開章節框架中的情節點
-
-**輸出：** 直接輸出小說文本，無需分析或註釋。`,
-
-  continuation: `基於所有資訊和已生成的章節，撰寫下一章。
-
-**壓縮上下文：**
-{{COMPRESSED_CONTEXT}}
-
-**角色卡：**
-{{CHARACTER_CARDS}}
-
-**風格指南：**
-{{STYLE_GUIDE}}
-
-**證據包：**
-{{EVIDENCE_PACK}}
-
-**故事分析：**
-{{ANALYSIS_RESULT}}
-
-**續寫大綱：**
-{{OUTLINE_RESULT}}
-
-**章節框架：**
-{{CHAPTER_BREAKDOWN}}
-
-**已生成的章節：**
-{{GENERATED_CHAPTERS}}
-
----
-
-**任務：** 撰寫第 {{NEXT_CHAPTER_NUMBER}} 章，字數 4000-5000 字。
-
-**要求：**
-- 自然銜接前面的內容
-- 不重複任何情節、對白或描寫
-- 推進角色的心理和行為發展
-
-**輸出：** 直接輸出小說文本，無需分析或註釋。`,
+  // Backward compatibility fallback for existing custom prompt keys.
+  continuation: CONTINUATION_COMPRESSED_PROMPT,
 
   consistency: `你是一位小說一致性審校器。請檢查最新章節是否與既有設定衝突，並輸出 JSON（不要輸出其他文字）。
 

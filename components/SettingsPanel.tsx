@@ -18,6 +18,20 @@ import {
 } from '@/lib/thinking-mode';
 import { type CompressionMode } from '@/lib/compression';
 
+type PromptKey = keyof typeof DEFAULT_PROMPTS;
+
+const PROMPT_TAB_ITEMS: Array<{ key: PromptKey; label: string }> = [
+  { key: 'analysis', label: 'Analysis' },
+  { key: 'compression', label: 'Compression' },
+  { key: 'outline', label: 'Outline' },
+  { key: 'breakdown', label: 'Breakdown' },
+  { key: 'chapter1Compressed', label: 'Chapter 1 (Compressed)' },
+  { key: 'chapter1Raw', label: 'Chapter 1 (Raw)' },
+  { key: 'continuationCompressed', label: 'Continuation (Compressed)' },
+  { key: 'continuationRaw', label: 'Continuation (Raw)' },
+  { key: 'consistency', label: 'Consistency' },
+];
+
 export const SettingsPanel: React.FC = () => {
   const { 
     apiKey, 
@@ -346,29 +360,27 @@ export const SettingsPanel: React.FC = () => {
           
           <TabsContent value="prompts" className="space-y-4 py-4">
             <Tabs defaultValue="analysis" orientation="vertical" className="flex gap-4">
-              <TabsList className="flex flex-col h-auto bg-transparent gap-2 w-32">
-                <TabsTrigger value="analysis" className="w-full justify-start">Analysis</TabsTrigger>
-                <TabsTrigger value="compression" className="w-full justify-start">Compression</TabsTrigger>
-                <TabsTrigger value="outline" className="w-full justify-start">Outline</TabsTrigger>
-                <TabsTrigger value="breakdown" className="w-full justify-start">Breakdown</TabsTrigger>
-                <TabsTrigger value="chapter1" className="w-full justify-start">Chapter 1</TabsTrigger>
-                <TabsTrigger value="continuation" className="w-full justify-start">Continuation</TabsTrigger>
-                <TabsTrigger value="consistency" className="w-full justify-start">Consistency</TabsTrigger>
+              <TabsList className="flex flex-col h-auto bg-transparent gap-2 w-56">
+                {PROMPT_TAB_ITEMS.map((item) => (
+                  <TabsTrigger key={item.key} value={item.key} className="w-full justify-start text-xs">
+                    {item.label}
+                  </TabsTrigger>
+                ))}
               </TabsList>
-              
+               
               <div className="flex-1 space-y-4">
-                {Object.entries(DEFAULT_PROMPTS).map(([key, defaultValue]) => (
-                  <TabsContent key={key} value={key} className="mt-0">
+                {PROMPT_TAB_ITEMS.map((item) => (
+                  <TabsContent key={item.key} value={item.key} className="mt-0">
                     <div className="flex justify-between items-center mb-2">
-                      <Label className="capitalize">{key} Prompt Template</Label>
-                      <Button variant="ghost" size="sm" onClick={() => resetPrompt(key)}>
+                      <Label>{item.label} Prompt Template</Label>
+                      <Button variant="ghost" size="sm" onClick={() => resetPrompt(item.key)}>
                         <RotateCcw className="size-3 mr-1" /> Reset
                       </Button>
                     </div>
                     <Textarea 
                       className="min-h-[300px] font-mono text-xs"
-                      value={customPrompts[key] ?? defaultValue}
-                      onChange={(e) => setCustomPrompt(key, e.target.value)}
+                      value={customPrompts[item.key] ?? DEFAULT_PROMPTS[item.key]}
+                      onChange={(e) => setCustomPrompt(item.key, e.target.value)}
                     />
                   </TabsContent>
                 ))}
