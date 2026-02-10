@@ -144,7 +144,7 @@ describe('useNovelStore Integration', () => {
     const novel = useNovelStore.getState();
     expect(workflow.steps.analysis.status).toBe('idle');
     expect(workflow.steps.analysis.content).toBe('');
-    expect(workflow.currentStepId).toBe('analysis');
+    expect(workflow.currentStepId).toBe('compression');
     expect(novel.originalNovel).toBe('');
     expect(novel.outlineDirection).toBe('');
     expect(novel.targetStoryWordCount).toBe(20000);

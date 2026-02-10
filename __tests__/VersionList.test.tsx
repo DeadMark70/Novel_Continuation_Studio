@@ -9,6 +9,7 @@ vi.mock('lucide-react', () => ({
   FileText: () => <div data-testid="file-text-icon" />,
   Trash2: () => <div data-testid="trash-icon" />,
   CheckCircle: () => <div data-testid="check-icon" />,
+  Plus: () => <div data-testid="plus-icon" />,
 }));
 
 describe('VersionList', () => {

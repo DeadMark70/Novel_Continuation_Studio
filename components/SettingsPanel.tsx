@@ -16,6 +16,7 @@ import {
   getEffectiveThinkingSupportState,
   isThinkingUnsupported as isThinkingCapabilityUnsupported
 } from '@/lib/thinking-mode';
+import { type CompressionMode } from '@/lib/compression';
 
 export const SettingsPanel: React.FC = () => {
   const { 
@@ -25,6 +26,11 @@ export const SettingsPanel: React.FC = () => {
     customPrompts, 
     truncationThreshold,
     dualEndBuffer,
+    compressionMode,
+    compressionAutoThreshold,
+    compressionChunkSize,
+    compressionChunkOverlap,
+    compressionEvidenceSegments,
     thinkingEnabled,
     modelCapabilities,
     setApiKey, 
@@ -42,6 +48,11 @@ export const SettingsPanel: React.FC = () => {
   const [localModel, setLocalModel] = useState(selectedModel);
   const [localThreshold, setLocalThreshold] = useState(truncationThreshold);
   const [localBuffer, setLocalBuffer] = useState(dualEndBuffer);
+  const [localCompressionMode, setLocalCompressionMode] = useState<CompressionMode>(compressionMode);
+  const [localCompressionThreshold, setLocalCompressionThreshold] = useState(compressionAutoThreshold);
+  const [localCompressionChunkSize, setLocalCompressionChunkSize] = useState(compressionChunkSize);
+  const [localCompressionChunkOverlap, setLocalCompressionChunkOverlap] = useState(compressionChunkOverlap);
+  const [localCompressionEvidenceSegments, setLocalCompressionEvidenceSegments] = useState(compressionEvidenceSegments);
   const [localThinkingEnabled, setLocalThinkingEnabled] = useState(thinkingEnabled);
   const [availableModels, setAvailableModels] = useState<string[]>([]);
   const [isLoadingModels, setIsLoadingModels] = useState(false);
@@ -66,9 +77,27 @@ export const SettingsPanel: React.FC = () => {
       setLocalModel(selectedModel);
       setLocalThreshold(truncationThreshold);
       setLocalBuffer(dualEndBuffer);
+      setLocalCompressionMode(compressionMode);
+      setLocalCompressionThreshold(compressionAutoThreshold);
+      setLocalCompressionChunkSize(compressionChunkSize);
+      setLocalCompressionChunkOverlap(compressionChunkOverlap);
+      setLocalCompressionEvidenceSegments(compressionEvidenceSegments);
       setLocalThinkingEnabled(thinkingEnabled);
     }
-  }, [isOpen, apiKey, selectedModel, truncationThreshold, dualEndBuffer, thinkingEnabled, initialize]);
+  }, [
+    isOpen,
+    apiKey,
+    selectedModel,
+    truncationThreshold,
+    dualEndBuffer,
+    compressionMode,
+    compressionAutoThreshold,
+    compressionChunkSize,
+    compressionChunkOverlap,
+    compressionEvidenceSegments,
+    thinkingEnabled,
+    initialize,
+  ]);
 
   const handleSave = async () => {
     const canEnableThinking = thinkingSupportState !== 'unsupported';
@@ -80,6 +109,11 @@ export const SettingsPanel: React.FC = () => {
       await updateContextSettings({
         truncationThreshold: localThreshold,
         dualEndBuffer: localBuffer,
+        compressionMode: localCompressionMode,
+        compressionAutoThreshold: localCompressionThreshold,
+        compressionChunkSize: localCompressionChunkSize,
+        compressionChunkOverlap: localCompressionChunkOverlap,
+        compressionEvidenceSegments: localCompressionEvidenceSegments,
       });
       setIsOpen(false);
     } finally {
@@ -233,6 +267,80 @@ export const SettingsPanel: React.FC = () => {
                 />
                 <p className="text-xs text-muted-foreground">Characters to keep at each end of a truncated chapter.</p>
               </div>
+
+              <div className="space-y-2 border-t border-border/60 pt-4">
+                <Label htmlFor="compression-mode">Phase 0 Compression Mode</Label>
+                <select
+                  id="compression-mode"
+                  data-testid="compression-mode-select"
+                  value={localCompressionMode}
+                  onChange={(e) => setLocalCompressionMode(e.target.value as CompressionMode)}
+                  className="w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm"
+                >
+                  <option value="auto">Auto</option>
+                  <option value="on">Always On</option>
+                  <option value="off">Always Off</option>
+                </select>
+                <p className="text-xs text-muted-foreground">
+                  Auto uses a user-defined character threshold to decide whether Phase 0 runs.
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="compression-threshold">Compression Auto Threshold (Characters)</Label>
+                <Input
+                  id="compression-threshold"
+                  data-testid="compression-threshold-input"
+                  type="number"
+                  min={5000}
+                  step={1000}
+                  value={localCompressionThreshold}
+                  onChange={(e) => setLocalCompressionThreshold(parseInt(e.target.value, 10) || 0)}
+                />
+                <p className="text-xs text-muted-foreground">
+                  In auto mode, novels longer than this threshold will run Phase 0 compression.
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="compression-chunk-size">Compression Chunk Size (Characters)</Label>
+                <Input
+                  id="compression-chunk-size"
+                  data-testid="compression-chunk-size-input"
+                  type="number"
+                  min={1000}
+                  step={500}
+                  value={localCompressionChunkSize}
+                  onChange={(e) => setLocalCompressionChunkSize(parseInt(e.target.value, 10) || 0)}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="compression-overlap">Compression Chunk Overlap (Characters)</Label>
+                <Input
+                  id="compression-overlap"
+                  data-testid="compression-overlap-input"
+                  type="number"
+                  min={0}
+                  step={100}
+                  value={localCompressionChunkOverlap}
+                  onChange={(e) => setLocalCompressionChunkOverlap(parseInt(e.target.value, 10) || 0)}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="compression-evidence-count">Compression Evidence Segment Count</Label>
+                <Input
+                  id="compression-evidence-count"
+                  data-testid="compression-evidence-count-input"
+                  type="number"
+                  min={4}
+                  max={16}
+                  step={1}
+                  value={localCompressionEvidenceSegments}
+                  onChange={(e) => setLocalCompressionEvidenceSegments(parseInt(e.target.value, 10) || 0)}
+                />
+              </div>
             </div>
           </TabsContent>
           
@@ -240,6 +348,7 @@ export const SettingsPanel: React.FC = () => {
             <Tabs defaultValue="analysis" orientation="vertical" className="flex gap-4">
               <TabsList className="flex flex-col h-auto bg-transparent gap-2 w-32">
                 <TabsTrigger value="analysis" className="w-full justify-start">Analysis</TabsTrigger>
+                <TabsTrigger value="compression" className="w-full justify-start">Compression</TabsTrigger>
                 <TabsTrigger value="outline" className="w-full justify-start">Outline</TabsTrigger>
                 <TabsTrigger value="breakdown" className="w-full justify-start">Breakdown</TabsTrigger>
                 <TabsTrigger value="chapter1" className="w-full justify-start">Chapter 1</TabsTrigger>

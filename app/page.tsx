@@ -82,7 +82,7 @@ export default function Home() {
                 <h3 className="text-xs font-mono font-bold uppercase text-primary border-b border-primary/10 pb-2">System Instructions</h3>
                 <ul className="text-xs space-y-3 text-muted-foreground font-sans list-disc list-inside">
                   <li>Upload your novel to the terminal.</li>
-                  <li>Follow the 5-step automated workflow below.</li>
+                  <li>Follow the 6-step automated workflow below (Phase 0 is optional via settings).</li>
                   <li>Modify prompts in settings for deep customization.</li>
                   <li>Use &quot;Plot Direction&quot; in Step 2 to guide the story.</li>
                 </ul>

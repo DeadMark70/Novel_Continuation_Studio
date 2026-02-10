@@ -2,6 +2,14 @@ import { create } from 'zustand';
 import { saveSettings, getSettings } from '@/lib/db';
 import { fetchModelCapability, type ModelCapability } from '@/lib/nim-client';
 import { getModelCapabilityOverride } from '@/lib/nim-model-overrides';
+import {
+  DEFAULT_COMPRESSION_AUTO_THRESHOLD,
+  DEFAULT_COMPRESSION_CHUNK_OVERLAP,
+  DEFAULT_COMPRESSION_CHUNK_SIZE,
+  DEFAULT_COMPRESSION_EVIDENCE_SEGMENTS,
+  DEFAULT_COMPRESSION_MODE,
+  type CompressionMode,
+} from '@/lib/compression';
 
 const CAPABILITY_CACHE_TTL_MS = 10 * 60 * 1000;
 
@@ -19,6 +27,13 @@ function isRateLimitReason(reason?: string): boolean {
   return reason.includes('429') || reason.toLowerCase().includes('too many requests');
 }
 
+function sanitizePositiveInt(value: number, fallback: number): number {
+  if (!Number.isFinite(value) || value <= 0) {
+    return fallback;
+  }
+  return Math.floor(value);
+}
+
 interface SettingsState {
   apiKey: string;
   selectedModel: string;
@@ -26,6 +41,11 @@ interface SettingsState {
   customPrompts: Record<string, string>;
   truncationThreshold: number;
   dualEndBuffer: number;
+  compressionMode: CompressionMode;
+  compressionAutoThreshold: number;
+  compressionChunkSize: number;
+  compressionChunkOverlap: number;
+  compressionEvidenceSegments: number;
   thinkingEnabled: boolean;
   modelCapabilities: Record<string, ModelCapability>;
   
@@ -37,7 +57,16 @@ interface SettingsState {
   setThinkingEnabled: (enabled: boolean) => Promise<void>;
   upsertModelCapability: (model: string, capability: ModelCapability) => Promise<void>;
   probeModelCapability: (model: string, apiKey?: string) => Promise<ModelCapability>;
-  updateContextSettings: (settings: Partial<Pick<SettingsState, 'truncationThreshold' | 'dualEndBuffer'>>) => Promise<void>;
+  updateContextSettings: (settings: Partial<Pick<
+    SettingsState,
+    | 'truncationThreshold'
+    | 'dualEndBuffer'
+    | 'compressionMode'
+    | 'compressionAutoThreshold'
+    | 'compressionChunkSize'
+    | 'compressionChunkOverlap'
+    | 'compressionEvidenceSegments'
+  >>) => Promise<void>;
   resetPrompt: (key: string) => Promise<void>;
   initialize: () => Promise<void>;
   persist: () => Promise<void>;
@@ -50,6 +79,11 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   customPrompts: {},
   truncationThreshold: 800,
   dualEndBuffer: 400,
+  compressionMode: DEFAULT_COMPRESSION_MODE,
+  compressionAutoThreshold: DEFAULT_COMPRESSION_AUTO_THRESHOLD,
+  compressionChunkSize: DEFAULT_COMPRESSION_CHUNK_SIZE,
+  compressionChunkOverlap: DEFAULT_COMPRESSION_CHUNK_OVERLAP,
+  compressionEvidenceSegments: DEFAULT_COMPRESSION_EVIDENCE_SEGMENTS,
   thinkingEnabled: false,
   modelCapabilities: {},
 
@@ -142,7 +176,29 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   },
 
   updateContextSettings: async (settings) => {
-    set((state) => ({ ...state, ...settings }));
+    set((state) => ({
+      ...state,
+      ...settings,
+      truncationThreshold: settings.truncationThreshold === undefined
+        ? state.truncationThreshold
+        : sanitizePositiveInt(settings.truncationThreshold, state.truncationThreshold),
+      dualEndBuffer: settings.dualEndBuffer === undefined
+        ? state.dualEndBuffer
+        : sanitizePositiveInt(settings.dualEndBuffer, state.dualEndBuffer),
+      compressionMode: settings.compressionMode ?? state.compressionMode,
+      compressionAutoThreshold: settings.compressionAutoThreshold === undefined
+        ? state.compressionAutoThreshold
+        : sanitizePositiveInt(settings.compressionAutoThreshold, state.compressionAutoThreshold),
+      compressionChunkSize: settings.compressionChunkSize === undefined
+        ? state.compressionChunkSize
+        : sanitizePositiveInt(settings.compressionChunkSize, state.compressionChunkSize),
+      compressionChunkOverlap: settings.compressionChunkOverlap === undefined
+        ? state.compressionChunkOverlap
+        : Math.max(0, sanitizePositiveInt(settings.compressionChunkOverlap, state.compressionChunkOverlap)),
+      compressionEvidenceSegments: settings.compressionEvidenceSegments === undefined
+        ? state.compressionEvidenceSegments
+        : Math.max(4, Math.min(16, sanitizePositiveInt(settings.compressionEvidenceSegments, state.compressionEvidenceSegments))),
+    }));
     await get().persist();
   },
 
@@ -165,6 +221,11 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
           customPrompts: settings.customPrompts || {},
           truncationThreshold: settings.truncationThreshold ?? 800,
           dualEndBuffer: settings.dualEndBuffer ?? 400,
+          compressionMode: settings.compressionMode ?? DEFAULT_COMPRESSION_MODE,
+          compressionAutoThreshold: settings.compressionAutoThreshold ?? DEFAULT_COMPRESSION_AUTO_THRESHOLD,
+          compressionChunkSize: settings.compressionChunkSize ?? DEFAULT_COMPRESSION_CHUNK_SIZE,
+          compressionChunkOverlap: settings.compressionChunkOverlap ?? DEFAULT_COMPRESSION_CHUNK_OVERLAP,
+          compressionEvidenceSegments: settings.compressionEvidenceSegments ?? DEFAULT_COMPRESSION_EVIDENCE_SEGMENTS,
           thinkingEnabled: settings.thinkingEnabled ?? false,
           modelCapabilities: settings.modelCapabilities ?? {},
         });
@@ -184,6 +245,11 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       customPrompts: state.customPrompts,
       truncationThreshold: state.truncationThreshold,
       dualEndBuffer: state.dualEndBuffer,
+      compressionMode: state.compressionMode,
+      compressionAutoThreshold: state.compressionAutoThreshold,
+      compressionChunkSize: state.compressionChunkSize,
+      compressionChunkOverlap: state.compressionChunkOverlap,
+      compressionEvidenceSegments: state.compressionEvidenceSegments,
       thinkingEnabled: state.thinkingEnabled,
       modelCapabilities: state.modelCapabilities,
     });

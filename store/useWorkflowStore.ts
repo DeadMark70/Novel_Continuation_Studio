@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { useNovelStore } from './useNovelStore';
 
-export type WorkflowStepId = 'analysis' | 'outline' | 'breakdown' | 'chapter1' | 'continuation';
+export type WorkflowStepId = 'compression' | 'analysis' | 'outline' | 'breakdown' | 'chapter1' | 'continuation';
 
 export interface WorkflowStepState {
   id: WorkflowStepId;
@@ -41,6 +41,7 @@ interface WorkflowState {
   forceResetGeneration: () => void;
   hydrateFromNovelSession: (payload: {
     currentStep?: number;
+    compressedContext: string;
     analysis: string;
     outline: string;
     breakdown: string;
@@ -66,6 +67,8 @@ interface WorkflowState {
 
 
 const INITIAL_STEPS: Record<WorkflowStepId, WorkflowStepState> = {
+
+  compression: { id: 'compression', status: 'idle', content: '' },
 
   analysis: { id: 'analysis', status: 'idle', content: '' },
 
@@ -94,7 +97,7 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
 
   steps: JSON.parse(JSON.stringify(INITIAL_STEPS)),
 
-  currentStepId: 'analysis',
+  currentStepId: 'compression',
 
   autoTriggerStepId: null,
 
@@ -239,7 +242,9 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
       console.error(`[Workflow] Cannot auto-trigger next step: ${stepId} has no output (content length: ${currentStepContent?.length || 0})`);
       set({ isGenerating: false });
       // Still open the next step panel but don't auto-trigger generation
-      if (stepId === 'analysis') {
+      if (stepId === 'compression') {
+        set({ currentStepId: 'analysis', autoTriggerStepId: null });
+      } else if (stepId === 'analysis') {
         set({ currentStepId: 'outline', autoTriggerStepId: null });
       } else if (stepId === 'outline') {
         set({ currentStepId: 'breakdown', autoTriggerStepId: null });
@@ -257,7 +262,12 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
       console.log(`[Workflow] Released isGenerating lock after ${stepId} completed.`);
     };
 
-    if (stepId === 'analysis') {
+    if (stepId === 'compression') {
+      // Step 0 -> Step 1: Auto-open and auto-start analysis
+      await delay(1000);
+      releaseGenerationLock();
+      set({ currentStepId: 'analysis', autoTriggerStepId: 'analysis' });
+    } else if (stepId === 'analysis') {
       // Step 1 -> Step 2: Auto-open Outline but PAUSE (no autoTrigger)
       await delay(1500); // Small delay for UX
       releaseGenerationLock();
@@ -365,7 +375,7 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
 
       steps: JSON.parse(JSON.stringify(INITIAL_STEPS)),
 
-      currentStepId: 'analysis',
+      currentStepId: 'compression',
 
       autoTriggerStepId: null,
       
@@ -382,7 +392,7 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
   resetAllSteps: () => {
     set({
       steps: JSON.parse(JSON.stringify(INITIAL_STEPS)),
-      currentStepId: 'analysis',
+      currentStepId: 'compression',
       autoTriggerStepId: null,
       autoMode: 'manual',
       autoRangeStart: 2,
@@ -400,7 +410,7 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
     });
   },
 
-  hydrateFromNovelSession: ({ currentStep = 1, analysis, outline, breakdown, chapters }) => {
+  hydrateFromNovelSession: ({ currentStep = 1, compressedContext, analysis, outline, breakdown, chapters }) => {
     const mapCurrentStepToId = (step: number): WorkflowStepId => {
       if (step <= 1) return 'analysis';
       if (step === 2) return 'outline';
@@ -411,9 +421,25 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
 
     const normalizedChapters = Array.isArray(chapters) ? chapters : [];
     const chapter1Content = normalizedChapters[0] || '';
+    const hasCompression = Boolean(compressedContext.trim());
+    const hasProgress = Boolean(
+      analysis.trim() ||
+      outline.trim() ||
+      breakdown.trim() ||
+      normalizedChapters.length > 0
+    );
+    const resolvedCurrentStepId = hasProgress
+      ? mapCurrentStepToId(currentStep)
+      : (hasCompression ? 'analysis' : 'compression');
 
     set({
       steps: {
+        compression: {
+          id: 'compression',
+          status: hasCompression ? 'completed' : 'idle',
+          content: compressedContext,
+          error: undefined
+        },
         analysis: {
           id: 'analysis',
           status: analysis.trim() ? 'completed' : 'idle',
@@ -445,7 +471,7 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
           error: undefined
         }
       },
-      currentStepId: mapCurrentStepToId(currentStep),
+      currentStepId: resolvedCurrentStepId,
       autoTriggerStepId: null,
       autoMode: 'manual',
       autoRangeStart: 2,

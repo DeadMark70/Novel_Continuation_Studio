@@ -44,4 +44,16 @@ describe('Prompt Engine Automation', () => {
     const result = injectPrompt(template, { nextChapterNumber: 5 });
     expect(result).toBe('Chapter 5');
   });
+
+  it('injects compression placeholders', () => {
+    const template = '{{COMPRESSED_CONTEXT}}|{{CHARACTER_CARDS}}|{{STYLE_GUIDE}}|{{COMPRESSION_OUTLINE}}|{{EVIDENCE_PACK}}';
+    const result = injectPrompt(template, {
+      compressedContext: 'CTX',
+      characterCards: 'CARDS',
+      styleGuide: 'STYLE',
+      compressionOutline: 'OUTLINE',
+      evidencePack: 'EVIDENCE',
+    });
+    expect(result).toBe('CTX|CARDS|STYLE|OUTLINE|EVIDENCE');
+  });
 });

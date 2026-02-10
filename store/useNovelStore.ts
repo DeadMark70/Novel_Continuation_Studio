@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { saveNovel, getLatestNovel, getAllSessions, getSession, deleteSession, generateSessionId, type NovelEntry } from '@/lib/db';
 import { useWorkflowStore } from './useWorkflowStore';
 import { normalizeNovelText } from '@/lib/utils';
+import type { CompressionMeta } from '@/lib/compression';
 
 interface NovelState {
   // Session management
@@ -20,6 +21,12 @@ interface NovelState {
   chapters: string[];
   targetStoryWordCount: number;
   targetChapterCount: number;
+  characterCards: string;
+  styleGuide: string;
+  compressionOutline: string;
+  evidencePack: string;
+  compressedContext: string;
+  compressionMeta?: CompressionMeta;
   
   // Session list (history)
   sessions: NovelEntry[];
@@ -27,7 +34,20 @@ interface NovelState {
   // Actions
   setNovel: (content: string) => Promise<void>;
   setStep: (step: number) => Promise<void>;
-  updateWorkflow: (data: Partial<Pick<NovelState, 'analysis' | 'outline' | 'outlineDirection' | 'breakdown' | 'chapters'>>) => Promise<void>;
+  updateWorkflow: (data: Partial<Pick<
+    NovelState,
+    | 'analysis'
+    | 'outline'
+    | 'outlineDirection'
+    | 'breakdown'
+    | 'chapters'
+    | 'characterCards'
+    | 'styleGuide'
+    | 'compressionOutline'
+    | 'evidencePack'
+    | 'compressedContext'
+    | 'compressionMeta'
+  >>) => Promise<void>;
   setOutlineDirection: (value: string) => Promise<void>;
   setTargetStoryWordCount: (value: number) => Promise<void>;
   setTargetChapterCount: (value: number) => Promise<void>;
@@ -52,6 +72,12 @@ export const useNovelStore = create<NovelState>((set, get) => ({
   chapters: [],
   targetStoryWordCount: 20000,
   targetChapterCount: 5,
+  characterCards: '',
+  styleGuide: '',
+  compressionOutline: '',
+  evidencePack: '',
+  compressedContext: '',
+  compressionMeta: undefined,
   sessions: [],
 
   setNovel: async (content: string) => {
@@ -107,6 +133,12 @@ export const useNovelStore = create<NovelState>((set, get) => ({
       chapters: state.chapters,
       targetStoryWordCount: state.targetStoryWordCount,
       targetChapterCount: state.targetChapterCount,
+      characterCards: state.characterCards,
+      styleGuide: state.styleGuide,
+      compressionOutline: state.compressionOutline,
+      evidencePack: state.evidencePack,
+      compressedContext: state.compressedContext,
+      compressionMeta: state.compressionMeta,
     });
     await get().loadSessions();
   },
@@ -131,6 +163,12 @@ export const useNovelStore = create<NovelState>((set, get) => ({
         chapters: session.chapters,
         targetStoryWordCount: session.targetStoryWordCount ?? 20000,
         targetChapterCount: session.targetChapterCount ?? 5,
+        characterCards: session.characterCards ?? '',
+        styleGuide: session.styleGuide ?? '',
+        compressionOutline: session.compressionOutline ?? '',
+        evidencePack: session.evidencePack ?? '',
+        compressedContext: session.compressedContext ?? '',
+        compressionMeta: session.compressionMeta,
       });
       useWorkflowStore.getState().hydrateFromNovelSession({
         currentStep: session.currentStep,
@@ -138,6 +176,7 @@ export const useNovelStore = create<NovelState>((set, get) => ({
         outline: session.outline,
         breakdown: session.breakdown,
         chapters: session.chapters,
+        compressedContext: session.compressedContext ?? '',
       });
     }
   },
@@ -156,6 +195,12 @@ export const useNovelStore = create<NovelState>((set, get) => ({
       chapters: [],
       targetStoryWordCount: 20000,
       targetChapterCount: 5,
+      characterCards: '',
+      styleGuide: '',
+      compressionOutline: '',
+      evidencePack: '',
+      compressedContext: '',
+      compressionMeta: undefined,
     });
     useWorkflowStore.getState().resetAllSteps();
   },
@@ -190,6 +235,12 @@ export const useNovelStore = create<NovelState>((set, get) => ({
         chapters: latest.chapters,
         targetStoryWordCount: latest.targetStoryWordCount ?? 20000,
         targetChapterCount: latest.targetChapterCount ?? 5,
+        characterCards: latest.characterCards ?? '',
+        styleGuide: latest.styleGuide ?? '',
+        compressionOutline: latest.compressionOutline ?? '',
+        evidencePack: latest.evidencePack ?? '',
+        compressedContext: latest.compressedContext ?? '',
+        compressionMeta: latest.compressionMeta,
       });
     }
     await get().loadSessions();

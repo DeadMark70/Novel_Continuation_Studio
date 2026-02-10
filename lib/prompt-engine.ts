@@ -1,5 +1,10 @@
 export interface PromptContext {
   originalNovel?: string;
+  compressedContext?: string;
+  characterCards?: string;
+  styleGuide?: string;
+  compressionOutline?: string;
+  evidencePack?: string;
   analysis?: string;
   outline?: string;
   breakdown?: string;
@@ -10,6 +15,9 @@ export interface PromptContext {
   dualEndBuffer?: number;
   targetStoryWordCount?: number;
   targetChapterCount?: number;
+  compressionOutlineTargetRange?: string;
+  compressionChunkCount?: number;
+  compressionSampledChunkCount?: number;
 }
 
 /**
@@ -24,6 +32,25 @@ export function injectPrompt(template: string, context: PromptContext): string {
     // Legacy support
     result = result.replace(/\x5B插入小說全文\x5D|\x5B插入原始小說全文\x5D/g, context.originalNovel);
   }
+
+  const compressedOrOriginal = context.compressedContext || context.originalNovel || '';
+  result = result.replace(/{{COMPRESSED_CONTEXT}}/g, compressedOrOriginal);
+  result = result.replace(/{{CHARACTER_CARDS}}/g, context.characterCards || '');
+  result = result.replace(/{{STYLE_GUIDE}}/g, context.styleGuide || '');
+  result = result.replace(/{{COMPRESSION_OUTLINE}}/g, context.compressionOutline || '');
+  result = result.replace(/{{EVIDENCE_PACK}}/g, context.evidencePack || '');
+  result = result.replace(
+    /{{COMPRESSION_OUTLINE_TARGET_RANGE}}/g,
+    context.compressionOutlineTargetRange || '5000-10000'
+  );
+  result = result.replace(
+    /{{COMPRESSION_CHUNK_COUNT}}/g,
+    (context.compressionChunkCount ?? 0).toString()
+  );
+  result = result.replace(
+    /{{COMPRESSION_SAMPLED_CHUNK_COUNT}}/g,
+    (context.compressionSampledChunkCount ?? 0).toString()
+  );
 
   if (context.analysis) {
     result = result.replace(/{{ANALYSIS_RESULT}}/g, context.analysis);

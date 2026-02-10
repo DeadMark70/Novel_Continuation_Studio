@@ -4,6 +4,7 @@ import React, { useEffect } from 'react';
 import { useWorkflowStore, WorkflowStepId } from '@/store/useWorkflowStore';
 import { useStepGenerator } from '@/hooks/useStepGenerator';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
+import { StepCompression } from './workflow/StepCompression';
 import { StepAnalysis } from './workflow/StepAnalysis';
 import { StepOutline } from './workflow/StepOutline';
 import { StepBreakdown } from './workflow/StepBreakdown';
@@ -68,11 +69,25 @@ export const WorkflowStepper: React.FC = () => {
       <Accordion 
         type="single" 
         collapsible 
-        defaultValue="analysis" 
+        defaultValue="compression" 
         value={currentStepId} 
         onValueChange={(val) => setCurrentStep(val as WorkflowStepId)}
         className="w-full space-y-2 border-none"
       >
+        <AccordionItem value="compression" className="border rounded-lg bg-card/30 overflow-hidden">
+          <AccordionTrigger className="px-4 py-3 hover:no-underline hover:bg-card/50">
+            <div className="flex items-center gap-3">
+              {getStatusIcon('compression')}
+              <span className={cn("text-sm font-bold uppercase tracking-widest", steps.compression.status === 'idle' && "text-muted-foreground")}>
+                Phase 0: Compression
+              </span>
+            </div>
+          </AccordionTrigger>
+          <AccordionContent className="p-4 pt-0">
+            <StepCompression />
+          </AccordionContent>
+        </AccordionItem>
+
         <AccordionItem value="analysis" className="border rounded-lg bg-card/30 overflow-hidden">
           <AccordionTrigger className="px-4 py-3 hover:no-underline hover:bg-card/50">
             <div className="flex items-center gap-3">

@@ -16,6 +16,11 @@ describe('useSettingsStore', () => {
         customPrompts: {},
         truncationThreshold: 800,
         dualEndBuffer: 400,
+        compressionMode: 'auto',
+        compressionAutoThreshold: 20000,
+        compressionChunkSize: 6000,
+        compressionChunkOverlap: 400,
+        compressionEvidenceSegments: 10,
         thinkingEnabled: false,
         modelCapabilities: {},
       });
@@ -58,6 +63,11 @@ describe('useSettingsStore', () => {
       selectedModel: 'loaded-model',
       recentModels: ['loaded-model'],
       customPrompts: { prompt1: 'custom' },
+      compressionMode: 'on',
+      compressionAutoThreshold: 25000,
+      compressionChunkSize: 7000,
+      compressionChunkOverlap: 300,
+      compressionEvidenceSegments: 8,
       thinkingEnabled: true,
       modelCapabilities: {
         'loaded-model': {
@@ -78,6 +88,8 @@ describe('useSettingsStore', () => {
     expect(state.apiKey).toBe('loaded-key');
     expect(state.selectedModel).toBe('loaded-model');
     expect(state.customPrompts['prompt1']).toBe('custom');
+    expect(state.compressionMode).toBe('on');
+    expect(state.compressionAutoThreshold).toBe(25000);
     expect(state.thinkingEnabled).toBe(true);
     expect(state.modelCapabilities['loaded-model']?.thinkingSupported).toBe('supported');
   });

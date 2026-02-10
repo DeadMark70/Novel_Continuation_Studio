@@ -14,6 +14,20 @@ export interface NovelEntry {
   chapters: string[];
   targetStoryWordCount?: number;
   targetChapterCount?: number;
+  characterCards?: string;
+  styleGuide?: string;
+  compressionOutline?: string;
+  evidencePack?: string;
+  compressedContext?: string;
+  compressionMeta?: {
+    sourceChars: number;
+    compressedChars: number;
+    ratio: number;
+    chunkCount: number;
+    generatedAt: number;
+    skipped?: boolean;
+    reason?: string;
+  };
   createdAt: number;
   updatedAt: number;
 }
@@ -26,6 +40,11 @@ export interface SettingsEntry {
   customPrompts: Record<string, string>;
   truncationThreshold?: number;
   dualEndBuffer?: number;
+  compressionMode?: 'auto' | 'on' | 'off';
+  compressionAutoThreshold?: number;
+  compressionChunkSize?: number;
+  compressionChunkOverlap?: number;
+  compressionEvidenceSegments?: number;
   thinkingEnabled?: boolean;
   modelCapabilities?: Record<string, {
     chatSupported: boolean;
@@ -76,6 +95,46 @@ export class NovelDatabase extends Dexie {
         }
       });
     });
+    this.version(5).stores({
+      novels: '++id, sessionId, updatedAt, createdAt',
+      settings: 'id, updatedAt'
+    }).upgrade(async (tx) => {
+      await tx.table('novels').toCollection().modify((entry: NovelEntry) => {
+        if (entry.characterCards === undefined) {
+          entry.characterCards = '';
+        }
+        if (entry.styleGuide === undefined) {
+          entry.styleGuide = '';
+        }
+        if (entry.compressionOutline === undefined) {
+          entry.compressionOutline = '';
+        }
+        if (entry.evidencePack === undefined) {
+          entry.evidencePack = '';
+        }
+        if (entry.compressedContext === undefined) {
+          entry.compressedContext = '';
+        }
+      });
+
+      await tx.table('settings').toCollection().modify((entry: SettingsEntry) => {
+        if (!entry.compressionMode) {
+          entry.compressionMode = 'auto';
+        }
+        if (entry.compressionAutoThreshold === undefined) {
+          entry.compressionAutoThreshold = 20000;
+        }
+        if (entry.compressionChunkSize === undefined) {
+          entry.compressionChunkSize = 6000;
+        }
+        if (entry.compressionChunkOverlap === undefined) {
+          entry.compressionChunkOverlap = 400;
+        }
+        if (entry.compressionEvidenceSegments === undefined) {
+          entry.compressionEvidenceSegments = 10;
+        }
+      });
+    });
   }
 }
 
@@ -91,6 +150,12 @@ export async function saveNovel(entry: Omit<NovelEntry, 'id' | 'updatedAt' | 'cr
     ...entry,
     targetStoryWordCount: entry.targetStoryWordCount ?? 20000,
     targetChapterCount: entry.targetChapterCount ?? 5,
+    characterCards: entry.characterCards ?? '',
+    styleGuide: entry.styleGuide ?? '',
+    compressionOutline: entry.compressionOutline ?? '',
+    evidencePack: entry.evidencePack ?? '',
+    compressedContext: entry.compressedContext ?? '',
+    compressionMeta: entry.compressionMeta,
   };
   
   // Check if this session already exists

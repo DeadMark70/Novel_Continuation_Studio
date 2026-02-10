@@ -6,6 +6,11 @@ import { generateStream } from '@/lib/nim-client';
 import { injectPrompt } from '@/lib/prompt-engine';
 import { DEFAULT_PROMPTS } from '@/lib/prompts';
 import { canAttemptThinking } from '@/lib/thinking-mode';
+import {
+  buildCompressionSource,
+  parseCompressionArtifacts,
+  shouldRunCompression,
+} from '@/lib/compression';
 
 export function useStepGenerator() {
   const { startStep, updateStepContent, completeStep, setStepError, cancelStep, forceResetGeneration } = useWorkflowStore();
@@ -40,6 +45,11 @@ export function useStepGenerator() {
         customPrompts,
         truncationThreshold,
         dualEndBuffer,
+        compressionMode,
+        compressionAutoThreshold,
+        compressionChunkSize,
+        compressionChunkOverlap,
+        compressionEvidenceSegments,
         thinkingEnabled,
         modelCapabilities,
       } = useSettingsStore.getState();
@@ -51,8 +61,32 @@ export function useStepGenerator() {
         chapters,
         targetStoryWordCount,
         targetChapterCount,
+        characterCards,
+        styleGuide,
+        compressionOutline,
+        evidencePack,
+        compressedContext,
       } = useNovelStore.getState();
       const modelCapability = modelCapabilities[selectedModel];
+      const sourceChars = originalNovel?.length ?? 0;
+      const compressionActive = shouldRunCompression(
+        compressionMode,
+        sourceChars,
+        compressionAutoThreshold
+      );
+      const canUseCompressedContext = (
+        stepId !== 'compression' &&
+        compressionActive &&
+        Boolean(compressedContext?.trim())
+      );
+
+      if (
+        stepId !== 'compression' &&
+        compressionActive &&
+        !compressedContext?.trim()
+      ) {
+        throw new Error('Phase 0 compression is required before this step. Please run Step 0 first.');
+      }
 
       console.log(`[Generator] Generating ${stepId}. Reading from NovelStore:`);
       console.log(`  - Analysis length: ${analysis?.length || 0}`);
@@ -61,11 +95,76 @@ export function useStepGenerator() {
       console.log(`  - Chapters count: ${chapters?.length || 0}`);
       // alert(`[DEBUG] Generating ${stepId}. Outline Length: ${outline?.length}`);
 
+      if (stepId === 'compression') {
+        if (!originalNovel?.trim()) {
+          throw new Error('No original novel content available for compression.');
+        }
+
+        if (!compressionActive) {
+          const reason = compressionMode === 'off'
+            ? 'Compression mode is set to OFF by user.'
+            : `Auto mode skipped compression because source length (${sourceChars}) <= threshold (${compressionAutoThreshold}).`;
+
+          const skippedMessage = [
+            '【Compression Skipped】',
+            reason,
+            'Proceeding with original novel context.',
+          ].join('\n');
+
+          await useNovelStore.getState().updateWorkflow({
+            characterCards: '',
+            styleGuide: '',
+            compressionOutline: '',
+            evidencePack: '',
+            compressedContext: '',
+            compressionMeta: {
+              sourceChars,
+              compressedChars: 0,
+              ratio: 0,
+              chunkCount: 0,
+              generatedAt: Date.now(),
+              skipped: true,
+              reason,
+            },
+          });
+
+          updateStepContent(stepId, skippedMessage);
+          await completeStep(stepId);
+          return;
+        }
+      }
+
       const template = customPrompts[stepId] || DEFAULT_PROMPTS[stepId]; 
       if (!template) throw new Error(`No prompt template found for ${stepId}`);
 
+      let compressionChunkCount = 0;
+      let compressionSampledChunkCount = 0;
+      let resolvedOriginalNovel = originalNovel;
+      let compressionOutlineTargetRange = '';
+
+      if (stepId === 'compression') {
+        const builtSource = buildCompressionSource(originalNovel, {
+          chunkSize: compressionChunkSize,
+          overlap: compressionChunkOverlap,
+          maxSegments: compressionEvidenceSegments,
+        });
+        resolvedOriginalNovel = builtSource.sourceText;
+        compressionChunkCount = builtSource.chunkCount;
+        compressionSampledChunkCount = builtSource.sampledChunkCount;
+
+        if (sourceChars <= 70000) {
+          compressionOutlineTargetRange = '5000-7000';
+        } else if (sourceChars <= 85000) {
+          compressionOutlineTargetRange = '7000-8500';
+        } else {
+          compressionOutlineTargetRange = '8500-10000';
+        }
+      } else if (canUseCompressedContext) {
+        resolvedOriginalNovel = compressedContext;
+      }
+
       const prompt = injectPrompt(template, {
-        originalNovel,
+        originalNovel: resolvedOriginalNovel,
         analysis,
         outline,
         breakdown,
@@ -75,7 +174,15 @@ export function useStepGenerator() {
         truncationThreshold,
         dualEndBuffer,
         targetStoryWordCount,
-        targetChapterCount
+        targetChapterCount,
+        compressedContext: canUseCompressedContext ? compressedContext : '',
+        characterCards,
+        styleGuide,
+        compressionOutline,
+        evidencePack,
+        compressionOutlineTargetRange,
+        compressionChunkCount,
+        compressionSampledChunkCount,
       });
 
       if (modelCapability && !modelCapability.chatSupported) {
@@ -128,6 +235,23 @@ export function useStepGenerator() {
 
       // 4. Complete - content is already in workflowStore via updateStepContent
       // completeStep will sync to novelStore, release the isGenerating lock, and handle automation timing
+      if (stepId === 'compression') {
+        const parsed = parseCompressionArtifacts(content);
+        const compressedChars = parsed.compressedContext.length;
+
+        await useNovelStore.getState().updateWorkflow({
+          ...parsed,
+          compressionMeta: {
+            sourceChars,
+            compressedChars,
+            ratio: sourceChars > 0 ? Number((compressedChars / sourceChars).toFixed(4)) : 0,
+            chunkCount: compressionChunkCount || compressionSampledChunkCount,
+            generatedAt: Date.now(),
+            skipped: false,
+          },
+        });
+      }
+
       await completeStep(stepId);
       
     } catch (error) {

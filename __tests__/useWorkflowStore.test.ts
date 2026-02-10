@@ -33,8 +33,9 @@ describe('useWorkflowStore', () => {
 
   it('should initialize with idle steps', () => {
     const state = useWorkflowStore.getState();
+    expect(state.steps.compression.status).toBe('idle');
     expect(state.steps.analysis.status).toBe('idle');
-    expect(state.currentStepId).toBe('analysis');
+    expect(state.currentStepId).toBe('compression');
   });
 
   it('should transition to streaming on startStep', () => {
@@ -64,6 +65,18 @@ describe('useWorkflowStore', () => {
     const state = useWorkflowStore.getState();
     expect(state.steps.analysis.status).toBe('completed');
     expect(mockUpdateWorkflow).toHaveBeenCalled();
+  });
+
+  it('should auto-trigger analysis after compression completes', async () => {
+    act(() => {
+      useWorkflowStore.getState().updateStepContent('compression', 'Compression Content');
+    });
+    await act(async () => {
+      await useWorkflowStore.getState().completeStep('compression');
+    });
+    const state = useWorkflowStore.getState();
+    expect(state.currentStepId).toBe('analysis');
+    expect(state.autoTriggerStepId).toBe('analysis');
   });
 
   it('should auto-progress to outline (idle) after analysis completes', async () => {
@@ -214,7 +227,8 @@ describe('useWorkflowStore - Automation Actions', () => {
     });
 
     const state = useWorkflowStore.getState();
-    expect(state.currentStepId).toBe('analysis');
+    expect(state.currentStepId).toBe('compression');
+    expect(state.steps.compression.status).toBe('idle');
     expect(state.steps.analysis.status).toBe('idle');
     expect(state.steps.analysis.content).toBe('');
     expect(state.autoMode).toBe('manual');

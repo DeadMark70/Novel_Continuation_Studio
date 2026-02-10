@@ -16,6 +16,11 @@ describe('SettingsPanel', () => {
     customPrompts: {},
     truncationThreshold: 800,
     dualEndBuffer: 400,
+    compressionMode: 'auto' as const,
+    compressionAutoThreshold: 20000,
+    compressionChunkSize: 6000,
+    compressionChunkOverlap: 400,
+    compressionEvidenceSegments: 10,
     thinkingEnabled: false,
     modelCapabilities: {},
     setApiKey: vi.fn(),
@@ -71,6 +76,11 @@ describe('SettingsPanel', () => {
       expect(mockStore.updateContextSettings).toHaveBeenCalledWith({
         truncationThreshold: 1200,
         dualEndBuffer: 600,
+        compressionMode: 'auto',
+        compressionAutoThreshold: 20000,
+        compressionChunkSize: 6000,
+        compressionChunkOverlap: 400,
+        compressionEvidenceSegments: 10,
       });
     });
   });
