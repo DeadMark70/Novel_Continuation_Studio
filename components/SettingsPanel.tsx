@@ -24,7 +24,8 @@ type PromptKey = keyof typeof DEFAULT_PROMPTS;
 const PROMPT_TAB_ITEMS: Array<{ key: PromptKey; label: string }> = [
   { key: 'analysis', label: 'Analysis' },
   { key: 'compression', label: 'Compression' },
-  { key: 'outline', label: 'Outline' },
+  { key: 'outlineCompressed', label: 'Outline (Compressed)' },
+  { key: 'outlineRaw', label: 'Outline (Raw)' },
   { key: 'breakdown', label: 'Breakdown' },
   { key: 'chapter1Compressed', label: 'Chapter 1 (Compressed)' },
   { key: 'chapter1Raw', label: 'Chapter 1 (Raw)' },
