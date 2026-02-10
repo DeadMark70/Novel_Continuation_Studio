@@ -3,6 +3,7 @@
 import React from 'react';
 import { useWorkflowStore } from '@/store/useWorkflowStore';
 import { useNovelStore } from '@/store/useNovelStore';
+import { useSettingsStore } from '@/store/useSettingsStore';
 import { useStepGenerator } from '@/hooks/useStepGenerator';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { BookOpen } from 'lucide-react';
@@ -10,10 +11,12 @@ import { Textarea } from '@/components/ui/textarea';
 import { AutoModeControl } from './AutoModeControl';
 import { ProgressIndicator } from './ProgressIndicator';
 import { ConsistencyPanel } from './ConsistencyPanel';
+import { resolveWorkflowMode } from '@/lib/workflow-mode';
 
 export const StepContinuation: React.FC = () => {
   const { steps, isGenerating } = useWorkflowStore();
-  const { chapters, targetChapterCount } = useNovelStore();
+  const { compressionMode, compressionAutoThreshold } = useSettingsStore();
+  const { chapters, targetChapterCount, wordCount, compressedContext } = useNovelStore();
   const { generate, stop } = useStepGenerator();
   
   const step = steps.continuation;
@@ -22,12 +25,28 @@ export const StepContinuation: React.FC = () => {
   const nextChapterNumber = chapters.length + 1;
   const totalChapterCount = Math.max(2, targetChapterCount ?? 5);
   const hasWrittenChapters = chapters.length > 0;
+  const modeMeta = resolveWorkflowMode({
+    stepId: 'continuation',
+    compressionMode,
+    compressionAutoThreshold,
+    sourceChars: wordCount,
+    compressedContext,
+  });
+  const modeClass = modeMeta.isCompressed
+    ? 'border-green-400/40 bg-green-600/20 text-green-200'
+    : 'border-zinc-500/30 bg-zinc-700/30 text-zinc-200';
 
   return (
     <Card className="border-l-4 border-l-green-500">
       <CardHeader className="flex flex-row items-center justify-between pb-2">
         <div>
-          <CardTitle className="text-lg font-bold uppercase tracking-wider">Step 5: Continuation</CardTitle>
+          <CardTitle className="text-lg font-bold uppercase tracking-wider flex items-center gap-2">
+            Step 5: Continuation
+            <span className={`rounded-full border px-2 py-0.5 text-[10px] font-mono ${modeClass}`}>
+              {modeMeta.badge}
+            </span>
+          </CardTitle>
+          <CardDescription className="mt-1 text-xs">{modeMeta.detail}</CardDescription>
           {hasWrittenChapters && (
             <CardDescription className="flex items-center gap-1 mt-1">
               <BookOpen className="size-3" />

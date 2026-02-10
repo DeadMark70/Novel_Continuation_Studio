@@ -10,10 +10,11 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Play, StopCircle, RefreshCw } from 'lucide-react';
 import { Textarea } from '@/components/ui/textarea';
 import { shouldRunCompression } from '@/lib/compression';
+import { resolveWorkflowMode } from '@/lib/workflow-mode';
 
 export const StepCompression: React.FC = () => {
   const { steps } = useWorkflowStore();
-  const { wordCount } = useNovelStore();
+  const { wordCount, compressedContext } = useNovelStore();
   const { compressionMode, compressionAutoThreshold } = useSettingsStore();
   const { generate, stop } = useStepGenerator();
 
@@ -25,14 +26,29 @@ export const StepCompression: React.FC = () => {
   const modeSummary = compressionMode === 'auto'
     ? `AUTO: ${wordCount.toLocaleString()} chars ${wordCount > compressionAutoThreshold ? '>' : '<='} ${compressionAutoThreshold.toLocaleString()} threshold`
     : `MODE: ${compressionMode.toUpperCase()}`;
+  const modeMeta = resolveWorkflowMode({
+    stepId: 'compression',
+    compressionMode,
+    compressionAutoThreshold,
+    sourceChars: wordCount,
+    compressedContext,
+  });
+  const modeClass = modeMeta.isCompressed
+    ? 'border-sky-400/40 bg-sky-600/20 text-sky-300'
+    : 'border-zinc-500/30 bg-zinc-700/30 text-zinc-200';
 
   return (
     <Card className="border-l-4 border-l-sky-500">
       <CardHeader className="flex flex-row items-center justify-between pb-2">
         <div>
-          <CardTitle className="text-lg font-bold uppercase tracking-wider">Step 0: Compression</CardTitle>
+          <CardTitle className="text-lg font-bold uppercase tracking-wider flex items-center gap-2">
+            Step 0: Compression
+            <span className={`rounded-full border px-2 py-0.5 text-[10px] font-mono ${modeClass}`}>
+              {modeMeta.badge}
+            </span>
+          </CardTitle>
           <CardDescription className="mt-1">
-            {modeSummary} · {willRun ? 'Phase 0 will run' : 'Phase 0 will be skipped'}
+            {modeSummary} · {willRun ? 'Phase 0 will run' : 'Phase 0 will be skipped'} · {modeMeta.detail}
           </CardDescription>
         </div>
         <div className="flex gap-2">
@@ -49,10 +65,13 @@ export const StepCompression: React.FC = () => {
         </div>
       </CardHeader>
       <CardContent>
+        <p className="mb-2 text-xs text-muted-foreground">
+          Showing final combined output used by downstream phases (`compressedContext`).
+        </p>
         <Textarea
           readOnly
           value={step.content}
-          placeholder="Compression output will appear here..."
+          placeholder="Combined final compressed context will appear here..."
           className="min-h-[220px] font-mono text-sm bg-card/50 resize-y focus-visible:ring-0"
         />
         {step.error && (

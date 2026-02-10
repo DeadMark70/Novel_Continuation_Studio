@@ -2,6 +2,8 @@
 
 import React, { useEffect } from 'react';
 import { useWorkflowStore, WorkflowStepId } from '@/store/useWorkflowStore';
+import { useSettingsStore } from '@/store/useSettingsStore';
+import { useNovelStore } from '@/store/useNovelStore';
 import { useStepGenerator } from '@/hooks/useStepGenerator';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { StepCompression } from './workflow/StepCompression';
@@ -12,9 +14,12 @@ import { StepChapter1 } from './workflow/StepChapter1';
 import { StepContinuation } from './workflow/StepContinuation';
 import { CheckCircle2, Circle, Loader2, AlertCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { resolveWorkflowMode } from '@/lib/workflow-mode';
 
 export const WorkflowStepper: React.FC = () => {
   const { steps, currentStepId, autoTriggerStepId, clearAutoTrigger, setCurrentStep } = useWorkflowStore();
+  const { compressionMode, compressionAutoThreshold } = useSettingsStore();
+  const { wordCount, compressedContext } = useNovelStore();
   const { generate } = useStepGenerator();
 
   // Automation Effect
@@ -64,6 +69,23 @@ export const WorkflowStepper: React.FC = () => {
     return <Circle className="size-4 text-muted-foreground" />;
   };
 
+  const getModeMeta = (stepId: WorkflowStepId) =>
+    resolveWorkflowMode({
+      stepId,
+      compressionMode,
+      compressionAutoThreshold,
+      sourceChars: wordCount,
+      compressedContext,
+    });
+
+  const getModeBadgeClass = (stepId: WorkflowStepId) => {
+    const mode = getModeMeta(stepId);
+    if (mode.badge === 'OFF' || mode.badge === 'AUTO-SKIP' || mode.badge === 'RAW') {
+      return 'bg-zinc-700/30 text-zinc-300 border-zinc-500/30';
+    }
+    return 'bg-sky-600/20 text-sky-300 border-sky-400/40';
+  };
+
   return (
     <div className="w-full space-y-4">
       <Accordion 
@@ -81,6 +103,9 @@ export const WorkflowStepper: React.FC = () => {
               <span className={cn("text-sm font-bold uppercase tracking-widest", steps.compression.status === 'idle' && "text-muted-foreground")}>
                 Phase 0: Compression
               </span>
+              <span className={cn('rounded-full border px-2 py-0.5 text-[10px] font-mono', getModeBadgeClass('compression'))}>
+                {getModeMeta('compression').badge}
+              </span>
             </div>
           </AccordionTrigger>
           <AccordionContent className="p-4 pt-0">
@@ -94,6 +119,9 @@ export const WorkflowStepper: React.FC = () => {
               {getStatusIcon('analysis')}
               <span className={cn("text-sm font-bold uppercase tracking-widest", steps.analysis.status === 'idle' && "text-muted-foreground")}>
                 Phase I: Analysis
+              </span>
+              <span className={cn('rounded-full border px-2 py-0.5 text-[10px] font-mono', getModeBadgeClass('analysis'))}>
+                {getModeMeta('analysis').badge}
               </span>
             </div>
           </AccordionTrigger>
@@ -109,6 +137,9 @@ export const WorkflowStepper: React.FC = () => {
               <span className={cn("text-sm font-bold uppercase tracking-widest", steps.outline.status === 'idle' && "text-muted-foreground")}>
                 Phase II: Story Outline
               </span>
+              <span className={cn('rounded-full border px-2 py-0.5 text-[10px] font-mono', getModeBadgeClass('outline'))}>
+                {getModeMeta('outline').badge}
+              </span>
             </div>
           </AccordionTrigger>
           <AccordionContent className="p-4 pt-0">
@@ -122,6 +153,9 @@ export const WorkflowStepper: React.FC = () => {
               {getStatusIcon('breakdown')}
               <span className={cn("text-sm font-bold uppercase tracking-widest", steps.breakdown.status === 'idle' && "text-muted-foreground")}>
                 Phase III: Chapter Breakdown
+              </span>
+              <span className={cn('rounded-full border px-2 py-0.5 text-[10px] font-mono', getModeBadgeClass('breakdown'))}>
+                {getModeMeta('breakdown').badge}
               </span>
             </div>
           </AccordionTrigger>
@@ -137,6 +171,9 @@ export const WorkflowStepper: React.FC = () => {
               <span className={cn("text-sm font-bold uppercase tracking-widest", steps.chapter1.status === 'idle' && "text-muted-foreground")}>
                 Phase IV: The First Chapter
               </span>
+              <span className={cn('rounded-full border px-2 py-0.5 text-[10px] font-mono', getModeBadgeClass('chapter1'))}>
+                {getModeMeta('chapter1').badge}
+              </span>
             </div>
           </AccordionTrigger>
           <AccordionContent className="p-4 pt-0">
@@ -150,6 +187,9 @@ export const WorkflowStepper: React.FC = () => {
               {getStatusIcon('continuation')}
               <span className={cn("text-sm font-bold uppercase tracking-widest", steps.continuation.status === 'idle' && "text-muted-foreground")}>
                 Phase V: Perpetual Generation
+              </span>
+              <span className={cn('rounded-full border px-2 py-0.5 text-[10px] font-mono', getModeBadgeClass('continuation'))}>
+                {getModeMeta('continuation').badge}
               </span>
             </div>
           </AccordionTrigger>

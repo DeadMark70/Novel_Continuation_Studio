@@ -22,7 +22,8 @@ import { type CompressionMode } from '@/lib/compression';
 type PromptKey = keyof typeof DEFAULT_PROMPTS;
 
 const PROMPT_TAB_ITEMS: Array<{ key: PromptKey; label: string }> = [
-  { key: 'analysis', label: 'Analysis' },
+  { key: 'analysisCompressed', label: 'Analysis (Compressed)' },
+  { key: 'analysisRaw', label: 'Analysis (Raw)' },
   { key: 'compression', label: 'Compression' },
   { key: 'compressionRoleCards', label: 'Compression Role Cards' },
   { key: 'compressionStyleGuide', label: 'Compression Style Guide' },
@@ -371,7 +372,7 @@ export const SettingsPanel: React.FC = () => {
           </TabsContent>
           
           <TabsContent value="prompts" className="space-y-4 py-4">
-            <Tabs defaultValue="analysis" orientation="vertical" className="flex gap-4">
+            <Tabs defaultValue="analysisCompressed" orientation="vertical" className="flex gap-4">
               <TabsList className="flex flex-col h-auto bg-transparent gap-2 w-56">
                 {PROMPT_TAB_ITEMS.map((item) => (
                   <TabsTrigger key={item.key} value={item.key} className="w-full justify-start text-xs">

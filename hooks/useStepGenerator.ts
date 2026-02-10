@@ -19,6 +19,10 @@ import { runConsistencyCheck } from '@/lib/consistency-checker';
 type PromptTemplateKey = keyof typeof DEFAULT_PROMPTS;
 
 function resolvePromptTemplateKey(stepId: WorkflowStepId, useCompressedContext: boolean): PromptTemplateKey {
+  if (stepId === 'analysis') {
+    return useCompressedContext ? 'analysisCompressed' : 'analysisRaw';
+  }
+
   if (stepId === 'outline') {
     return useCompressedContext ? 'outlineCompressed' : 'outlineRaw';
   }

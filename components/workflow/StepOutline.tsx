@@ -3,13 +3,15 @@
 import React, { useEffect, useRef } from 'react';
 import { useWorkflowStore } from '@/store/useWorkflowStore';
 import { useNovelStore } from '@/store/useNovelStore';
+import { useSettingsStore } from '@/store/useSettingsStore';
 import { useStepGenerator } from '@/hooks/useStepGenerator';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Play, StopCircle, RefreshCw, FastForward } from 'lucide-react';
 import { Textarea } from '@/components/ui/textarea';
+import { resolveWorkflowMode } from '@/lib/workflow-mode';
 
 const MIN_TARGET_STORY_WORD_COUNT = 5000;
 const MAX_TARGET_STORY_WORD_COUNT = 50000;
@@ -26,6 +28,7 @@ function clampChapterCount(value: number): number {
 
 export const StepOutline: React.FC = () => {
   const { steps, currentStepId } = useWorkflowStore();
+  const { compressionMode, compressionAutoThreshold } = useSettingsStore();
   const {
     outlineDirection,
     setOutlineDirection,
@@ -33,6 +36,8 @@ export const StepOutline: React.FC = () => {
     setTargetStoryWordCount,
     targetChapterCount,
     setTargetChapterCount,
+    wordCount,
+    compressedContext,
   } = useNovelStore();
   const { generate, stop } = useStepGenerator();
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -43,6 +48,16 @@ export const StepOutline: React.FC = () => {
   const isStreaming = step.status === 'streaming';
   const isCompleted = step.status === 'completed';
   const isActive = currentStepId === 'outline';
+  const modeMeta = resolveWorkflowMode({
+    stepId: 'outline',
+    compressionMode,
+    compressionAutoThreshold,
+    sourceChars: wordCount,
+    compressedContext,
+  });
+  const modeClass = modeMeta.isCompressed
+    ? 'border-cyan-400/40 bg-cyan-600/20 text-cyan-200'
+    : 'border-zinc-500/30 bg-zinc-700/30 text-zinc-200';
 
   // Autofocus when this step becomes active and isn't completed yet
   useEffect(() => {
@@ -76,12 +91,18 @@ export const StepOutline: React.FC = () => {
   return (
     <Card className="border-l-4 border-l-cyan-500 bg-cyan-500/5">
       <CardHeader className="flex flex-row items-center justify-between pb-2">
-        <CardTitle className="text-lg font-bold uppercase tracking-wider flex items-center gap-2">
-          Step 2: Outline Generation
-          {isActive && !isCompleted && !isStreaming && (
-            <span className="text-[10px] bg-cyan-500 text-white px-2 py-0.5 rounded-full animate-pulse">Waiting for Input</span>
-          )}
-        </CardTitle>
+        <div>
+          <CardTitle className="text-lg font-bold uppercase tracking-wider flex items-center gap-2">
+            Step 2: Outline Generation
+            <span className={`rounded-full border px-2 py-0.5 text-[10px] font-mono ${modeClass}`}>
+              {modeMeta.badge}
+            </span>
+            {isActive && !isCompleted && !isStreaming && (
+              <span className="text-[10px] bg-cyan-500 text-white px-2 py-0.5 rounded-full animate-pulse">Waiting for Input</span>
+            )}
+          </CardTitle>
+          <CardDescription className="mt-1 text-xs">{modeMeta.detail}</CardDescription>
+        </div>
         <div className="flex gap-2">
           {isStreaming ? (
             <Button variant="destructive" size="sm" onClick={stop}>

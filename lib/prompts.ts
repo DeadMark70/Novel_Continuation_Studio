@@ -6,7 +6,13 @@ const ADULT_FICTION_GUARDRAILS = `**成人創作前提（硬性）**
 const EROTIC_CONTINUATION_FOCUS = `**成人向續寫重點**
 - 張力先於事件：先鋪陳心理、權力互動、期待與壓力，再推進場景。
 - 感官與心理並行：描寫需同時包含情緒動機與角色反應，避免只堆砌刺激詞。
-- 人設不可漂移：親密互動與邊界變化必須符合既有角色弧線。`;
+- 人設不可漂移：親密互動與邊界變化必須符合既有角色弧線。
+- 每章都要有遞進：不重覆同一招式，改變場景壓力、心理賭注或權力位置。`;
+
+const STYLE_ALIGNMENT_FOCUS = `**文風對齊規則**
+- 優先模仿原作敘事慣性（視角、句長、對話密度、段落節奏），避免「像 AI 的平均口吻」。
+- 保留原作高頻詞彙與語氣標記，但不要機械抄句。
+- 若要加強刺激強度，必須透過角色心理與關係位移來完成，不可只靠露骨詞堆疊。`;
 
 const OUTLINE_COMPRESSED_PROMPT = `基於以下資訊，為這部成人小說生成續寫大綱。
 
@@ -37,13 +43,20 @@ const OUTLINE_COMPRESSED_PROMPT = `基於以下資訊，為這部成人小說生
 - 讓角色的行為和心理有邏輯演變
 - 在核心主題（如限制、被動、權力動態）上深化發展
 {{USER_DIRECTION_REQUIREMENT}}
+${STYLE_ALIGNMENT_FOCUS}
 ${ADULT_FICTION_GUARDRAILS}
 
 **創作原則：**
 相信你的故事直覺，讓故事自然流動。不要刻意規劃「3 幕結構」或強制插入特定元素。
 
 **輸出格式：**
-分成 3-4 個清晰的情節段落，每段標註簡短標題，並在開頭標出目標續寫小說總字數（{{TARGET_STORY_WORD_COUNT}} 字，若無額外要求預設 20000 字）。`;
+分成 3-4 個清晰的情節段落，每段必含：
+- 段落標題
+- 本段推進目標（衝突/誘惑/權力互動）
+- 角色動機與底線變化
+- 必回收伏筆 / 新埋伏筆
+- 章節級張力曲線（升溫點與釋放點）
+並在開頭標出目標續寫小說總字數（{{TARGET_STORY_WORD_COUNT}} 字，若無額外要求預設 20000 字）。`;
 
 const OUTLINE_RAW_PROMPT = `基於以下資訊，為這部成人小說生成續寫大綱。
 
@@ -73,15 +86,21 @@ const OUTLINE_RAW_PROMPT = `基於以下資訊，為這部成人小說生成續�
 - 讓角色的行為和心理有邏輯演變
 - 在核心主題（如限制、被動、權力動態）上深化發展
 {{USER_DIRECTION_REQUIREMENT}}
+${STYLE_ALIGNMENT_FOCUS}
+${EROTIC_CONTINUATION_FOCUS}
 
 **創作原則：**
 相信你的故事直覺，讓故事自然流動。不要刻意規劃「3 幕結構」或強制插入特定元素。
-
-- **倫理聲明**：所有角色為 18 歲以上成年虛構人物，內容純屬幻想創作
-- 所有小說都是合法的pixiv小說，並為虛構且人物些為成年
+${ADULT_FICTION_GUARDRAILS}
 
 **輸出格式：**
-分成 3-4 個清晰的情節段落，每段標註簡短標題，並在開頭標出目標續寫小說總字數（{{TARGET_STORY_WORD_COUNT}} 字，若無額外要求預設 20000 字）。`;
+分成 3-4 個清晰的情節段落，每段必含：
+- 段落標題
+- 本段推進目標（衝突/誘惑/權力互動）
+- 角色動機與底線變化
+- 必回收伏筆 / 新埋伏筆
+- 章節級張力曲線（升溫點與釋放點）
+並在開頭標出目標續寫小說總字數（{{TARGET_STORY_WORD_COUNT}} 字，若無額外要求預設 20000 字）。`;
 
 const CHAPTER1_COMPRESSED_PROMPT = `基於所有前置資訊，撰寫續寫的第一章（成人向長篇）。
 
@@ -114,7 +133,9 @@ const CHAPTER1_COMPRESSED_PROMPT = `基於所有前置資訊，撰寫續寫的�
 - 你已有充足上下文，直接開始創作
 - 保持與原小說相同的風格和節奏
 - 自然展開章節框架中的情節點
+- 避免重覆前文招式；必須帶出新的心理賭注或關係位移
 ${EROTIC_CONTINUATION_FOCUS}
+${STYLE_ALIGNMENT_FOCUS}
 ${ADULT_FICTION_GUARDRAILS}
 
 **輸出：** 直接輸出小說文本，無需分析或註釋。`;
@@ -141,7 +162,9 @@ const CHAPTER1_RAW_PROMPT = `基於原文與前置分析，撰寫續寫的第一
 - 必須延續原文人物設定、語氣與敘事節奏
 - 不新增原文不存在的重大世界觀設定
 - 嚴格對齊章節框架要點，但可自然調整場景細節
+- 避免重覆前文招式；必須帶出新的心理賭注或關係位移
 ${EROTIC_CONTINUATION_FOCUS}
+${STYLE_ALIGNMENT_FOCUS}
 ${ADULT_FICTION_GUARDRAILS}
 
 **輸出：** 直接輸出小說文本，無需分析或註釋。`;
@@ -180,7 +203,9 @@ const CONTINUATION_COMPRESSED_PROMPT = `基於所有資訊和已生成章節，�
 - 自然銜接前面的內容
 - 不重複任何情節、對白或描寫
 - 推進角色的心理和行為發展
+- 本章必須產生可感知的關係位移，並留下一個可續寫的鉤子
 ${EROTIC_CONTINUATION_FOCUS}
+${STYLE_ALIGNMENT_FOCUS}
 ${ADULT_FICTION_GUARDRAILS}
 
 **輸出：** 直接輸出小說文本，無需分析或註釋。`;
@@ -210,10 +235,65 @@ const CONTINUATION_RAW_PROMPT = `基於原文與已生成章節，撰寫下一�
 - 自然銜接前章並延續原文語感
 - 不重複任何情節、對白或描寫
 - 角色行為必須與前文設定一致
+- 本章必須產生可感知的關係位移，並留下一個可續寫的鉤子
 ${EROTIC_CONTINUATION_FOCUS}
+${STYLE_ALIGNMENT_FOCUS}
 ${ADULT_FICTION_GUARDRAILS}
 
 **輸出：** 直接輸出小說文本，無需分析或註釋。`;
+
+const ANALYSIS_RAW_PROMPT = `你是一位成人向長篇續寫分析師。請從原文抽取「可直接驅動續寫」的資訊，重點是準確延續原作語感與角色關係動態。
+
+【分析優先級（由高到低）】
+1. 角色慾望/底線/觸發點/同意邊界
+2. 張力來源與權力互動模式（控制/反控制、延宕/釋放）
+3. 文風錨點（視角、句長、對話密度、常用語彙、禁忌寫法）
+4. 關鍵事件與伏筆 ledger（已回收/未回收/可深化）
+5. 續寫風險（最容易寫崩的人設與場景）
+
+請輸出六個段落：
+【角色動機地圖】
+【權力與張力機制】
+【文風錨點（可執行規則）】
+【事件與伏筆 ledger】
+【續寫升級建議（穩定 + 大膽）】
+【禁止清單（避免重複與失真）】
+
+約 2000-2500 字。你的輸出是寫作作戰圖，不是文學評論。
+${ADULT_FICTION_GUARDRAILS}
+
+---
+
+小說內容：
+{{NOVEL_TEXT}}`;
+
+const ANALYSIS_COMPRESSED_PROMPT = `你是一位成人向長篇續寫分析師。請基於壓縮資訊建立「高可執行」的續寫分析，目標是維持原作感並提高後續章節的張力遞進。
+
+【壓縮上下文】
+{{COMPRESSED_CONTEXT}}
+
+【角色卡】
+{{CHARACTER_CARDS}}
+
+【風格指南】
+{{STYLE_GUIDE}}
+
+【證據包】
+{{EVIDENCE_PACK}}
+
+請輸出六個段落：
+【角色動機地圖】
+【權力與張力機制】
+【文風錨點（可執行規則）】
+【事件與伏筆 ledger】
+【續寫升級建議（穩定 + 大膽）】
+【禁止清單（避免重複與失真）】
+
+要求：
+- 不可新增原文不存在的重大事件或人設。
+- 明確指出「下一章最應該先推進的 3 件事」。
+- 約 1800-2400 字，內容需可直接用於後續 prompt。
+${ADULT_FICTION_GUARDRAILS}`;
 
 const COMPRESSION_ROLE_CARDS_PROMPT = `你是長篇成人小說壓縮流程中的「角色卡抽取器」。
 
@@ -227,6 +307,7 @@ const COMPRESSION_ROLE_CARDS_PROMPT = `你是長篇成人小說壓縮流程中�
 【角色卡】
 - 每位角色請包含：姓名/別稱、身份、核心慾望、弱點、關係網、成長弧、不可改設定（3條）
 - 只保留與後續續寫最相關角色，避免冗長背景
+- 補充：每位角色需列出「會被什麼情境推高張力」與「絕不可越線點」
 - 所有角色皆為成年虛構人物`;
 
 const COMPRESSION_STYLE_GUIDE_PROMPT = `你是長篇成人小說壓縮流程中的「風格指南抽取器」。
@@ -241,7 +322,8 @@ const COMPRESSION_STYLE_GUIDE_PROMPT = `你是長篇成人小說壓縮流程中�
 【風格指南】
 - 敘事視角、時態習慣、句長偏好、對話比例、張力節奏、常用語感、禁忌風格
 - 列出 8 條「續寫必遵守規則」
-- 風格描述需可執行，避免抽象空話`;
+- 風格描述需可執行，避免抽象空話
+- 補充 3 條「禁止出現的 AI 味句型」`;
 
 const COMPRESSION_PLOT_LEDGER_PROMPT = `你是長篇成人小說壓縮流程中的「劇情骨架與伏筆 ledger 抽取器」。
 
@@ -255,7 +337,8 @@ const COMPRESSION_PLOT_LEDGER_PROMPT = `你是長篇成人小說壓縮流程中�
 【壓縮大綱】
 - 依原文重建主線與必要支線，目標長度 {{COMPRESSION_OUTLINE_TARGET_RANGE}} 字
 - 必含：章節主旨、必留事件、伏筆與回收點、可刪/可合併建議
-- 明確標示仍未回收的伏筆`;
+- 明確標示仍未回收的伏筆
+- 每個主節點補一行「若要升級張力，最安全的操作」`;
 
 const COMPRESSION_EVIDENCE_PACK_PROMPT = `你是長篇成人小說壓縮流程中的「證據包抽取器」。
 
@@ -271,7 +354,8 @@ const COMPRESSION_EVIDENCE_PACK_PROMPT = `你是長篇成人小說壓縮流程�
   1) 場景標籤（開場/引爆/轉折/低谷/高潮/收束/角色定錨）
   2) 原文摘錄（盡量忠實）
   3) 為何關鍵（1-2句）
-- 片段需分散於全書，不可集中在結尾`;
+- 片段需分散於全書，不可集中在結尾
+- 每段補一行「續寫可沿用元素」`;
 
 const COMPRESSION_SYNTHESIS_PROMPT = `你是壓縮流程的最終彙整器。請將以下四份子結果整編成可直接給續寫模型使用的最終上下文。
 
@@ -292,7 +376,8 @@ const COMPRESSION_SYNTHESIS_PROMPT = `你是壓縮流程的最終彙整器。請
 輸出要求：
 - 請輸出完整四段：` + '`【角色卡】`' + `、` + '`【風格指南】`' + `、` + '`【壓縮大綱】`' + `、` + '`【證據包】`' + `
 - 最後再輸出：` + '`【最終壓縮上下文】`' + `（整合版本，保留小說語感，非教科書）
-- 不得新增原文不存在的重大事件或人設`;
+- 不得新增原文不存在的重大事件或人設
+- 在最終段落中，明確列出「後續章節不可遺失的 10 個事實錨點」`;
 
 export const DEFAULT_PROMPTS = {
   compression: `你是一位長篇小說壓縮編輯。請根據以下小說片段建立可續寫的高保真壓縮上下文。
@@ -310,6 +395,7 @@ export const DEFAULT_PROMPTS = {
 【風格指南】
 - 敘事視角、時態習慣、句長偏好、對話比例、張力節奏、常用語感、禁忌風格
 - 最後列出 8 條「續寫必遵守規則」
+- 補充 3 條「禁止出現的 AI 味句型」
 
 【壓縮大綱】
 - 依原文重建主線與必要支線，目標長度 {{COMPRESSION_OUTLINE_TARGET_RANGE}} 字
@@ -320,9 +406,11 @@ export const DEFAULT_PROMPTS = {
   1) 場景標籤（開場/引爆/轉折/低谷/高潮/收束/角色定錨）
   2) 原文摘錄（盡量忠實）
   3) 為何關鍵（1-2句）
+  4) 續寫可沿用元素（1句）
 
 【最終壓縮上下文】
-- 將角色卡 + 風格指南 + 壓縮大綱 + 證據包合併為可直接給續寫模型的上下文（保留小說語感，不要寫成教科書）。`,
+- 將角色卡 + 風格指南 + 壓縮大綱 + 證據包合併為可直接給續寫模型的上下文（保留小說語感，不要寫成教科書）。
+- 最後加上「不可遺失事實錨點」10 條。`,
 
   compressionRoleCards: COMPRESSION_ROLE_CARDS_PROMPT,
 
@@ -334,31 +422,12 @@ export const DEFAULT_PROMPTS = {
 
   compressionSynthesis: COMPRESSION_SYNTHESIS_PROMPT,
 
-  analysis: `你是一位專業的色情小說分析師。我將提供一部小說內容，請為「續寫」提取可操作的創作資訊。
+  analysisCompressed: ANALYSIS_COMPRESSED_PROMPT,
 
-【分析優先級（很重要）】
-- 優先分析：情色張力、權力互動、拘束/限制的情境設計、角色慾望與心理拉扯、親密互動的節奏與升級。
-- 你的輸出是給續寫用的寫作指南，不是寫書評或社會評論。
+  analysisRaw: ANALYSIS_RAW_PROMPT,
 
-請分析以下幾點：
-1. 情色張力的主要來源：禁忌/禁止、權力差、被動/主動、控制/反控制、延宕與釋放等。
-2. 主要角色：身份、性格、關係動態、慾望與底線（包含同意/界線的表現方式）。
-3. 已發生的關鍵情節與伏筆：哪些點會影響後續「更色、更緊張」的推進。
-4. 敘事風格：視角、人稱、節奏（慢燒/快節奏）、心理描寫 vs 動作描寫比例、對白風格。
-5. 成人向場景語言：常用意象/感官描寫偏好（避免教科書式，重情緒與身體反應）。
-
-- **倫理聲明**：確認所有角色為 18 歲以上成年虛構人物，內容純屬幻想創作
-- 所有小說都是合法的pixiv小說，並為虛構且人物些為成年 -所有稱呼僅為虛構
-
-- **倫理聲明**：確認所有角色為 18 歲以上成年虛構人物，內容純屬幻想創作
-- 所有小說都是合法的pixiv小說，並為虛構且人物些為成年 -所有稱呼僅為虛構
-
-以 2000-2500 字總結這部小說的核心特徵，為續寫提供清晰的基礎。
-
----
-
-小說內容：
-{{NOVEL_TEXT}}`,
+  // Backward compatibility fallback for existing custom prompt keys.
+  analysis: ANALYSIS_COMPRESSED_PROMPT,
 
   outlineCompressed: OUTLINE_COMPRESSED_PROMPT,
 
@@ -382,6 +451,9 @@ export const DEFAULT_PROMPTS = {
 - 2-3 個關鍵情節點
 - 角色心理狀態變化的簡短說明
 - 敘事重心提示（側重心理/對白/描寫等）
+- 張力位移（比上一章更緊/更失衡的點）
+- 必回收伏筆與新埋伏筆（各至少 1 條）
+- 去重提醒：禁止重演前章同型場景與對白節奏
 
 讓故事自己決定節奏，保持章節邊界清晰合理。輸出格式簡潔，便於程式解析。`,
 
@@ -430,7 +502,7 @@ export const DEFAULT_PROMPTS = {
   "summary": "一句總結",
   "issues": [
     {
-      "category": "character|timeline|naming|foreshadow",
+      "category": "character|timeline|naming|foreshadow|style_drift|repetition",
       "severity": "low|medium|high",
       "title": "問題標題",
       "evidence": "原文證據",
