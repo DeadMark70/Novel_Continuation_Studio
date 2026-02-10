@@ -4,6 +4,15 @@ This file tracks all major tracks for the project. Each track has its own detail
 
 ## Latest Track
 
+- `phase0_long_novel_compression_20260210` (new)
+  - Path: `conductor/archive/phase0_long_novel_compression_20260210/`
+  - Scope:
+    - Add optional Phase 0 compression before analysis.
+    - Generate character cards, style guide, dynamic compression outline, and evidence pack.
+    - Route downstream prompts to compressed context by default.
+    - Add user-selectable compression mode (`auto` / `on` / `off`).
+    - Make auto-trigger threshold configurable by user (default 20,000 characters).
+
 - `nim_stream_timeout_resilience_20260209` (implemented)
   - Path: `conductor/archive/nim_stream_timeout_resilience_20260209/`
   - Scope:

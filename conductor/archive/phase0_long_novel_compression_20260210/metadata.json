@@ -1,0 +1,8 @@
+{
+  "track_id": "phase0_long_novel_compression_20260210",
+  "type": "feature",
+  "status": "new",
+  "created_at": "2026-02-10T00:00:00Z",
+  "updated_at": "2026-02-10T00:00:00Z",
+  "description": "Introduce optional Phase 0 long-novel compression with user-selectable mode (auto/on/off) and configurable auto threshold."
+}
