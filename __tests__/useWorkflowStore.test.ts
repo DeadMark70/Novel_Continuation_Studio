@@ -165,6 +165,7 @@ describe('useWorkflowStore - Automation Actions', () => {
   it('should pause generation and abort active step', () => {
     act(() => {
       useWorkflowStore.getState().startStep('continuation');
+      useWorkflowStore.getState().resumeGeneration();
     });
     
     act(() => {
@@ -174,6 +175,7 @@ describe('useWorkflowStore - Automation Actions', () => {
     const state = useWorkflowStore.getState();
     expect(state.isPaused).toBe(true);
     expect(state.isGenerating).toBe(false);
+    expect(state.autoTriggerStepId).toBeNull();
   });
 
   it('should resume generation', () => {

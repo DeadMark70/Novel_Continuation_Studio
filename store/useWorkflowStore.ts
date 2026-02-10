@@ -524,7 +524,8 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
     // Set paused state
     set({ 
         isPaused: true,
-        isGenerating: false // Release lock
+        isGenerating: false, // Release lock
+        autoTriggerStepId: null // Clear queued automation trigger
     });
     
     // Abort current step (reset to idle)

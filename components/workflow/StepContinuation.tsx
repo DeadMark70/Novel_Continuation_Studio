@@ -45,7 +45,7 @@ export const StepContinuation: React.FC = () => {
                 current={nextChapterNumber} 
                 total={totalChapterCount} 
                 onStop={stop}
-                stopDisabled={step.status !== 'streaming'}
+                stopDisabled={false}
               />
             ) : (
               <AutoModeControl 
