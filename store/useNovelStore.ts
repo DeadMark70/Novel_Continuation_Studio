@@ -3,6 +3,13 @@ import { saveNovel, getLatestNovel, getAllSessions, getSession, deleteSession, g
 import { useWorkflowStore } from './useWorkflowStore';
 import { normalizeNovelText } from '@/lib/utils';
 import type { CompressionMeta } from '@/lib/compression';
+import type {
+  CharacterTimelineEntry,
+  ConsistencyCheckResult,
+  ConsistencyReport,
+  ConsistencySummary,
+  ForeshadowEntry,
+} from '@/lib/consistency-types';
 
 interface NovelState {
   // Session management
@@ -27,6 +34,10 @@ interface NovelState {
   evidencePack: string;
   compressedContext: string;
   compressionMeta?: CompressionMeta;
+  consistencyReports: ConsistencyReport[];
+  characterTimeline: CharacterTimelineEntry[];
+  foreshadowLedger: ForeshadowEntry[];
+  latestConsistencySummary?: ConsistencySummary;
   
   // Session list (history)
   sessions: NovelEntry[];
@@ -47,10 +58,23 @@ interface NovelState {
     | 'evidencePack'
     | 'compressedContext'
     | 'compressionMeta'
+    | 'consistencyReports'
+    | 'characterTimeline'
+    | 'foreshadowLedger'
+    | 'latestConsistencySummary'
   >>) => Promise<void>;
   setOutlineDirection: (value: string) => Promise<void>;
   setTargetStoryWordCount: (value: number) => Promise<void>;
   setTargetChapterCount: (value: number) => Promise<void>;
+  setConsistencyState: (data: Partial<Pick<
+    NovelState,
+    | 'consistencyReports'
+    | 'characterTimeline'
+    | 'foreshadowLedger'
+    | 'latestConsistencySummary'
+  >>) => Promise<void>;
+  appendConsistencyReport: (result: ConsistencyCheckResult) => Promise<void>;
+  getLatestConsistencyReport: () => ConsistencyReport | undefined;
   reset: () => Promise<void>;
   initialize: () => Promise<void>;
   persist: () => Promise<void>;
@@ -78,6 +102,10 @@ export const useNovelStore = create<NovelState>((set, get) => ({
   evidencePack: '',
   compressedContext: '',
   compressionMeta: undefined,
+  consistencyReports: [],
+  characterTimeline: [],
+  foreshadowLedger: [],
+  latestConsistencySummary: undefined,
   sessions: [],
 
   setNovel: async (content: string) => {
@@ -114,6 +142,29 @@ export const useNovelStore = create<NovelState>((set, get) => ({
     await get().persist();
   },
 
+  setConsistencyState: async (data) => {
+    set((state) => ({ ...state, ...data }));
+    await get().persist();
+  },
+
+  appendConsistencyReport: async (result) => {
+    set((state) => ({
+      consistencyReports: [...state.consistencyReports, result.report].slice(-30),
+      characterTimeline: [...state.characterTimeline, ...result.characterTimelineUpdates].slice(-300),
+      foreshadowLedger: result.foreshadowLedger.slice(-120),
+      latestConsistencySummary: result.summary,
+    }));
+    await get().persist();
+  },
+
+  getLatestConsistencyReport: () => {
+    const reports = get().consistencyReports;
+    if (reports.length === 0) {
+      return undefined;
+    }
+    return reports[reports.length - 1];
+  },
+
   persist: async () => {
     const state = get();
     
@@ -139,6 +190,10 @@ export const useNovelStore = create<NovelState>((set, get) => ({
       evidencePack: state.evidencePack,
       compressedContext: state.compressedContext,
       compressionMeta: state.compressionMeta,
+      consistencyReports: state.consistencyReports,
+      characterTimeline: state.characterTimeline,
+      foreshadowLedger: state.foreshadowLedger,
+      latestConsistencySummary: state.latestConsistencySummary,
     });
     await get().loadSessions();
   },
@@ -169,6 +224,10 @@ export const useNovelStore = create<NovelState>((set, get) => ({
         evidencePack: session.evidencePack ?? '',
         compressedContext: session.compressedContext ?? '',
         compressionMeta: session.compressionMeta,
+        consistencyReports: session.consistencyReports ?? [],
+        characterTimeline: session.characterTimeline ?? [],
+        foreshadowLedger: session.foreshadowLedger ?? [],
+        latestConsistencySummary: session.latestConsistencySummary,
       });
       useWorkflowStore.getState().hydrateFromNovelSession({
         currentStep: session.currentStep,
@@ -201,6 +260,10 @@ export const useNovelStore = create<NovelState>((set, get) => ({
       evidencePack: '',
       compressedContext: '',
       compressionMeta: undefined,
+      consistencyReports: [],
+      characterTimeline: [],
+      foreshadowLedger: [],
+      latestConsistencySummary: undefined,
     });
     useWorkflowStore.getState().resetAllSteps();
   },
@@ -241,6 +304,10 @@ export const useNovelStore = create<NovelState>((set, get) => ({
         evidencePack: latest.evidencePack ?? '',
         compressedContext: latest.compressedContext ?? '',
         compressionMeta: latest.compressionMeta,
+        consistencyReports: latest.consistencyReports ?? [],
+        characterTimeline: latest.characterTimeline ?? [],
+        foreshadowLedger: latest.foreshadowLedger ?? [],
+        latestConsistencySummary: latest.latestConsistencySummary,
       });
     }
     await get().loadSessions();

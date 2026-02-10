@@ -1,4 +1,10 @@
 import Dexie, { type Table } from 'dexie';
+import type {
+  CharacterTimelineEntry,
+  ConsistencyReport,
+  ConsistencySummary,
+  ForeshadowEntry,
+} from './consistency-types';
 
 export interface NovelEntry {
   id?: number;
@@ -28,6 +34,10 @@ export interface NovelEntry {
     skipped?: boolean;
     reason?: string;
   };
+  consistencyReports?: ConsistencyReport[];
+  characterTimeline?: CharacterTimelineEntry[];
+  foreshadowLedger?: ForeshadowEntry[];
+  latestConsistencySummary?: ConsistencySummary;
   createdAt: number;
   updatedAt: number;
 }
@@ -135,6 +145,22 @@ export class NovelDatabase extends Dexie {
         }
       });
     });
+    this.version(6).stores({
+      novels: '++id, sessionId, updatedAt, createdAt',
+      settings: 'id, updatedAt'
+    }).upgrade(async (tx) => {
+      await tx.table('novels').toCollection().modify((entry: NovelEntry) => {
+        if (!Array.isArray(entry.consistencyReports)) {
+          entry.consistencyReports = [];
+        }
+        if (!Array.isArray(entry.characterTimeline)) {
+          entry.characterTimeline = [];
+        }
+        if (!Array.isArray(entry.foreshadowLedger)) {
+          entry.foreshadowLedger = [];
+        }
+      });
+    });
   }
 }
 
@@ -156,6 +182,10 @@ export async function saveNovel(entry: Omit<NovelEntry, 'id' | 'updatedAt' | 'cr
     evidencePack: entry.evidencePack ?? '',
     compressedContext: entry.compressedContext ?? '',
     compressionMeta: entry.compressionMeta,
+    consistencyReports: entry.consistencyReports ?? [],
+    characterTimeline: entry.characterTimeline ?? [],
+    foreshadowLedger: entry.foreshadowLedger ?? [],
+    latestConsistencySummary: entry.latestConsistencySummary,
   };
   
   // Check if this session already exists

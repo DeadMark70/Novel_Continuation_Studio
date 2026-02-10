@@ -11,6 +11,7 @@ import {
   parseCompressionArtifacts,
   shouldRunCompression,
 } from '@/lib/compression';
+import { runConsistencyCheck } from '@/lib/consistency-checker';
 
 export function useStepGenerator() {
   const { startStep, updateStepContent, completeStep, setStepError, cancelStep, forceResetGeneration } = useWorkflowStore();
@@ -253,6 +254,65 @@ export function useStepGenerator() {
       }
 
       await completeStep(stepId);
+
+      if (stepId === 'chapter1' || stepId === 'continuation') {
+        const latestGeneratedChapter = content;
+        const consistencyTemplate = customPrompts.consistency || DEFAULT_PROMPTS.consistency;
+        const canRunLlmChecker = Boolean(apiKey?.trim());
+
+        void (async () => {
+          try {
+            const novelSnapshot = useNovelStore.getState();
+            const latestChapterNumber = novelSnapshot.chapters.length;
+            const latestChapterText = novelSnapshot.chapters[latestChapterNumber - 1] || latestGeneratedChapter;
+            if (!latestChapterText?.trim()) {
+              return;
+            }
+
+            const llmCheck = canRunLlmChecker
+              ? async (checkerPrompt: string): Promise<string> => {
+                let checkerOutput = '';
+                const checkerStream = generateStream(
+                  checkerPrompt,
+                  selectedModel,
+                  apiKey,
+                  undefined,
+                  {
+                    enableThinking: false,
+                    thinkingSupported: false,
+                  }
+                );
+
+                for await (const checkerChunk of checkerStream) {
+                  checkerOutput += checkerChunk;
+                }
+                return checkerOutput;
+              }
+              : undefined;
+
+            const consistencyResult = await runConsistencyCheck({
+              chapterNumber: latestChapterNumber,
+              latestChapterText,
+              allChapters: novelSnapshot.chapters,
+              characterCards: novelSnapshot.characterCards,
+              styleGuide: novelSnapshot.styleGuide,
+              compressionOutline: novelSnapshot.compressionOutline,
+              evidencePack: novelSnapshot.evidencePack,
+              compressedContext: novelSnapshot.compressedContext,
+              previousForeshadowLedger: novelSnapshot.foreshadowLedger,
+              llmCheck,
+              promptTemplate: consistencyTemplate,
+            });
+
+            await useNovelStore.getState().appendConsistencyReport(consistencyResult);
+            console.log(
+              `[Consistency] Chapter ${latestChapterNumber} checked. Issues: ${consistencyResult.summary.totalIssues}`
+            );
+          } catch (consistencyError) {
+            console.warn('[Consistency] Checker failed (non-blocking):', consistencyError);
+          }
+        })();
+      }
       
     } catch (error) {
       if (error instanceof Error && (error.name === 'AbortError' || error.message === 'Request cancelled')) {

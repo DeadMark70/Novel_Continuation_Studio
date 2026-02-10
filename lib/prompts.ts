@@ -161,5 +161,59 @@ export const DEFAULT_PROMPTS = {
 - 不重複任何情節、對白或描寫
 - 推進角色的心理和行為發展
 
-**輸出：** 直接輸出小說文本，無需分析或註釋。`
+**輸出：** 直接輸出小說文本，無需分析或註釋。`,
+
+  consistency: `你是一位小說一致性審校器。請檢查最新章節是否與既有設定衝突，並輸出 JSON（不要輸出其他文字）。
+
+【角色卡】
+{{CHARACTER_CARDS}}
+
+【風格指南】
+{{STYLE_GUIDE}}
+
+【壓縮大綱】
+{{COMPRESSION_OUTLINE}}
+
+【證據包】
+{{EVIDENCE_PACK}}
+
+【壓縮上下文】
+{{COMPRESSED_CONTEXT}}
+
+【全章列表（含最新章）】
+{{ALL_CHAPTERS}}
+
+【最新章節（重點檢查）】
+{{LATEST_CHAPTER}}
+
+【既有伏筆 ledger】
+{{PREVIOUS_FORESHADOW_LEDGER}}
+
+輸出 JSON schema：
+{
+  "summary": "一句總結",
+  "issues": [
+    {
+      "category": "character|timeline|naming|foreshadow",
+      "severity": "low|medium|high",
+      "title": "問題標題",
+      "evidence": "原文證據",
+      "suggestion": "修正建議"
+    }
+  ],
+  "characterUpdates": [
+    {
+      "character": "角色名",
+      "change": "狀態變化",
+      "evidence": "對應證據"
+    }
+  ],
+  "foreshadowUpdates": [
+    {
+      "title": "伏筆名稱",
+      "status": "open|resolved|contradicted",
+      "evidence": "對應證據"
+    }
+  ]
+}`
 };

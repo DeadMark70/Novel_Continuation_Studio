@@ -135,5 +135,8 @@ describe('NovelDatabase', () => {
     const latest = await getLatestNovel();
     expect(latest?.targetStoryWordCount).toBe(20000);
     expect(latest?.targetChapterCount).toBe(5);
+    expect(latest?.consistencyReports).toEqual([]);
+    expect(latest?.characterTimeline).toEqual([]);
+    expect(latest?.foreshadowLedger).toEqual([]);
   });
 });

@@ -149,6 +149,9 @@ describe('useNovelStore Integration', () => {
     expect(novel.outlineDirection).toBe('');
     expect(novel.targetStoryWordCount).toBe(20000);
     expect(novel.targetChapterCount).toBe(5);
+    expect(novel.consistencyReports).toEqual([]);
+    expect(novel.characterTimeline).toEqual([]);
+    expect(novel.foreshadowLedger).toEqual([]);
   });
 
   it('should persist outline direction to database', async () => {
@@ -169,5 +172,63 @@ describe('useNovelStore Integration', () => {
     const session = await db.novels.where('sessionId').equals(useNovelStore.getState().currentSessionId).first();
     expect(session?.targetStoryWordCount).toBe(30000);
     expect(session?.targetChapterCount).toBe(8);
+  });
+
+  it('should append and persist consistency state', async () => {
+    await act(async () => {
+      await useNovelStore.getState().setNovel('Consistency Test');
+    });
+
+    const now = Date.now();
+    await act(async () => {
+      await useNovelStore.getState().appendConsistencyReport({
+        report: {
+          id: 'report_1',
+          chapterNumber: 1,
+          generatedAt: now,
+          summary: 'ok',
+          issues: [],
+          regenPromptDraft: 'rewrite',
+        },
+        characterTimelineUpdates: [
+          {
+            id: 'timeline_1',
+            chapterNumber: 1,
+            character: '阿明',
+            change: '建立信任',
+            evidence: '證據',
+            updatedAt: now,
+          },
+        ],
+        foreshadowLedger: [
+          {
+            id: 'foreshadow_1',
+            title: '戒指來源',
+            status: 'open',
+            evidence: '尚未揭曉',
+            introducedAtChapter: 1,
+            lastUpdatedChapter: 1,
+          },
+        ],
+        summary: {
+          latestChapter: 1,
+          totalIssues: 0,
+          highRiskCount: 0,
+          openForeshadowCount: 1,
+          lastCheckedAt: now,
+        },
+      });
+    });
+
+    const state = useNovelStore.getState();
+    expect(state.consistencyReports.length).toBe(1);
+    expect(state.characterTimeline.length).toBe(1);
+    expect(state.foreshadowLedger.length).toBe(1);
+    expect(state.getLatestConsistencyReport()?.chapterNumber).toBe(1);
+
+    const session = await db.novels.where('sessionId').equals(state.currentSessionId).first();
+    expect(session?.consistencyReports?.length).toBe(1);
+    expect(session?.characterTimeline?.length).toBe(1);
+    expect(session?.foreshadowLedger?.[0].title).toBe('戒指來源');
   });
 });
