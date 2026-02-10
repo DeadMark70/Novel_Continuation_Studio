@@ -9,6 +9,7 @@ import { BookOpen } from 'lucide-react';
 import { Textarea } from '@/components/ui/textarea';
 import { AutoModeControl } from './AutoModeControl';
 import { ProgressIndicator } from './ProgressIndicator';
+import { ConsistencyPanel } from './ConsistencyPanel';
 
 export const StepContinuation: React.FC = () => {
   const { steps, isGenerating } = useWorkflowStore();
@@ -35,31 +36,37 @@ export const StepContinuation: React.FC = () => {
           )}
         </div>
       </CardHeader>
-      <CardContent className="space-y-4">
-        {/* Automation Controls */}
-        {isGenerating ? (
-          <ProgressIndicator 
-            current={nextChapterNumber} 
-            total={totalChapterCount} 
-            onStop={stop}
-            stopDisabled={step.status !== 'streaming'}
-          />
-        ) : (
-          <AutoModeControl 
-            onStart={() => generate('continuation')} 
-          />
-        )}
+      <CardContent>
+        <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
+          <div className="space-y-4 min-w-0">
+            {/* Automation Controls */}
+            {isGenerating ? (
+              <ProgressIndicator 
+                current={nextChapterNumber} 
+                total={totalChapterCount} 
+                onStop={stop}
+                stopDisabled={step.status !== 'streaming'}
+              />
+            ) : (
+              <AutoModeControl 
+                onStart={() => generate('continuation')} 
+              />
+            )}
 
-        {/* Output Area */}
-        <Textarea 
-          readOnly 
-          value={step.content} 
-          placeholder={`第 ${nextChapterNumber} 章的內容將在這裡顯示...`}
-          className="min-h-[400px] font-mono text-sm bg-card/50 resize-y focus-visible:ring-0"
-        />
-        {step.error && (
-          <p className="text-destructive text-xs mt-2 font-mono">ERROR: {step.error}</p>
-        )}
+            {/* Output Area */}
+            <Textarea 
+              readOnly 
+              value={step.content} 
+              placeholder={`第 ${nextChapterNumber} 章的內容將在這裡顯示...`}
+              className="min-h-[400px] font-mono text-sm bg-card/50 resize-y focus-visible:ring-0"
+            />
+            {step.error && (
+              <p className="text-destructive text-xs mt-2 font-mono">ERROR: {step.error}</p>
+            )}
+          </div>
+
+          <ConsistencyPanel />
+        </div>
       </CardContent>
     </Card>
   );

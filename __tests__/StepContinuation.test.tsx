@@ -14,6 +14,9 @@ vi.mock('../components/workflow/ProgressIndicator', () => ({
     <div data-testid="progress-indicator">progress-total-{total}</div>
   )
 }));
+vi.mock('../components/workflow/ConsistencyPanel', () => ({
+  ConsistencyPanel: () => <div data-testid="consistency-panel" />
+}));
 vi.mock('../store/useWorkflowStore');
 vi.mock('../store/useNovelStore');
 vi.mock('../hooks/useStepGenerator');
@@ -74,6 +77,7 @@ describe('StepContinuation', () => {
   it('renders AutoModeControl when not generating', () => {
     render(<StepContinuation />);
     expect(screen.getByTestId('auto-mode-control')).toBeDefined();
+    expect(screen.getByTestId('consistency-panel')).toBeDefined();
     expect(screen.queryByTestId('progress-indicator')).toBeNull();
   });
 

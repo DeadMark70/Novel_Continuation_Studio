@@ -353,6 +353,7 @@ export const SettingsPanel: React.FC = () => {
                 <TabsTrigger value="breakdown" className="w-full justify-start">Breakdown</TabsTrigger>
                 <TabsTrigger value="chapter1" className="w-full justify-start">Chapter 1</TabsTrigger>
                 <TabsTrigger value="continuation" className="w-full justify-start">Continuation</TabsTrigger>
+                <TabsTrigger value="consistency" className="w-full justify-start">Consistency</TabsTrigger>
               </TabsList>
               
               <div className="flex-1 space-y-4">
