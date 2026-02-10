@@ -9,6 +9,7 @@ import { Switch } from '@/components/ui/switch';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Settings, Save, RotateCcw } from 'lucide-react';
 import { fetchModels } from '@/lib/nim-client';
 import { DEFAULT_PROMPTS } from '@/lib/prompts';
@@ -283,18 +284,24 @@ export const SettingsPanel: React.FC = () => {
               </div>
 
               <div className="space-y-2 border-t border-border/60 pt-4">
-                <Label htmlFor="compression-mode">Phase 0 Compression Mode</Label>
-                <select
-                  id="compression-mode"
-                  data-testid="compression-mode-select"
+                <Label>Phase 0 Compression Mode</Label>
+                <Select
                   value={localCompressionMode}
-                  onChange={(e) => setLocalCompressionMode(e.target.value as CompressionMode)}
-                  className="w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm"
+                  onValueChange={(value) => setLocalCompressionMode(value as CompressionMode)}
                 >
-                  <option value="auto">Auto</option>
-                  <option value="on">Always On</option>
-                  <option value="off">Always Off</option>
-                </select>
+                  <SelectTrigger
+                    id="compression-mode"
+                    data-testid="compression-mode-select"
+                    className="w-full bg-card text-foreground"
+                  >
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="auto">Auto</SelectItem>
+                    <SelectItem value="on">Always On</SelectItem>
+                    <SelectItem value="off">Always Off</SelectItem>
+                  </SelectContent>
+                </Select>
                 <p className="text-xs text-muted-foreground">
                   Auto uses a user-defined character threshold to decide whether Phase 0 runs.
                 </p>
