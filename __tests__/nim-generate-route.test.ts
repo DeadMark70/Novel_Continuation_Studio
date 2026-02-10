@@ -71,4 +71,46 @@ describe('/api/nim/generate route', () => {
       process.env.NIM_API_KEY = previous;
     }
   });
+
+  it('retries without chat_template_kwargs when upstream model rejects chat_template', async () => {
+    const stream = new ReadableStream({
+      start(controller) {
+        controller.close();
+      },
+    });
+
+    (global.fetch as unknown as ReturnType<typeof vi.fn>)
+      .mockResolvedValueOnce({
+        ok: false,
+        status: 400,
+        text: async () =>
+          '{"error":{"message":"chat_template is not supported for Mistral tokenizers. None","code":400}}',
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        body: stream,
+      });
+
+    const request = new Request('http://localhost/api/nim/generate', {
+      method: 'POST',
+      headers: {
+        'Authorization': 'Bearer test-key',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'mistralai/mistral-large-3-675b-instruct-2512',
+        messages: [{ role: 'user', content: 'hello' }],
+        chat_template_kwargs: { thinking: true },
+      }),
+    });
+
+    const response = await POST(request);
+
+    expect(response.status).toBe(200);
+    expect(global.fetch).toHaveBeenCalledTimes(2);
+    const firstPayload = JSON.parse((global.fetch as unknown as ReturnType<typeof vi.fn>).mock.calls[0][1].body);
+    const secondPayload = JSON.parse((global.fetch as unknown as ReturnType<typeof vi.fn>).mock.calls[1][1].body);
+    expect(firstPayload.chat_template_kwargs).toEqual({ thinking: true });
+    expect(secondPayload.chat_template_kwargs).toBeUndefined();
+  });
 });

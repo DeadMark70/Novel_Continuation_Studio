@@ -3,6 +3,17 @@ import { NextResponse } from 'next/server';
 const NIM_API_BASE = 'https://integrate.api.nvidia.com/v1';
 export const maxDuration = 300;
 
+function isChatTemplateUnsupportedError(status: number, errorText: string): boolean {
+  if (status !== 400 && status !== 422) {
+    return false;
+  }
+  const normalized = errorText.toLowerCase();
+  return (
+    normalized.includes('chat_template') &&
+    normalized.includes('not supported')
+  );
+}
+
 export async function POST(request: Request) {
   const authHeader = request.headers.get('Authorization');
   const apiKey = authHeader ? authHeader.replace('Bearer ', '') : process.env.NIM_API_KEY;
@@ -68,19 +79,44 @@ export async function POST(request: Request) {
       payload.chat_template_kwargs = chat_template_kwargs;
     }
 
-    const response = await fetch(`${NIM_API_BASE}/chat/completions`, {
+    const upstreamHeaders = {
+      'Authorization': `Bearer ${apiKey.trim()}`,
+      'Content-Type': 'application/json',
+      'Accept': 'text/event-stream',
+    };
+
+    let response = await fetch(`${NIM_API_BASE}/chat/completions`, {
       method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${apiKey.trim()}`,
-        'Content-Type': 'application/json',
-        'Accept': 'text/event-stream',
-      },
+      headers: upstreamHeaders,
       body: JSON.stringify(payload),
     });
 
     if (!response.ok) {
       const errorText = await response.text();
-      return NextResponse.json({ error: `NIM API Error: ${errorText}` }, { status: response.status });
+
+      if (
+        payload.chat_template_kwargs &&
+        isChatTemplateUnsupportedError(response.status, errorText)
+      ) {
+        const downgradedPayload = { ...payload };
+        delete downgradedPayload.chat_template_kwargs;
+
+        response = await fetch(`${NIM_API_BASE}/chat/completions`, {
+          method: 'POST',
+          headers: upstreamHeaders,
+          body: JSON.stringify(downgradedPayload),
+        });
+
+        if (!response.ok) {
+          const fallbackErrorText = await response.text();
+          return NextResponse.json(
+            { error: `NIM API Error: ${fallbackErrorText}` },
+            { status: response.status }
+          );
+        }
+      } else {
+        return NextResponse.json({ error: `NIM API Error: ${errorText}` }, { status: response.status });
+      }
     }
 
     // Proxy the stream

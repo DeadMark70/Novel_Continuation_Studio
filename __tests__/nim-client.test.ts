@@ -154,6 +154,33 @@ describe('NIM Client', () => {
       expect(payload.chat_template_kwargs).toBeUndefined();
     });
 
+    it('omits thinking params for mistral models even when thinking is supported', async () => {
+      const mockStream = new ReadableStream({
+        start(controller) {
+          const encoder = new TextEncoder();
+          controller.enqueue(encoder.encode('data: {"choices":[{"delta":{"content":"OK"}}]}\n\n'));
+          controller.enqueue(encoder.encode('data: [DONE]\n\n'));
+          controller.close();
+        }
+      });
+
+      (global.fetch as unknown as ReturnType<typeof vi.fn>).mockResolvedValue({
+        ok: true,
+        body: mockStream,
+      });
+
+      await collectStream(
+        generateStream('prompt', 'mistralai/mistral-large-3-675b-instruct-2512', 'api-key', undefined, {
+          enableThinking: true,
+          thinkingSupported: true,
+        })
+      );
+
+      const call = (global.fetch as unknown as ReturnType<typeof vi.fn>).mock.calls[0];
+      const payload = JSON.parse(call[1].body);
+      expect(payload.chat_template_kwargs).toBeUndefined();
+    });
+
     it('retries retryable status codes and eventually succeeds', async () => {
       const mockStream = new ReadableStream({
         start(controller) {

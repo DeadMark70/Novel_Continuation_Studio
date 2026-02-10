@@ -33,6 +33,11 @@ export interface GenerateOptions {
   onError?: (error: unknown, context?: string) => void;
 }
 
+function modelRejectsChatTemplateKwargs(model: string): boolean {
+  const normalized = model.toLowerCase();
+  return normalized.includes('mistral');
+}
+
 class NimHttpError extends Error {
   constructor(
     public readonly status: number,
@@ -188,6 +193,11 @@ export async function* generateStream(
     ...(systemPrompt ? [{ role: 'system', content: systemPrompt }] : []),
     { role: 'user', content: prompt }
   ];
+  const canSendThinkingKwargs = (
+    enableThinking &&
+    thinkingSupported &&
+    !modelRejectsChatTemplateKwargs(model)
+  );
 
   let lastError: unknown = null;
 
@@ -244,7 +254,7 @@ export async function* generateStream(
           frequency_penalty: frequencyPenalty,
           presence_penalty: presencePenalty,
           seed,
-          chat_template_kwargs: enableThinking && thinkingSupported ? { thinking: true } : undefined,
+          chat_template_kwargs: canSendThinkingKwargs ? { thinking: true } : undefined,
         }),
         signal: controller.signal,
       });
