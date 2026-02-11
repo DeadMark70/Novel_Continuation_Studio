@@ -33,9 +33,57 @@ const PROMPT_GROUPS: Array<{ title: string; keys: PromptKey[] }> = [
   { title: 'Compression Pipeline', keys: ['compression', 'compressionRoleCards', 'compressionStyleGuide', 'compressionPlotLedger', 'compressionEvidencePack'] },
   { title: 'Consistency', keys: ['consistency'] },
 ];
+const PROMPT_LABELS: Partial<Record<PromptKey, string>> = {
+  analysisCompressed: 'Analysis (Compressed)',
+  analysisRaw: 'Analysis (Raw)',
+  compression: 'Compression Orchestrator',
+  compressionRoleCards: 'Compression Role Cards',
+  compressionStyleGuide: 'Compression Style Guide',
+  compressionPlotLedger: 'Compression Plot Ledger',
+  compressionEvidencePack: 'Compression Evidence Pack',
+  outlineCompressed: 'Outline (Compressed)',
+  outlineRaw: 'Outline (Raw)',
+  breakdown: 'Chapter Breakdown',
+  chapter1Compressed: 'Chapter 1 (Compressed)',
+  chapter1Raw: 'Chapter 1 (Raw)',
+  continuationCompressed: 'Continuation (Compressed)',
+  continuationRaw: 'Continuation (Raw)',
+  consistency: 'Consistency Check',
+};
+const PROMPT_DESCRIPTIONS: Partial<Record<PromptKey, string>> = {
+  analysisCompressed: 'Phase 1 analysis using compressed context.',
+  analysisRaw: 'Phase 1 analysis using original novel context.',
+  compression: 'Coordinates Phase 0 compression pipeline.',
+  compressionRoleCards: 'Extract character cards for compressed memory.',
+  compressionStyleGuide: 'Extract style profile for writing consistency.',
+  compressionPlotLedger: 'Extract plot ledger summary for continuity.',
+  compressionEvidencePack: 'Extract factual evidence pack for grounding.',
+  outlineCompressed: 'Generate outline with compressed context.',
+  outlineRaw: 'Generate outline with full raw context.',
+  breakdown: 'Convert outline into chapter-level framework.',
+  chapter1Compressed: 'Generate chapter 1 with compressed context.',
+  chapter1Raw: 'Generate chapter 1 with raw context.',
+  continuationCompressed: 'Generate continuation chapter using compressed context.',
+  continuationRaw: 'Generate continuation chapter using raw context.',
+  consistency: 'Run consistency checks for timeline and character logic.',
+};
 
 function clone<T>(value: T): T {
   return JSON.parse(JSON.stringify(value));
+}
+
+function humanizePromptKey(key: PromptKey): string {
+  return key
+    .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
+    .replace(/^./, (s) => s.toUpperCase());
+}
+
+function getPromptLabel(key: PromptKey): string {
+  return PROMPT_LABELS[key] ?? humanizePromptKey(key);
+}
+
+function getPromptDescription(key: PromptKey): string {
+  return PROMPT_DESCRIPTIONS[key] ?? `Prompt template: ${key}`;
 }
 
 function normalizeParams(params: GenerationParams): GenerationParams {
@@ -184,7 +232,11 @@ export default function SettingsPage() {
   const filteredPromptKeys = useMemo(() => {
     const q = promptSearch.trim().toLowerCase();
     if (!q) return PROMPT_KEYS;
-    return PROMPT_KEYS.filter((key) => key.toLowerCase().includes(q));
+    return PROMPT_KEYS.filter((key) => {
+      const label = getPromptLabel(key).toLowerCase();
+      const description = getPromptDescription(key).toLowerCase();
+      return key.toLowerCase().includes(q) || label.includes(q) || description.includes(q);
+    });
   }, [promptSearch]);
 
   const currentPromptValue = draftPrompts[selectedPrompt] ?? DEFAULT_PROMPTS[selectedPrompt];
@@ -414,6 +466,9 @@ export default function SettingsPage() {
                 <Button size="sm" variant="outline" onClick={() => setDraftPrompts((prev) => ({ ...prev, [selectedPrompt]: DEFAULT_PROMPTS[selectedPrompt] }))}>Reset Selected</Button>
                 <Button size="sm" variant="outline" onClick={() => setDraftPrompts(clone(DEFAULT_PROMPTS))}>Reset All</Button>
               </div>
+              <p className="text-xs text-muted-foreground">
+                Prompt edits are draft-only until you click <span className="font-semibold">Save Configuration</span>.
+              </p>
             </div>
             <div className="grid grid-cols-1 xl:grid-cols-[320px_1fr] gap-4">
               <div className="rounded-lg border border-border p-3 max-h-[70vh] overflow-y-auto space-y-3">
@@ -425,7 +480,8 @@ export default function SettingsPage() {
                       <p className="text-xs font-bold uppercase text-muted-foreground">{group.title}</p>
                       {keys.map((key) => (
                         <button key={key} type="button" className={`w-full rounded border px-2 py-2 text-left text-xs ${selectedPrompt === key ? 'border-primary bg-primary/10' : 'border-border bg-card/20'}`} onClick={() => setSelectedPrompt(key)}>
-                          {key}
+                          <p className="font-semibold">{getPromptLabel(key)}</p>
+                          <p className="text-[11px] text-muted-foreground line-clamp-2">{getPromptDescription(key)}</p>
                         </button>
                       ))}
                       <Separator />
@@ -434,7 +490,13 @@ export default function SettingsPage() {
                 })}
               </div>
               <div className="rounded-lg border border-border p-3 space-y-3">
-                <p className="text-sm font-semibold">{selectedPrompt}</p>
+                <div className="space-y-1">
+                  <p className="text-sm font-semibold">{getPromptLabel(selectedPrompt)}</p>
+                  <p className="text-xs text-muted-foreground">{getPromptDescription(selectedPrompt)}</p>
+                  <p className={`text-xs ${currentPromptValue.trim() === DEFAULT_PROMPTS[selectedPrompt].trim() ? 'text-muted-foreground' : 'text-amber-500'}`}>
+                    {currentPromptValue.trim() === DEFAULT_PROMPTS[selectedPrompt].trim() ? 'Using default content' : 'Modified from default'}
+                  </p>
+                </div>
                 <Textarea className="min-h-[280px] font-mono text-xs" value={currentPromptValue} onChange={(e) => setDraftPrompts((prev) => ({ ...prev, [selectedPrompt]: e.target.value }))} />
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
                   <div className="rounded border border-border p-2"><p className="text-xs font-semibold mb-1">Current</p><pre className="text-[11px] whitespace-pre-wrap max-h-52 overflow-auto">{currentPromptValue}</pre></div>
