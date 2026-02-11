@@ -9,10 +9,10 @@ import { StoryUpload } from '@/components/StoryUpload';
 import { WorkflowStepper } from '@/components/WorkflowStepper';
 import { Separator } from '@/components/ui/separator';
 import { Button } from '@/components/ui/button';
-import { Terminal, ShieldAlert, History, Settings } from 'lucide-react';
+import { Terminal, ShieldAlert, History, Settings, Plus } from 'lucide-react';
 
 export default function Home() {
-  const { initialize: initializeNovel } = useNovelStore();
+  const { initialize: initializeNovel, reset: resetNovel } = useNovelStore();
   const { initialize: initializeSettings, activeProvider } = useSettingsStore();
 
   useEffect(() => {
@@ -49,6 +49,16 @@ export default function Home() {
             </div>
             <Separator orientation="vertical" className="h-6 hidden md:block" />
             <div className="flex items-center gap-2">
+              <Button
+                variant="default"
+                className="gap-2"
+                onClick={() => {
+                  void resetNovel();
+                }}
+              >
+                <Plus className="size-4" />
+                新建創作
+              </Button>
               <Button asChild variant="outline" className="gap-2">
                 <Link href="/history">
                   <History className="size-4" />

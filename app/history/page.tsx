@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useNovelStore } from '@/store/useNovelStore';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -12,7 +13,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Label } from '@/components/ui/label';
 
 export default function HistoryPage() {
-  const { sessions, currentSessionId, originalNovel, chapters, loadSessions } = useNovelStore();
+  const router = useRouter();
+  const { sessions, currentSessionId, originalNovel, chapters, loadSessions, reset } = useNovelStore();
   const [selectedSessionId, setSelectedSessionId] = useState(currentSessionId);
 
   useEffect(() => {
@@ -30,6 +32,11 @@ export default function HistoryPage() {
 
   const handleExport = () => {
     downloadAsTxt('Novel_Project', displayOriginal, displayChapters);
+  };
+
+  const handleCreateNew = async () => {
+    await reset();
+    router.push('/');
   };
 
   return (
@@ -58,7 +65,7 @@ export default function HistoryPage() {
 
           <TabsContent value="history" className="h-[70vh]">
             <div className="rounded-lg border border-border p-3 h-full">
-              <VersionList />
+              <VersionList onCreateNew={handleCreateNew} />
             </div>
           </TabsContent>
 

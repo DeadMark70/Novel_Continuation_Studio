@@ -37,6 +37,7 @@ vi.mock('lucide-react', () => ({
   RefreshCw: () => <div />,
   Repeat: () => <div />,
   FastForward: () => <div />,
+  Plus: () => <div />,
 }));
 
 describe('Home Page', () => {

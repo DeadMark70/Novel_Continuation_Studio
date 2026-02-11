@@ -5,8 +5,15 @@ import { useNovelStore } from '@/store/useNovelStore';
 import { Button } from '@/components/ui/button';
 import { Clock, FileText, Trash2, CheckCircle, Plus } from 'lucide-react';
 
-export const VersionList: React.FC = () => {
+interface VersionListProps {
+  onCreateNew?: () => void | Promise<void>;
+}
+
+export const VersionList: React.FC<VersionListProps> = ({ onCreateNew }) => {
   const { sessions, currentSessionId, loadSession, deleteSessionById, startNewSession } = useNovelStore();
+  const handleCreateNew = () => {
+    void Promise.resolve(onCreateNew ? onCreateNew() : startNewSession());
+  };
 
   const formatDate = (timestamp: number) => {
     const date = new Date(timestamp);
@@ -34,7 +41,7 @@ export const VersionList: React.FC = () => {
           variant="outline" 
           size="sm" 
           className="mt-4 gap-2"
-          onClick={startNewSession}
+          onClick={handleCreateNew}
         >
           <Plus className="size-4" />
           新建創作
@@ -50,7 +57,7 @@ export const VersionList: React.FC = () => {
         variant="outline" 
         size="sm" 
         className="mb-3 gap-2 shrink-0"
-        onClick={startNewSession}
+        onClick={handleCreateNew}
       >
         <Plus className="size-4" />
         新建創作
