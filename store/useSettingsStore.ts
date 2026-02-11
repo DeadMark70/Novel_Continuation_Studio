@@ -141,6 +141,9 @@ interface SettingsState {
   compressionChunkSize: number;
   compressionChunkOverlap: number;
   compressionEvidenceSegments: number;
+  persistCount: number;
+  lastPersistDurationMs?: number;
+  lastPersistAt?: number;
 
   applySettingsSnapshot: (snapshot: {
     activeProvider: LLMProvider;
@@ -223,6 +226,9 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   compressionChunkSize: DEFAULT_COMPRESSION_CHUNK_SIZE,
   compressionChunkOverlap: DEFAULT_COMPRESSION_CHUNK_OVERLAP,
   compressionEvidenceSegments: DEFAULT_COMPRESSION_EVIDENCE_SEGMENTS,
+  persistCount: 0,
+  lastPersistDurationMs: undefined,
+  lastPersistAt: undefined,
 
   setActiveProvider: async (provider) => {
     set((state) => {
@@ -612,6 +618,11 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   },
 
   persist: async () => {
+    const now = () =>
+      typeof performance !== 'undefined' && typeof performance.now === 'function'
+        ? performance.now()
+        : Date.now();
+    const startedAt = now();
     const state = get();
     await saveSettings({
       // Legacy fields preserved for compatibility with older code snapshots.
@@ -636,5 +647,11 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       compressionChunkOverlap: state.compressionChunkOverlap,
       compressionEvidenceSegments: state.compressionEvidenceSegments,
     });
+    const duration = now() - startedAt;
+    set((nextState) => ({
+      persistCount: nextState.persistCount + 1,
+      lastPersistDurationMs: duration,
+      lastPersistAt: Date.now(),
+    }));
   },
 }));

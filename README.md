@@ -43,6 +43,32 @@ OPENROUTER_SITE_NAME=
 
 - `/history` provides reading room, version history, and TXT export.
 
+### 5) Quality gates (recommended)
+
+```bash
+npx tsc --noEmit
+npm run lint
+npm test
+```
+
+### 6) E2E smoke checks (Playwright)
+
+Install browser binaries once:
+
+```bash
+npx playwright install
+```
+
+Run smoke tests:
+
+```bash
+npm run e2e
+```
+
+Notes:
+- `playwright.config.js` starts `npm run dev` automatically unless `PLAYWRIGHT_BASE_URL` is set.
+- Current smoke suite: `e2e/smoke.spec.js`.
+
 This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
 
 ## Learn More

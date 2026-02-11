@@ -163,4 +163,33 @@ describe('useSettingsStore', () => {
     const after = useSettingsStore.getState();
     expect(after.modelOverrides.nim['nim-model-a']).toBeUndefined();
   });
+
+  it('tracks persist metrics after snapshot apply', async () => {
+    const before = useSettingsStore.getState();
+
+    await act(async () => {
+      await useSettingsStore.getState().applySettingsSnapshot({
+        activeProvider: before.activeProvider,
+        providers: before.providers,
+        phaseConfig: before.phaseConfig,
+        providerDefaults: before.providerDefaults,
+        modelOverrides: before.modelOverrides,
+        customPrompts: before.customPrompts,
+        context: {
+          truncationThreshold: before.truncationThreshold,
+          dualEndBuffer: before.dualEndBuffer,
+          compressionMode: before.compressionMode,
+          compressionAutoThreshold: before.compressionAutoThreshold,
+          compressionChunkSize: before.compressionChunkSize,
+          compressionChunkOverlap: before.compressionChunkOverlap,
+          compressionEvidenceSegments: before.compressionEvidenceSegments,
+        },
+      });
+    });
+
+    const after = useSettingsStore.getState();
+    expect(after.persistCount).toBeGreaterThan(0);
+    expect(after.lastPersistDurationMs).toBeTypeOf('number');
+    expect(after.lastPersistAt).toBeTypeOf('number');
+  });
 });

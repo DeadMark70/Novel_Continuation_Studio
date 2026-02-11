@@ -137,6 +137,8 @@ export default function SettingsPage() {
   const settings = useSettingsStore();
   const [isSaving, setIsSaving] = useState(false);
   const [saveMessage, setSaveMessage] = useState('');
+  const [lastSaveDurationMs, setLastSaveDurationMs] = useState<number | null>(null);
+  const [showDebug, setShowDebug] = useState(false);
   const [errors, setErrors] = useState<string[]>([]);
   const [promptSearch, setPromptSearch] = useState('');
   const [selectedPrompt, setSelectedPrompt] = useState<PromptKey>('analysisCompressed');
@@ -317,6 +319,10 @@ export default function SettingsPage() {
     if (found.length > 0) return;
 
     setIsSaving(true);
+    const startedAt =
+      typeof performance !== 'undefined' && typeof performance.now === 'function'
+        ? performance.now()
+        : Date.now();
     try {
       const normalizedPhaseConfig = PHASES.reduce((acc, phase) => {
         const selection = draftPhaseConfig[phase];
@@ -360,6 +366,11 @@ export default function SettingsPage() {
 
       initialSignatureRef.current = signature;
       setSaveMessage('Saved.');
+      const finishedAt =
+        typeof performance !== 'undefined' && typeof performance.now === 'function'
+          ? performance.now()
+          : Date.now();
+      setLastSaveDurationMs(finishedAt - startedAt);
     } finally {
       setIsSaving(false);
     }
@@ -391,10 +402,25 @@ export default function SettingsPage() {
         <div className="rounded-lg border border-border p-3 text-xs font-mono" aria-live="polite">
           <p>Draft status: {isDirty ? 'Unsaved changes' : 'Up to date'}</p>
           {saveMessage && <p className="text-green-500">{saveMessage}</p>}
+          {lastSaveDurationMs !== null && (
+            <p className="text-muted-foreground">Last save: {Math.round(lastSaveDurationMs)} ms</p>
+          )}
           {errors.length > 0 && (
             <ul className="list-disc list-inside text-destructive mt-2 space-y-1">
               {errors.map((error) => <li key={error}>{error}</li>)}
             </ul>
+          )}
+          <div className="pt-2">
+            <Button variant="outline" size="sm" onClick={() => setShowDebug((v) => !v)}>
+              {showDebug ? 'Hide Debug' : 'Show Debug'}
+            </Button>
+          </div>
+          {showDebug && (
+            <div className="mt-2 rounded border border-border/70 p-2 space-y-1 text-[11px]">
+              <p>persistCount={settings.persistCount}</p>
+              <p>lastPersistDurationMs={settings.lastPersistDurationMs ? Math.round(settings.lastPersistDurationMs) : 'n/a'}</p>
+              <p>lastPersistAt={settings.lastPersistAt ? new Date(settings.lastPersistAt).toLocaleString() : 'n/a'}</p>
+            </div>
           )}
         </div>
 
