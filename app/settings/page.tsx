@@ -272,7 +272,12 @@ export default function SettingsPage() {
     });
   }, [promptSearch]);
 
-  const currentPromptValue = draftPrompts[selectedPrompt] ?? DEFAULT_PROMPTS[selectedPrompt];
+  const selectedPromptDraft = draftPrompts[selectedPrompt];
+  const hasCustomPrompt =
+    typeof selectedPromptDraft === 'string' && selectedPromptDraft.trim().length > 0;
+  const currentPromptValue = hasCustomPrompt
+    ? selectedPromptDraft
+    : DEFAULT_PROMPTS[selectedPrompt];
 
   const validate = (): string[] => {
     const next: string[] = [];
@@ -769,8 +774,8 @@ export default function SettingsPage() {
                 <div className="space-y-1">
                   <p className="text-sm font-semibold">{getPromptLabel(selectedPrompt)}</p>
                   <p className="text-xs text-muted-foreground">{getPromptDescription(selectedPrompt)}</p>
-                  <p className={`text-xs ${currentPromptValue.trim() === DEFAULT_PROMPTS[selectedPrompt].trim() ? 'text-muted-foreground' : 'text-amber-500'}`}>
-                    {currentPromptValue.trim() === DEFAULT_PROMPTS[selectedPrompt].trim() ? 'Using default content' : 'Modified from default'}
+                  <p className={`text-xs ${hasCustomPrompt ? 'text-amber-500' : 'text-muted-foreground'}`}>
+                    {hasCustomPrompt ? 'Modified from default' : 'Using default content'}
                   </p>
                 </div>
                 <Label htmlFor="prompt-editor">Prompt Template</Label>
