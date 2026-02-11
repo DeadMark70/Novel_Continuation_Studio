@@ -333,11 +333,11 @@ export default function SettingsPage() {
               </Link>
             </Button>
             <Button variant="outline" disabled={!isDirty || isSaving} onClick={hydrateFromStore}>Reload Saved</Button>
-            <Button disabled={!isDirty || isSaving} onClick={save}>{isSaving ? 'Saving...' : 'Save Configuration'}</Button>
+            <Button disabled={!isDirty || isSaving} onClick={save}>{isSaving ? 'Saving…' : 'Save Configuration'}</Button>
           </div>
         </div>
 
-        <div className="rounded-lg border border-border p-3 text-xs font-mono">
+        <div className="rounded-lg border border-border p-3 text-xs font-mono" aria-live="polite">
           <p>Draft status: {isDirty ? 'Unsaved changes' : 'Up to date'}</p>
           {saveMessage && <p className="text-green-500">{saveMessage}</p>}
           {errors.length > 0 && (
@@ -358,9 +358,9 @@ export default function SettingsPage() {
 
           <TabsContent value="provider" className="space-y-4 pt-4">
             <div className="space-y-2">
-              <Label>Active Provider</Label>
+              <Label htmlFor="active-provider">Active Provider</Label>
               <Select value={draftProvider} onValueChange={(v) => setDraftProvider(v as LLMProvider)}>
-                <SelectTrigger className="w-[220px]"><SelectValue /></SelectTrigger>
+                <SelectTrigger id="active-provider" className="w-[220px]"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="nim">NVIDIA NIM</SelectItem>
                   <SelectItem value="openrouter">OpenRouter</SelectItem>
@@ -370,13 +370,27 @@ export default function SettingsPage() {
             {PROVIDERS.map((provider) => (
               <div key={provider} className="rounded-lg border border-border p-4 space-y-2">
                 <h3 className="font-semibold uppercase text-sm">{provider}</h3>
-                <Label>{provider === 'nim' ? 'NIM API Key' : 'OpenRouter API Key'}</Label>
-                <Input type="password" value={draftProviders[provider].apiKey} onChange={(e) => setDraftProviders((prev) => ({ ...prev, [provider]: { ...prev[provider], apiKey: e.target.value } }))} autoComplete="off" />
-                <Label>Default Model</Label>
+                <Label htmlFor={`${provider}-api-key`}>{provider === 'nim' ? 'NIM API Key' : 'OpenRouter API Key'}</Label>
+                <Input
+                  id={`${provider}-api-key`}
+                  name={`${provider}-api-key`}
+                  type="password"
+                  value={draftProviders[provider].apiKey}
+                  onChange={(e) => setDraftProviders((prev) => ({ ...prev, [provider]: { ...prev[provider], apiKey: e.target.value } }))}
+                  autoComplete="off"
+                />
+                <Label htmlFor={`${provider}-selected-model`}>Default Model</Label>
                 <div className="flex gap-2">
-                  <Input value={draftProviders[provider].selectedModel} onChange={(e) => setDraftProviders((prev) => ({ ...prev, [provider]: { ...prev[provider], selectedModel: e.target.value } }))} list={`${provider}-models`} />
+                  <Input
+                    id={`${provider}-selected-model`}
+                    name={`${provider}-selected-model`}
+                    value={draftProviders[provider].selectedModel}
+                    onChange={(e) => setDraftProviders((prev) => ({ ...prev, [provider]: { ...prev[provider], selectedModel: e.target.value } }))}
+                    list={`${provider}-models`}
+                    autoComplete="off"
+                  />
                   <datalist id={`${provider}-models`}>{availableModels[provider].map((model) => <option key={`${provider}-${model}`} value={model} />)}</datalist>
-                  <Button variant="outline" disabled={loadingModels[provider]} onClick={() => void fetchModels(provider)}>{loadingModels[provider] ? 'Loading...' : 'Fetch Models'}</Button>
+                  <Button variant="outline" disabled={loadingModels[provider]} onClick={() => void fetchModels(provider)}>{loadingModels[provider] ? 'Loading…' : 'Fetch Models'}</Button>
                 </div>
               </div>
             ))}
@@ -392,15 +406,25 @@ export default function SettingsPage() {
               return (
                 <div key={phase} className="grid grid-cols-1 lg:grid-cols-4 gap-3 rounded-lg border border-border p-3">
                   <div>{PHASE_LABELS[phase]}</div>
-                  <Select value={selection.provider} onValueChange={(value) => setDraftPhaseConfig((prev) => ({ ...prev, [phase]: { ...prev[phase], provider: value as LLMProvider } }))}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="nim">NVIDIA NIM</SelectItem>
-                      <SelectItem value="openrouter">OpenRouter</SelectItem>
-                    </SelectContent>
-                  </Select>
+                  <div className="space-y-1">
+                    <Label htmlFor={`${phase}-provider`}>provider</Label>
+                    <Select value={selection.provider} onValueChange={(value) => setDraftPhaseConfig((prev) => ({ ...prev, [phase]: { ...prev[phase], provider: value as LLMProvider } }))}>
+                      <SelectTrigger id={`${phase}-provider`}><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="nim">NVIDIA NIM</SelectItem>
+                        <SelectItem value="openrouter">OpenRouter</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
                   <div className="lg:col-span-2">
-                    <Input value={selection.model || ''} onChange={(e) => setDraftPhaseConfig((prev) => ({ ...prev, [phase]: { ...prev[phase], model: e.target.value } }))} list={`phase-${phase}-${selection.provider}-models`} />
+                    <Label htmlFor={`${phase}-model`}>model</Label>
+                    <Input
+                      id={`${phase}-model`}
+                      name={`${phase}-model`}
+                      value={selection.model || ''}
+                      onChange={(e) => setDraftPhaseConfig((prev) => ({ ...prev, [phase]: { ...prev[phase], model: e.target.value } }))}
+                      list={`phase-${phase}-${selection.provider}-models`}
+                    />
                     <datalist id={`phase-${phase}-${selection.provider}-models`}>{availableModels[selection.provider].map((m) => <option key={`${phase}-${m}`} value={m} />)}</datalist>
                   </div>
                 </div>
@@ -413,10 +437,48 @@ export default function SettingsPage() {
               <div key={provider} className="rounded-lg border border-border p-3 space-y-3">
                 <h3 className="font-semibold uppercase text-sm">{provider} defaults</h3>
                 <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-                  <Input type="number" value={draftDefaults[provider].maxTokens} onChange={(e) => setDraftDefaults((prev) => ({ ...prev, [provider]: { ...prev[provider], maxTokens: parseInt(e.target.value, 10) || 4096 } }))} />
-                  <Input type="number" step="0.1" value={draftDefaults[provider].temperature} onChange={(e) => setDraftDefaults((prev) => ({ ...prev, [provider]: { ...prev[provider], temperature: parseFloat(e.target.value) || 0.7 } }))} />
-                  <Input type="number" step="0.05" value={draftDefaults[provider].topP} onChange={(e) => setDraftDefaults((prev) => ({ ...prev, [provider]: { ...prev[provider], topP: parseFloat(e.target.value) || 1 } }))} />
-                  <Input type="number" value={draftDefaults[provider].topK ?? ''} onChange={(e) => setDraftDefaults((prev) => ({ ...prev, [provider]: { ...prev[provider], topK: e.target.value ? parseInt(e.target.value, 10) : undefined } }))} />
+                  <div className="space-y-1">
+                    <Label htmlFor={`${provider}-default-maxTokens`}>max_tokens</Label>
+                    <Input
+                      id={`${provider}-default-maxTokens`}
+                      name={`${provider}-default-maxTokens`}
+                      type="number"
+                      value={draftDefaults[provider].maxTokens}
+                      onChange={(e) => setDraftDefaults((prev) => ({ ...prev, [provider]: { ...prev[provider], maxTokens: parseInt(e.target.value, 10) || 4096 } }))}
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label htmlFor={`${provider}-default-temperature`}>temperature</Label>
+                    <Input
+                      id={`${provider}-default-temperature`}
+                      name={`${provider}-default-temperature`}
+                      type="number"
+                      step="0.1"
+                      value={draftDefaults[provider].temperature}
+                      onChange={(e) => setDraftDefaults((prev) => ({ ...prev, [provider]: { ...prev[provider], temperature: parseFloat(e.target.value) || 0.7 } }))}
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label htmlFor={`${provider}-default-topP`}>top_p</Label>
+                    <Input
+                      id={`${provider}-default-topP`}
+                      name={`${provider}-default-topP`}
+                      type="number"
+                      step="0.05"
+                      value={draftDefaults[provider].topP}
+                      onChange={(e) => setDraftDefaults((prev) => ({ ...prev, [provider]: { ...prev[provider], topP: parseFloat(e.target.value) || 1 } }))}
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label htmlFor={`${provider}-default-topK`}>top_k</Label>
+                    <Input
+                      id={`${provider}-default-topK`}
+                      name={`${provider}-default-topK`}
+                      type="number"
+                      value={draftDefaults[provider].topK ?? ''}
+                      onChange={(e) => setDraftDefaults((prev) => ({ ...prev, [provider]: { ...prev[provider], topK: e.target.value ? parseInt(e.target.value, 10) : undefined } }))}
+                    />
+                  </div>
                 </div>
               </div>
             ))}
@@ -424,20 +486,69 @@ export default function SettingsPage() {
             <div className="rounded-lg border border-border p-3 space-y-3">
               <h3 className="font-semibold uppercase text-sm">Model Override</h3>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                <Select value={overrideProvider} onValueChange={(v) => setOverrideProvider(v as LLMProvider)}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent><SelectItem value="nim">NIM</SelectItem><SelectItem value="openrouter">OpenRouter</SelectItem></SelectContent>
-                </Select>
+                <div className="space-y-1">
+                  <Label htmlFor="override-provider">provider</Label>
+                  <Select value={overrideProvider} onValueChange={(v) => setOverrideProvider(v as LLMProvider)}>
+                    <SelectTrigger id="override-provider"><SelectValue /></SelectTrigger>
+                    <SelectContent><SelectItem value="nim">NIM</SelectItem><SelectItem value="openrouter">OpenRouter</SelectItem></SelectContent>
+                  </Select>
+                </div>
                 <div className="md:col-span-2">
-                  <Input value={overrideModel} onChange={(e) => setOverrideModel(e.target.value)} list={`override-${overrideProvider}-models`} placeholder={`Default: ${draftProviders[overrideProvider].selectedModel}`} />
+                  <Label htmlFor="override-model">model</Label>
+                  <Input
+                    id="override-model"
+                    name="override-model"
+                    value={overrideModel}
+                    onChange={(e) => setOverrideModel(e.target.value)}
+                    list={`override-${overrideProvider}-models`}
+                    placeholder={`Default: ${draftProviders[overrideProvider].selectedModel}`}
+                  />
                   <datalist id={`override-${overrideProvider}-models`}>{availableModels[overrideProvider].map((m) => <option key={`override-${m}`} value={m} />)}</datalist>
                 </div>
               </div>
               <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-                <Input type="number" value={selectedOverrideValue.maxTokens ?? ''} onChange={(e) => setDraftOverrides((prev) => ({ ...prev, [overrideProvider]: { ...prev[overrideProvider], [selectedOverrideModel]: { ...(prev[overrideProvider]?.[selectedOverrideModel] || {}), maxTokens: e.target.value ? parseInt(e.target.value, 10) : undefined } } }))} />
-                <Input type="number" step="0.1" value={selectedOverrideValue.temperature ?? ''} onChange={(e) => setDraftOverrides((prev) => ({ ...prev, [overrideProvider]: { ...prev[overrideProvider], [selectedOverrideModel]: { ...(prev[overrideProvider]?.[selectedOverrideModel] || {}), temperature: e.target.value ? parseFloat(e.target.value) : undefined } } }))} />
-                <Input type="number" step="0.05" value={selectedOverrideValue.topP ?? ''} onChange={(e) => setDraftOverrides((prev) => ({ ...prev, [overrideProvider]: { ...prev[overrideProvider], [selectedOverrideModel]: { ...(prev[overrideProvider]?.[selectedOverrideModel] || {}), topP: e.target.value ? parseFloat(e.target.value) : undefined } } }))} />
-                <Input type="number" value={selectedOverrideValue.topK ?? ''} onChange={(e) => setDraftOverrides((prev) => ({ ...prev, [overrideProvider]: { ...prev[overrideProvider], [selectedOverrideModel]: { ...(prev[overrideProvider]?.[selectedOverrideModel] || {}), topK: e.target.value ? parseInt(e.target.value, 10) : undefined } } }))} />
+                <div className="space-y-1">
+                  <Label htmlFor="override-maxTokens">max_tokens</Label>
+                  <Input
+                    id="override-maxTokens"
+                    name="override-maxTokens"
+                    type="number"
+                    value={selectedOverrideValue.maxTokens ?? ''}
+                    onChange={(e) => setDraftOverrides((prev) => ({ ...prev, [overrideProvider]: { ...prev[overrideProvider], [selectedOverrideModel]: { ...(prev[overrideProvider]?.[selectedOverrideModel] || {}), maxTokens: e.target.value ? parseInt(e.target.value, 10) : undefined } } }))}
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label htmlFor="override-temperature">temperature</Label>
+                  <Input
+                    id="override-temperature"
+                    name="override-temperature"
+                    type="number"
+                    step="0.1"
+                    value={selectedOverrideValue.temperature ?? ''}
+                    onChange={(e) => setDraftOverrides((prev) => ({ ...prev, [overrideProvider]: { ...prev[overrideProvider], [selectedOverrideModel]: { ...(prev[overrideProvider]?.[selectedOverrideModel] || {}), temperature: e.target.value ? parseFloat(e.target.value) : undefined } } }))}
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label htmlFor="override-topP">top_p</Label>
+                  <Input
+                    id="override-topP"
+                    name="override-topP"
+                    type="number"
+                    step="0.05"
+                    value={selectedOverrideValue.topP ?? ''}
+                    onChange={(e) => setDraftOverrides((prev) => ({ ...prev, [overrideProvider]: { ...prev[overrideProvider], [selectedOverrideModel]: { ...(prev[overrideProvider]?.[selectedOverrideModel] || {}), topP: e.target.value ? parseFloat(e.target.value) : undefined } } }))}
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label htmlFor="override-topK">top_k</Label>
+                  <Input
+                    id="override-topK"
+                    name="override-topK"
+                    type="number"
+                    value={selectedOverrideValue.topK ?? ''}
+                    onChange={(e) => setDraftOverrides((prev) => ({ ...prev, [overrideProvider]: { ...prev[overrideProvider], [selectedOverrideModel]: { ...(prev[overrideProvider]?.[selectedOverrideModel] || {}), topK: e.target.value ? parseInt(e.target.value, 10) : undefined } } }))}
+                  />
+                </div>
               </div>
               <Button variant="outline" onClick={() => setDraftOverrides((prev) => { const p = { ...(prev[overrideProvider] || {}) }; delete p[selectedOverrideModel]; return { ...prev, [overrideProvider]: p }; })}>Clear Override</Button>
             </div>
@@ -453,15 +564,49 @@ export default function SettingsPage() {
 
           <TabsContent value="context" className="space-y-3 pt-4">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-              <Input type="number" value={draftContext.truncationThreshold} onChange={(e) => setDraftContext((prev) => ({ ...prev, truncationThreshold: parseInt(e.target.value, 10) || prev.truncationThreshold }))} />
-              <Input type="number" value={draftContext.dualEndBuffer} onChange={(e) => setDraftContext((prev) => ({ ...prev, dualEndBuffer: parseInt(e.target.value, 10) || prev.dualEndBuffer }))} />
-              <Input type="number" value={draftContext.compressionAutoThreshold} onChange={(e) => setDraftContext((prev) => ({ ...prev, compressionAutoThreshold: parseInt(e.target.value, 10) || prev.compressionAutoThreshold }))} />
+              <div className="space-y-1">
+                <Label htmlFor="context-truncation-threshold">truncation_threshold</Label>
+                <Input
+                  id="context-truncation-threshold"
+                  name="context-truncation-threshold"
+                  type="number"
+                  value={draftContext.truncationThreshold}
+                  onChange={(e) => setDraftContext((prev) => ({ ...prev, truncationThreshold: parseInt(e.target.value, 10) || prev.truncationThreshold }))}
+                />
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="context-dual-end-buffer">dual_end_buffer</Label>
+                <Input
+                  id="context-dual-end-buffer"
+                  name="context-dual-end-buffer"
+                  type="number"
+                  value={draftContext.dualEndBuffer}
+                  onChange={(e) => setDraftContext((prev) => ({ ...prev, dualEndBuffer: parseInt(e.target.value, 10) || prev.dualEndBuffer }))}
+                />
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="context-compression-auto-threshold">compression_auto_threshold</Label>
+                <Input
+                  id="context-compression-auto-threshold"
+                  name="context-compression-auto-threshold"
+                  type="number"
+                  value={draftContext.compressionAutoThreshold}
+                  onChange={(e) => setDraftContext((prev) => ({ ...prev, compressionAutoThreshold: parseInt(e.target.value, 10) || prev.compressionAutoThreshold }))}
+                />
+              </div>
             </div>
           </TabsContent>
 
           <TabsContent value="prompts" className="space-y-4 pt-4">
             <div className="rounded-lg border border-border p-3 sticky top-2 bg-card/80 backdrop-blur space-y-2">
-              <Input value={promptSearch} onChange={(e) => setPromptSearch(e.target.value)} placeholder="Search prompts..." />
+              <Input
+                id="prompt-search"
+                name="prompt-search"
+                value={promptSearch}
+                onChange={(e) => setPromptSearch(e.target.value)}
+                placeholder="Search prompts…"
+                autoComplete="off"
+              />
               <div className="flex gap-2">
                 <Button size="sm" variant="outline" onClick={() => setDraftPrompts((prev) => ({ ...prev, [selectedPrompt]: DEFAULT_PROMPTS[selectedPrompt] }))}>Reset Selected</Button>
                 <Button size="sm" variant="outline" onClick={() => setDraftPrompts(clone(DEFAULT_PROMPTS))}>Reset All</Button>
@@ -497,7 +642,14 @@ export default function SettingsPage() {
                     {currentPromptValue.trim() === DEFAULT_PROMPTS[selectedPrompt].trim() ? 'Using default content' : 'Modified from default'}
                   </p>
                 </div>
-                <Textarea className="min-h-[280px] font-mono text-xs" value={currentPromptValue} onChange={(e) => setDraftPrompts((prev) => ({ ...prev, [selectedPrompt]: e.target.value }))} />
+                <Label htmlFor="prompt-editor">Prompt Template</Label>
+                <Textarea
+                  id="prompt-editor"
+                  name="prompt-editor"
+                  className="min-h-[280px] font-mono text-xs"
+                  value={currentPromptValue}
+                  onChange={(e) => setDraftPrompts((prev) => ({ ...prev, [selectedPrompt]: e.target.value }))}
+                />
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
                   <div className="rounded border border-border p-2"><p className="text-xs font-semibold mb-1">Current</p><pre className="text-[11px] whitespace-pre-wrap max-h-52 overflow-auto">{currentPromptValue}</pre></div>
                   <div className="rounded border border-border p-2"><p className="text-xs font-semibold mb-1">Default</p><pre className="text-[11px] whitespace-pre-wrap max-h-52 overflow-auto">{DEFAULT_PROMPTS[selectedPrompt]}</pre></div>
