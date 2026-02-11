@@ -100,6 +100,23 @@ function normalizeParams(params: GenerationParams): GenerationParams {
   };
 }
 
+function getParamValidationMessage(param: 'maxTokens' | 'temperature' | 'topP' | 'topK', value: number | undefined): string {
+  if (value === undefined || Number.isNaN(value)) return '';
+  if (param === 'maxTokens') {
+    return value < 1 ? 'Must be >= 1.' : '';
+  }
+  if (param === 'temperature') {
+    return value < 0 || value > 2 ? 'Must be between 0 and 2.' : '';
+  }
+  if (param === 'topP') {
+    return value < 0 || value > 1 ? 'Must be between 0 and 1.' : '';
+  }
+  if (param === 'topK') {
+    return value < 1 ? 'Must be >= 1.' : '';
+  }
+  return '';
+}
+
 export default function SettingsPage() {
   const settings = useSettingsStore();
   const [isSaving, setIsSaving] = useState(false);
@@ -316,6 +333,7 @@ export default function SettingsPage() {
   };
 
   const selectedOverrideModel = (overrideModel || draftProviders[overrideProvider].selectedModel).trim();
+  const hasSelectedOverrideModel = selectedOverrideModel.length > 0;
   const selectedOverrideValue = draftOverrides[overrideProvider]?.[selectedOverrideModel] || {};
 
   return (
@@ -443,9 +461,14 @@ export default function SettingsPage() {
                       id={`${provider}-default-maxTokens`}
                       name={`${provider}-default-maxTokens`}
                       type="number"
+                      min={1}
+                      step={1}
                       value={draftDefaults[provider].maxTokens}
                       onChange={(e) => setDraftDefaults((prev) => ({ ...prev, [provider]: { ...prev[provider], maxTokens: parseInt(e.target.value, 10) || 4096 } }))}
                     />
+                    {getParamValidationMessage('maxTokens', draftDefaults[provider].maxTokens) && (
+                      <p className="text-[11px] text-destructive">{getParamValidationMessage('maxTokens', draftDefaults[provider].maxTokens)}</p>
+                    )}
                   </div>
                   <div className="space-y-1">
                     <Label htmlFor={`${provider}-default-temperature`}>temperature</Label>
@@ -453,10 +476,15 @@ export default function SettingsPage() {
                       id={`${provider}-default-temperature`}
                       name={`${provider}-default-temperature`}
                       type="number"
+                      min={0}
+                      max={2}
                       step="0.1"
                       value={draftDefaults[provider].temperature}
                       onChange={(e) => setDraftDefaults((prev) => ({ ...prev, [provider]: { ...prev[provider], temperature: parseFloat(e.target.value) || 0.7 } }))}
                     />
+                    {getParamValidationMessage('temperature', draftDefaults[provider].temperature) && (
+                      <p className="text-[11px] text-destructive">{getParamValidationMessage('temperature', draftDefaults[provider].temperature)}</p>
+                    )}
                   </div>
                   <div className="space-y-1">
                     <Label htmlFor={`${provider}-default-topP`}>top_p</Label>
@@ -464,10 +492,15 @@ export default function SettingsPage() {
                       id={`${provider}-default-topP`}
                       name={`${provider}-default-topP`}
                       type="number"
+                      min={0}
+                      max={1}
                       step="0.05"
                       value={draftDefaults[provider].topP}
                       onChange={(e) => setDraftDefaults((prev) => ({ ...prev, [provider]: { ...prev[provider], topP: parseFloat(e.target.value) || 1 } }))}
                     />
+                    {getParamValidationMessage('topP', draftDefaults[provider].topP) && (
+                      <p className="text-[11px] text-destructive">{getParamValidationMessage('topP', draftDefaults[provider].topP)}</p>
+                    )}
                   </div>
                   <div className="space-y-1">
                     <Label htmlFor={`${provider}-default-topK`}>top_k</Label>
@@ -475,9 +508,14 @@ export default function SettingsPage() {
                       id={`${provider}-default-topK`}
                       name={`${provider}-default-topK`}
                       type="number"
+                      min={1}
+                      step={1}
                       value={draftDefaults[provider].topK ?? ''}
                       onChange={(e) => setDraftDefaults((prev) => ({ ...prev, [provider]: { ...prev[provider], topK: e.target.value ? parseInt(e.target.value, 10) : undefined } }))}
                     />
+                    {getParamValidationMessage('topK', draftDefaults[provider].topK) && (
+                      <p className="text-[11px] text-destructive">{getParamValidationMessage('topK', draftDefaults[provider].topK)}</p>
+                    )}
                   </div>
                 </div>
               </div>
@@ -509,55 +547,96 @@ export default function SettingsPage() {
               <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
                 <div className="space-y-1">
                   <Label htmlFor="override-maxTokens">max_tokens</Label>
-                  <Input
-                    id="override-maxTokens"
-                    name="override-maxTokens"
-                    type="number"
-                    value={selectedOverrideValue.maxTokens ?? ''}
-                    onChange={(e) => setDraftOverrides((prev) => ({ ...prev, [overrideProvider]: { ...prev[overrideProvider], [selectedOverrideModel]: { ...(prev[overrideProvider]?.[selectedOverrideModel] || {}), maxTokens: e.target.value ? parseInt(e.target.value, 10) : undefined } } }))}
-                  />
+                    <Input
+                      id="override-maxTokens"
+                      name="override-maxTokens"
+                      type="number"
+                      min={1}
+                      step={1}
+                      disabled={!hasSelectedOverrideModel}
+                      value={selectedOverrideValue.maxTokens ?? ''}
+                      onChange={(e) => setDraftOverrides((prev) => ({ ...prev, [overrideProvider]: { ...prev[overrideProvider], [selectedOverrideModel]: { ...(prev[overrideProvider]?.[selectedOverrideModel] || {}), maxTokens: e.target.value ? parseInt(e.target.value, 10) : undefined } } }))}
+                    />
+                    {getParamValidationMessage('maxTokens', selectedOverrideValue.maxTokens) && (
+                      <p className="text-[11px] text-destructive">{getParamValidationMessage('maxTokens', selectedOverrideValue.maxTokens)}</p>
+                    )}
+                  </div>
+                  <div className="space-y-1">
+                    <Label htmlFor="override-temperature">temperature</Label>
+                    <Input
+                      id="override-temperature"
+                      name="override-temperature"
+                      type="number"
+                      min={0}
+                      max={2}
+                      step="0.1"
+                      disabled={!hasSelectedOverrideModel}
+                      value={selectedOverrideValue.temperature ?? ''}
+                      onChange={(e) => setDraftOverrides((prev) => ({ ...prev, [overrideProvider]: { ...prev[overrideProvider], [selectedOverrideModel]: { ...(prev[overrideProvider]?.[selectedOverrideModel] || {}), temperature: e.target.value ? parseFloat(e.target.value) : undefined } } }))}
+                    />
+                    {getParamValidationMessage('temperature', selectedOverrideValue.temperature) && (
+                      <p className="text-[11px] text-destructive">{getParamValidationMessage('temperature', selectedOverrideValue.temperature)}</p>
+                    )}
+                  </div>
+                  <div className="space-y-1">
+                    <Label htmlFor="override-topP">top_p</Label>
+                    <Input
+                      id="override-topP"
+                      name="override-topP"
+                      type="number"
+                      min={0}
+                      max={1}
+                      step="0.05"
+                      disabled={!hasSelectedOverrideModel}
+                      value={selectedOverrideValue.topP ?? ''}
+                      onChange={(e) => setDraftOverrides((prev) => ({ ...prev, [overrideProvider]: { ...prev[overrideProvider], [selectedOverrideModel]: { ...(prev[overrideProvider]?.[selectedOverrideModel] || {}), topP: e.target.value ? parseFloat(e.target.value) : undefined } } }))}
+                    />
+                    {getParamValidationMessage('topP', selectedOverrideValue.topP) && (
+                      <p className="text-[11px] text-destructive">{getParamValidationMessage('topP', selectedOverrideValue.topP)}</p>
+                    )}
+                  </div>
+                  <div className="space-y-1">
+                    <Label htmlFor="override-topK">top_k</Label>
+                    <Input
+                      id="override-topK"
+                      name="override-topK"
+                      type="number"
+                      min={1}
+                      step={1}
+                      disabled={!hasSelectedOverrideModel}
+                      value={selectedOverrideValue.topK ?? ''}
+                      onChange={(e) => setDraftOverrides((prev) => ({ ...prev, [overrideProvider]: { ...prev[overrideProvider], [selectedOverrideModel]: { ...(prev[overrideProvider]?.[selectedOverrideModel] || {}), topK: e.target.value ? parseInt(e.target.value, 10) : undefined } } }))}
+                    />
+                    {getParamValidationMessage('topK', selectedOverrideValue.topK) && (
+                      <p className="text-[11px] text-destructive">{getParamValidationMessage('topK', selectedOverrideValue.topK)}</p>
+                    )}
+                  </div>
                 </div>
-                <div className="space-y-1">
-                  <Label htmlFor="override-temperature">temperature</Label>
-                  <Input
-                    id="override-temperature"
-                    name="override-temperature"
-                    type="number"
-                    step="0.1"
-                    value={selectedOverrideValue.temperature ?? ''}
-                    onChange={(e) => setDraftOverrides((prev) => ({ ...prev, [overrideProvider]: { ...prev[overrideProvider], [selectedOverrideModel]: { ...(prev[overrideProvider]?.[selectedOverrideModel] || {}), temperature: e.target.value ? parseFloat(e.target.value) : undefined } } }))}
-                  />
-                </div>
-                <div className="space-y-1">
-                  <Label htmlFor="override-topP">top_p</Label>
-                  <Input
-                    id="override-topP"
-                    name="override-topP"
-                    type="number"
-                    step="0.05"
-                    value={selectedOverrideValue.topP ?? ''}
-                    onChange={(e) => setDraftOverrides((prev) => ({ ...prev, [overrideProvider]: { ...prev[overrideProvider], [selectedOverrideModel]: { ...(prev[overrideProvider]?.[selectedOverrideModel] || {}), topP: e.target.value ? parseFloat(e.target.value) : undefined } } }))}
-                  />
-                </div>
-                <div className="space-y-1">
-                  <Label htmlFor="override-topK">top_k</Label>
-                  <Input
-                    id="override-topK"
-                    name="override-topK"
-                    type="number"
-                    value={selectedOverrideValue.topK ?? ''}
-                    onChange={(e) => setDraftOverrides((prev) => ({ ...prev, [overrideProvider]: { ...prev[overrideProvider], [selectedOverrideModel]: { ...(prev[overrideProvider]?.[selectedOverrideModel] || {}), topK: e.target.value ? parseInt(e.target.value, 10) : undefined } } }))}
-                  />
-                </div>
-              </div>
-              <Button variant="outline" onClick={() => setDraftOverrides((prev) => { const p = { ...(prev[overrideProvider] || {}) }; delete p[selectedOverrideModel]; return { ...prev, [overrideProvider]: p }; })}>Clear Override</Button>
+              <p className="text-xs text-muted-foreground">
+                {hasSelectedOverrideModel ? 'Override applies only to this model.' : 'Select a model before editing override parameters.'}
+              </p>
+              <Button
+                variant="outline"
+                disabled={!hasSelectedOverrideModel}
+                onClick={() => setDraftOverrides((prev) => { const p = { ...(prev[overrideProvider] || {}) }; delete p[selectedOverrideModel]; return { ...prev, [overrideProvider]: p }; })}
+              >
+                Clear Override
+              </Button>
             </div>
 
             <div className="rounded-lg border border-border p-3 space-y-2">
               <h3 className="font-semibold uppercase text-sm">Effective Config by Phase</h3>
               {PHASES.map((phase) => {
                 const resolved = settings.getResolvedGenerationConfig(phase);
-                return <div key={phase} className="text-xs font-mono rounded border border-border/60 p-2">{PHASE_LABELS[phase]}: {resolved.provider}/{resolved.model} max={resolved.params.maxTokens} temp={resolved.params.temperature}</div>;
+                return (
+                  <div key={phase} className="text-xs font-mono rounded border border-border/60 p-2 space-y-1">
+                    <p className="font-semibold">{PHASE_LABELS[phase]}</p>
+                    <p className="break-all">provider={resolved.provider} model={resolved.model}</p>
+                    <p>
+                      max_tokens={resolved.params.maxTokens} temperature={resolved.params.temperature} top_p={resolved.params.topP} top_k={resolved.params.topK ?? 'n/a'}
+                    </p>
+                  </div>
+                );
               })}
             </div>
           </TabsContent>
