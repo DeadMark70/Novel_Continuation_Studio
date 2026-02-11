@@ -117,6 +117,22 @@ function getParamValidationMessage(param: 'maxTokens' | 'temperature' | 'topP' |
   return '';
 }
 
+function parseRequiredIntInput(raw: string, current: number): number {
+  if (raw.trim() === '') {
+    return current;
+  }
+  const next = Number.parseInt(raw, 10);
+  return Number.isFinite(next) ? next : current;
+}
+
+function parseRequiredFloatInput(raw: string, current: number): number {
+  if (raw.trim() === '') {
+    return current;
+  }
+  const next = Number.parseFloat(raw);
+  return Number.isFinite(next) ? next : current;
+}
+
 export default function SettingsPage() {
   const settings = useSettingsStore();
   const [isSaving, setIsSaving] = useState(false);
@@ -476,7 +492,15 @@ export default function SettingsPage() {
                       min={1}
                       step={1}
                       value={draftDefaults[provider].maxTokens}
-                      onChange={(e) => setDraftDefaults((prev) => ({ ...prev, [provider]: { ...prev[provider], maxTokens: parseInt(e.target.value, 10) || 4096 } }))}
+                      onChange={(e) =>
+                        setDraftDefaults((prev) => ({
+                          ...prev,
+                          [provider]: {
+                            ...prev[provider],
+                            maxTokens: parseRequiredIntInput(e.target.value, prev[provider].maxTokens),
+                          },
+                        }))
+                      }
                     />
                     {getParamValidationMessage('maxTokens', draftDefaults[provider].maxTokens) && (
                       <p className="text-[11px] text-destructive">{getParamValidationMessage('maxTokens', draftDefaults[provider].maxTokens)}</p>
@@ -492,7 +516,15 @@ export default function SettingsPage() {
                       max={2}
                       step="0.1"
                       value={draftDefaults[provider].temperature}
-                      onChange={(e) => setDraftDefaults((prev) => ({ ...prev, [provider]: { ...prev[provider], temperature: parseFloat(e.target.value) || 0.7 } }))}
+                      onChange={(e) =>
+                        setDraftDefaults((prev) => ({
+                          ...prev,
+                          [provider]: {
+                            ...prev[provider],
+                            temperature: parseRequiredFloatInput(e.target.value, prev[provider].temperature),
+                          },
+                        }))
+                      }
                     />
                     {getParamValidationMessage('temperature', draftDefaults[provider].temperature) && (
                       <p className="text-[11px] text-destructive">{getParamValidationMessage('temperature', draftDefaults[provider].temperature)}</p>
@@ -508,7 +540,15 @@ export default function SettingsPage() {
                       max={1}
                       step="0.05"
                       value={draftDefaults[provider].topP}
-                      onChange={(e) => setDraftDefaults((prev) => ({ ...prev, [provider]: { ...prev[provider], topP: parseFloat(e.target.value) || 1 } }))}
+                      onChange={(e) =>
+                        setDraftDefaults((prev) => ({
+                          ...prev,
+                          [provider]: {
+                            ...prev[provider],
+                            topP: parseRequiredFloatInput(e.target.value, prev[provider].topP),
+                          },
+                        }))
+                      }
                     />
                     {getParamValidationMessage('topP', draftDefaults[provider].topP) && (
                       <p className="text-[11px] text-destructive">{getParamValidationMessage('topP', draftDefaults[provider].topP)}</p>
