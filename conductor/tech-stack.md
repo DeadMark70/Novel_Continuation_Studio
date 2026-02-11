@@ -1,37 +1,41 @@
 # Technology Stack
 
 ## Core Frameworks
-- **Frontend:** React 18+
-- **Meta-Framework:** Next.js (App Router)
-- **Language:** TypeScript
+- Frontend: React 19
+- Meta-framework: Next.js App Router 16.1.6
+- Language: TypeScript
 
 ## UI & Styling
-- **Styling:** Tailwind CSS
-- **Components:** shadcn/ui (Radix UI primitives)
-- **Icons:** Lucide React
-- **Design Philosophy:** Noir Industrial (High contrast, sharp edges, dark mode)
+- Tailwind CSS v4
+- shadcn/ui + Radix UI primitives
+- Lucide React icons
+- Design direction: Noir Industrial command-center style
 
-## State & Data
-- **Global State:** Zustand
-    - **Workflow Store:** Manages execution phases and global generation locks (`isGenerating` mutex).
-    - **Novel Store:** Manages content persistence, session handling, and workflow customization targets (`targetStoryWordCount`, `targetChapterCount`).
-    - **Settings Store:** Manages NIM model settings, thinking mode toggle, and model capability cache.
-- **Persistence:** IndexedDB with Dexie.js (Schema v4)
-    - **Schema:** Session-based storage (`sessionId` index) for multi-run history.
-    - **Current Version:** v4 (adds session-level workflow targets and settings capability metadata).
+## State & Persistence
+- Zustand stores:
+  - `useWorkflowStore`: phase execution + generation lock (`isGenerating`)
+  - `useNovelStore`: novel/session data, restore/reset, history
+  - `useSettingsStore`: provider settings, phase routing, defaults, model overrides, prompt customizations
+- IndexedDB via Dexie (`lib/db.ts`)
+  - Current schema version: v7
+  - Persists provider-scoped settings, phase config, model overrides, prompts, context settings
 
 ## AI & Integration
-- **LLM API:** NVIDIA NIM API
-- **Capabilities:** Server-Sent Events (SSE) for real-time streaming output
-- **Protocols:**
-    - Strict error object detection for HTTP 200 responses.
-    - Model capability probing route (`/api/nim/capabilities`) to detect chat/thinking support.
-    - Capability semantics differentiate temporary probe failure (`unknown`) vs explicit incompatibility (`unsupported`).
-    - Request parameter forwarding safeguards in `/api/nim/generate` (including `chat_template_kwargs`, penalties, and seed).
-    - Streaming client uses inactivity timeout with retry on timeout errors for slow models.
-    - Route segment duration hint on `/api/nim/generate`: `maxDuration = 300`.
+- Providers:
+  - NVIDIA NIM (`app/api/nim/*`)
+  - OpenRouter (`app/api/openrouter/*`)
+- Streaming protocol: SSE from local API routes to client
+- Client orchestration: `lib/llm-client.ts`
+- Effective config resolution: `getResolvedGenerationConfig(phase)` in `store/useSettingsStore.ts`
 
-## Development Tools
-- **Agent:** Gemini CLI (Coding Agent)
-- **Version Control:** Git
-- **Standards:** [Engineering Standards](../docs/ENGINEERING_STANDARDS.md)
+## Network & Cost Controls
+- OpenRouter network guard: `lib/openrouter-guard.ts`
+- OpenRouter calls blocked when:
+  - `E2E_MODE=offline`, or
+  - `OPENROUTER_DISABLE_NETWORK=1`
+- Recommended default for CI/smoke: keep OpenRouter disabled to avoid paid calls
+
+## Testing Tooling
+- Unit/integration: Vitest + Testing Library + jsdom
+- E2E smoke: Playwright (`e2e/smoke.spec.js`)
+- Static checks: TypeScript (`npx tsc --noEmit`) + ESLint (`npm run lint`)

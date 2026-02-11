@@ -1,191 +1,82 @@
 # Product Definition
 
 ## Project Overview
-**Name:** Novel Continuation Studio (NCS)
-**Type:** Local Single Page Application (SPA)
-**Goal:** Automate the continuation of Pixiv-style erotic novels using NVIDIA NIM API.
-**Core Philosophy:** A refined, functional writing environment that balances power (like SillyTavern) with the focus and aesthetic quality of a modern writing tool. It avoids clutter while providing deep control over the generation workflow.
+- Name: Novel Continuation Studio (NCS)
+- Type: Local-first Next.js web app
+- Goal: Continue long-form novels using a structured Phase 0-5 workflow with per-phase provider/model control.
+- Core principle: high control and reproducibility without clutter.
 
-## User Experience & Design
-**Visual Style:** "Refined Functional".
--   **Density:** Medium. Avoids the overwhelming density of SillyTavern but provides more utility than a basic text editor.
--   **Aesthetics:** Follows `frontend-design` principles—distinctive typography, cohesive color themes (likely dark mode), and high-quality UI components (shadcn/ui).
--   **Layout:** Stepper-focused workflow. Clear separation between configuration (prompts/settings) and content generation.
+## Current Product Shape (2026-02-11)
+1. Provider architecture
+- Dual provider support: NVIDIA NIM + OpenRouter.
+- Per-phase routing: each phase can select its own `{ provider, model }`.
+- Generation config supports provider defaults plus per-model overrides.
 
-## Core Features
-1.  **Novel Management:**
-    -   Upload (paste or file).
-    -   Full Story Reading Room (Side-by-side view of original vs. generated).
-    -   Word count and reading time statistics.
-    -   **Context Optimization:** 
-        -   Automatic text normalization (whitespace compression, punctuation unification) on upload.
-        -   Smart Dual-End Truncation: Optimizes prompt length by keeping head/tail segments of early chapters while preserving Chapter 1 fully.
-2.  **5-Step Automated Workflow:**
-    -   **Sequence Alpha (Step 1 -> 2):** Automated analysis leading to a user decision point.
-    -   **User Decision Point:** User-defined "Plot Direction" input at Step 2.
-    -   **Workflow Customization:**
-        -   Adjustable final story target word count (`targetStoryWordCount`, default `20000`, range `5000-50000`) at Step 2.
-        -   Adjustable target chapter count (`targetChapterCount`, default `5`, range `3-20`) at Step 3.
-    -   **Sequence Beta (Step 2 -> 3 -> 4):** Continuous automated generation from outline to the first chapter.
-    -   **Step 5 (Automation Control):** Flexible continuation with Manual, Full Auto, or Range modes, all bounded by `targetChapterCount` instead of hardcoded chapter limits.
-3.  **Prompt Engineering Panel:**
-    -   Full edit access to the 5 core prompts.
-    -   Adjustable final story word count target via prompt placeholders.
-    -   Outline direction presets (Deepen Conflict, Advance Plot, New Character, Strengthen Theme).
-    -   Reset to default.
-    -   **Optimization Control:**
-        -   Configurable Truncation Threshold.
-        -   Adjustable Dual-End Buffer (characters to keep at each end).
-4.  **Model Capability Governance (NIM):**
-    -   Model capability probing for chat availability and thinking support.
-    -   Probe results distinguish transient unknown vs definitive unsupported states.
-    -   Thinking mode toggle in settings with per-model support detection.
-    -   Unsupported models/parameters are surfaced in UI and blocked before generation when applicable.
-5.  **Real-time Streaming:**
-    -   Visual feedback during generation (NVIDIA NIM).
-    -   Inactivity-based timeout strategy for slow models (instead of fixed total request timeout).
-    -   Retry flow also covers timeout failures to improve recovery on unstable/slow upstream behavior.
-    -   Pause/Cancel controls.
-6.  **Version Control (Session-Based):**
-    -   **Session History:** Each analysis starts a new isolated session, preserving the full context of that run.
-    -   Local persistence (IndexedDB v4).
-    -   Non-destructive History rollback (auto-saves current state before restoring).
-        - Export to TXT: Allows selecting any session to export as a formatted story (including session-specific original content and chapters) with timestamped filenames.
+2. Workflow
+- Phase 0: optional compression pipeline for long novels.
+- Phase 1-5: analysis -> outline -> breakdown -> chapter1 -> continuation.
+- Global generation lock to prevent concurrent conflicting runs.
 
-## Default Prompts Configuration
-The application is built around these 5 specific prompt stages, using an automation-friendly template system with `{{placeholders}}`.
+3. Settings
+- `/settings` is the primary configuration page.
+- Includes:
+  - Provider credentials and default model selection
+  - Phase routing (phase-specific provider/model)
+  - Model parameter defaults and per-model override controls
+  - Prompt template editor with grouped navigation
+  - Context/compression controls
+- Save behavior uses single snapshot persistence to improve performance and reduce long save latency.
 
-### Prompt 1: Novel Analysis
-**Purpose:** Analyze core settings and narrative features.
-```text
-你是一位專業的小說分析師。我將提供一部小說內容，請進行以下分析：
+4. History & Reading
+- `/history` provides reading room, version history, and TXT export.
+- User can return to studio directly from history.
 
-1. 故事背景：時代、地點、社會設定
-2. 主要角色：身份、性格、關係動態
-3. 故事進展：已發生的關鍵情節
-4. 敘事風格：文字速度、心理描寫深度、對白特點
-5. 核心主題：情欲元素、權力動態、角色的限制或被動狀態
+## Model Configuration Semantics
+- Effective config resolution order:
+  1. Phase routing (`phaseConfig[phase]`)
+  2. Provider defaults (`providerDefaults[provider]`)
+  3. Model override (`modelOverrides[provider][model]`)
+- Supported parameter set includes:
+  - `maxTokens`, `temperature`, `topP`, `topK`
+  - `frequencyPenalty`, `presencePenalty`, `seed`
+  - `thinkingEnabled`, `thinkingBudget` (provider/model dependent)
 
-以 1000-1500 字總結這部小說的核心特徵，為續寫提供清晰的基礎。
+## Persistence
+- IndexedDB (Dexie) schema v7 stores:
+  - Active provider
+  - Provider-scoped settings (apiKey, selectedModel, recentModels, parameter support)
+  - Phase config
+  - Provider defaults
+  - Model overrides
+  - Custom prompts
+  - Context/compression settings
 
----
-小說內容：
-{{NOVEL_TEXT}}
-```
+## Environment & Cost Safety
+- Env keys:
+  - `NIM_API_KEY`
+  - `OPENROUTER_API_KEY`
+  - optional `OPENROUTER_SITE_URL`, `OPENROUTER_SITE_NAME`
+- OpenRouter network calls are intentionally blockable with:
+  - `E2E_MODE=offline` or
+  - `OPENROUTER_DISABLE_NETWORK=1`
+- Default team practice: prefer NIM for routine testing to avoid paid usage.
 
-### Prompt 2: Outline Generation
-**Purpose:** Generate a natural continuation outline based on analysis, supporting optional user direction.
-```text
-基於以下資訊，為這部小說生成續寫大綱。
+## UX Direction
+- Visual style: Noir Industrial command center.
+- Priorities:
+  - High signal status feedback
+  - Dense but readable controls
+  - Fast transitions and explicit state indicators
 
-**原始小說：**
-{{NOVEL_TEXT}}
+## Acceptance Baseline
+- Core checks:
+  - `npx tsc --noEmit`
+  - `npm run lint`
+  - `npm test`
+  - `npm run e2e` (smoke)
+- Smoke baseline currently validates home/settings/history critical navigation and dirty-save behavior.
 
-**故事分析：**
-{{ANALYSIS_RESULT}}
+## Prompt Sources
+- Canonical prompt templates live in `lib/prompts.ts`.
+- Settings prompt editor writes only overrides; defaults remain source of truth.
 
-{{USER_DIRECTION_SECTION}}
-
----
-
-請生成一份 5000-8000 字的續寫大綱，要求：
-
-- 自然延續現有故事，不強行突轉
-- 保持原有的敘事風格和主題元素
-- 讓角色的行為和心理有邏輯演變
-- 在核心主題（如限制、被動、權力動態）上深化發展
-{{USER_DIRECTION_REQUIREMENT}}
-
-**創作原則：**
-相信你的故事直覺，讓故事自然流動。不要刻意規劃「3 幕結構」或強制插入特定元素。
-
-**輸出格式：**
-分成 3-4 個清晰的情節段落，每段標註簡短標題，並在開頭標出目標續寫小說總字數（{{TARGET_STORY_WORD_COUNT}} 字，若無額外要求預設 20000 字）。
-```
-
-### Prompt 3: Chapter Breakdown
-**Purpose:** Break the outline into a chapter framework.
-```text
-將以下大綱分解為 {{TARGET_CHAPTER_COUNT}} 個章節框架。
-
-**續寫大綱：**
-{{OUTLINE_RESULT}}
-
----
-
-每個章節需包含：
-- 清晰的章節標題
-- 2-3 個關鍵情節點
-- 角色心理狀態變化的簡短說明
-- 敘事重心提示（側重心理/對白/描寫等）
-
-讓故事自己決定節奏，保持章節邊界清晰合理。輸出格式簡潔，便於程式解析。
-```
-
-### Prompt 4: Chapter 1 Generation
-**Purpose:** Write the first chapter.
-```text
-基於所有前置資訊，撰寫續寫的第一章。
-
-**原始小說：**
-{{NOVEL_TEXT}}
-
-**故事分析：**
-{{ANALYSIS_RESULT}}
-
-**續寫大綱：**
-{{OUTLINE_RESULT}}
-
-**章節框架：**
-{{CHAPTER_BREAKDOWN}}
-
----
-
-**任務：** 撰寫第一章，字數 4000-5000 字。
-
-**要求：**
-- 你已有充足上下文，直接開始創作
-- 保持與原小說相同的風格和節奏
-- 自然展開章節框架中的情節點
-
-**輸出：** 直接輸出小說文本，無需分析或註釋。
-```
-
-### Prompt 5: Continuation
-**Purpose:** Write subsequent chapters.
-```text
-基於所有資訊和已生成的章節，撰寫下一章。
-
-**原始小說：**
-{{NOVEL_TEXT}}
-
-**故事分析：**
-{{ANALYSIS_RESULT}}
-
-**續寫大綱：**
-{{OUTLINE_RESULT}}
-
-**章節框架：**
-{{CHAPTER_BREAKDOWN}}
-
-**已生成的章節：**
-{{GENERATED_CHAPTERS}}
-
----
-
-**任務：** 撰寫第 {{NEXT_CHAPTER_NUMBER}} 章，字數 4000-5000 字。
-
-**要求：**
-- 自然銜接前面的內容
-- 不重複任何情節、對白或描寫
-- 推進角色的心理和行為發展
-
-**輸出：** 直接輸出小說文本，無需分析或註釋。
-```
-
-## Tech Stack
--   **Framework:** React 18+, Next.js (App Router).
--   **Styling:** Tailwind CSS, shadcn/ui.
--   **State Management:** Zustand.
--   **AI Integration:** NVIDIA NIM API (Streaming).
--   **Storage:** LocalStorage & IndexedDB (Dexie.js recommended).
