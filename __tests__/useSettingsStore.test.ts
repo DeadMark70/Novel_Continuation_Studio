@@ -192,4 +192,49 @@ describe('useSettingsStore', () => {
     expect(after.lastPersistDurationMs).toBeTypeOf('number');
     expect(after.lastPersistAt).toBeTypeOf('number');
   });
+
+  it('persists openrouter selected model across initialize', async () => {
+    const state = useSettingsStore.getState();
+    const customModel = 'openai/gpt-4o-mini-persist-check';
+
+    await act(async () => {
+      await useSettingsStore.getState().applySettingsSnapshot({
+        activeProvider: 'openrouter',
+        providers: {
+          ...state.providers,
+          openrouter: {
+            ...state.providers.openrouter,
+            selectedModel: customModel,
+          },
+        },
+        phaseConfig: state.phaseConfig,
+        providerDefaults: state.providerDefaults,
+        modelOverrides: state.modelOverrides,
+        customPrompts: state.customPrompts,
+        context: {
+          truncationThreshold: state.truncationThreshold,
+          dualEndBuffer: state.dualEndBuffer,
+          compressionMode: state.compressionMode,
+          compressionAutoThreshold: state.compressionAutoThreshold,
+          compressionChunkSize: state.compressionChunkSize,
+          compressionChunkOverlap: state.compressionChunkOverlap,
+          compressionEvidenceSegments: state.compressionEvidenceSegments,
+        },
+      });
+    });
+
+    act(() => {
+      useSettingsStore.setState({
+        ...useSettingsStore.getInitialState(),
+      });
+    });
+
+    await act(async () => {
+      await useSettingsStore.getState().initialize();
+    });
+
+    const reloaded = useSettingsStore.getState();
+    expect(reloaded.providers.openrouter.selectedModel).toBe(customModel);
+    expect(reloaded.activeProvider).toBe('openrouter');
+  });
 });

@@ -67,6 +67,7 @@ npm run e2e
 
 Notes:
 - `playwright.config.js` starts `npm run dev` automatically unless `PLAYWRIGHT_BASE_URL` is set.
+- Playwright runs with `E2E_MODE=offline` by default to block paid OpenRouter network calls.
 - Current smoke suite: `e2e/smoke.spec.js`.
 
 This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.

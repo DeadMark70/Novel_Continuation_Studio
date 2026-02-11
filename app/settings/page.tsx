@@ -135,6 +135,7 @@ function parseRequiredFloatInput(raw: string, current: number): number {
 
 export default function SettingsPage() {
   const settings = useSettingsStore();
+  const [isInitialized, setIsInitialized] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [saveMessage, setSaveMessage] = useState('');
   const [lastSaveDurationMs, setLastSaveDurationMs] = useState<number | null>(null);
@@ -147,25 +148,22 @@ export default function SettingsPage() {
   const [allowCustomModelId, setAllowCustomModelId] = useState(true);
   const [loadingModels, setLoadingModels] = useState<Record<LLMProvider, boolean>>({ nim: false, openrouter: false });
 
-  const [draftProvider, setDraftProvider] = useState<LLMProvider>('nim');
-  const [draftProviders, setDraftProviders] = useState<Record<LLMProvider, ProviderScopedSettings>>({
-    nim: { apiKey: '', selectedModel: '', recentModels: [], modelCapabilities: {}, modelParameterSupport: {} },
-    openrouter: { apiKey: '', selectedModel: '', recentModels: [], modelCapabilities: {}, modelParameterSupport: {} },
-  });
-  const [draftPhaseConfig, setDraftPhaseConfig] = useState<PhaseConfigMap>({
-    compression: { provider: 'nim', model: '' },
-    analysis: { provider: 'nim', model: '' },
-    outline: { provider: 'nim', model: '' },
-    breakdown: { provider: 'nim', model: '' },
-    chapter1: { provider: 'nim', model: '' },
-    continuation: { provider: 'nim', model: '' },
-  });
-  const [draftDefaults, setDraftDefaults] = useState<Record<LLMProvider, GenerationParams>>({
-    nim: normalizeParams({ maxTokens: 4096, temperature: 0.7, topP: 1, thinkingEnabled: false }),
-    openrouter: normalizeParams({ maxTokens: 4096, temperature: 0.7, topP: 1, thinkingEnabled: false }),
-  });
-  const [draftOverrides, setDraftOverrides] = useState<Record<LLMProvider, Record<string, Partial<GenerationParams>>>>({ nim: {}, openrouter: {} });
-  const [draftPrompts, setDraftPrompts] = useState<Record<string, string>>({});
+  const [draftProvider, setDraftProvider] = useState<LLMProvider>(settings.activeProvider);
+  const [draftProviders, setDraftProviders] = useState<Record<LLMProvider, ProviderScopedSettings>>(
+    () => clone(settings.providers)
+  );
+  const [draftPhaseConfig, setDraftPhaseConfig] = useState<PhaseConfigMap>(() =>
+    clone(settings.phaseConfig)
+  );
+  const [draftDefaults, setDraftDefaults] = useState<Record<LLMProvider, GenerationParams>>(
+    () => clone(settings.providerDefaults)
+  );
+  const [draftOverrides, setDraftOverrides] = useState<Record<LLMProvider, Record<string, Partial<GenerationParams>>>>(
+    () => clone(settings.modelOverrides)
+  );
+  const [draftPrompts, setDraftPrompts] = useState<Record<string, string>>(() =>
+    clone(settings.customPrompts)
+  );
   const [draftContext, setDraftContext] = useState<{
     truncationThreshold: number;
     dualEndBuffer: number;
@@ -174,15 +172,15 @@ export default function SettingsPage() {
     compressionChunkSize: number;
     compressionChunkOverlap: number;
     compressionEvidenceSegments: number;
-  }>({
-    truncationThreshold: 799,
-    dualEndBuffer: 500,
-    compressionMode: 'auto',
-    compressionAutoThreshold: 20000,
-    compressionChunkSize: 6000,
-    compressionChunkOverlap: 400,
-    compressionEvidenceSegments: 10,
-  });
+  }>(() => ({
+    truncationThreshold: settings.truncationThreshold,
+    dualEndBuffer: settings.dualEndBuffer,
+    compressionMode: settings.compressionMode,
+    compressionAutoThreshold: settings.compressionAutoThreshold,
+    compressionChunkSize: settings.compressionChunkSize,
+    compressionChunkOverlap: settings.compressionChunkOverlap,
+    compressionEvidenceSegments: settings.compressionEvidenceSegments,
+  }));
 
   const initialSignatureRef = useRef('');
   const didHydrateRef = useRef(false);
@@ -226,16 +224,25 @@ export default function SettingsPage() {
   };
 
   useEffect(() => {
-    void settings.initialize();
+    let active = true;
+    void (async () => {
+      await settings.initialize();
+      if (active) {
+        setIsInitialized(true);
+      }
+    })();
+    return () => {
+      active = false;
+    };
   }, [settings]);
 
   useEffect(() => {
-    if (!didHydrateRef.current) {
+    if (isInitialized && !didHydrateRef.current) {
       hydrateFromStore();
     }
     // one-time hydration to avoid clobbering dirty draft
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [settings.activeProvider, settings.providers, settings.phaseConfig, settings.providerDefaults, settings.modelOverrides, settings.customPrompts, settings.truncationThreshold, settings.dualEndBuffer, settings.compressionMode, settings.compressionAutoThreshold, settings.compressionChunkSize, settings.compressionChunkOverlap, settings.compressionEvidenceSegments]);
+  }, [isInitialized, settings.activeProvider, settings.providers, settings.phaseConfig, settings.providerDefaults, settings.modelOverrides, settings.customPrompts, settings.truncationThreshold, settings.dualEndBuffer, settings.compressionMode, settings.compressionAutoThreshold, settings.compressionChunkSize, settings.compressionChunkOverlap, settings.compressionEvidenceSegments]);
 
   const signature = useMemo(() => JSON.stringify({
     activeProvider: draftProvider,

@@ -76,6 +76,18 @@ function createDefaultProviderSettings(): Record<LLMProvider, ProviderScopedSett
   };
 }
 
+function ensureProviderSelectedModel(
+  provider: LLMProvider,
+  providerState: ProviderScopedSettings
+): ProviderScopedSettings {
+  const fallback = provider === 'nim' ? DEFAULT_NIM_MODEL : DEFAULT_OPENROUTER_MODEL;
+  const selectedModel = providerState.selectedModel?.trim() || fallback;
+  return {
+    ...providerState,
+    selectedModel,
+  };
+}
+
 function createDefaultProviderDefaults(): Record<LLMProvider, GenerationParams> {
   return {
     nim: {
@@ -242,19 +254,19 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     set((state) => {
       const normalizedProviders: Record<LLMProvider, ProviderScopedSettings> = {
         nim: {
-          ...snapshot.providers.nim,
+          ...ensureProviderSelectedModel('nim', snapshot.providers.nim),
           recentModels: [
             ...new Set([
-              snapshot.providers.nim.selectedModel,
+              ensureProviderSelectedModel('nim', snapshot.providers.nim).selectedModel,
               ...(snapshot.providers.nim.recentModels || []),
             ].filter(Boolean)),
           ].slice(0, 24),
         },
         openrouter: {
-          ...snapshot.providers.openrouter,
+          ...ensureProviderSelectedModel('openrouter', snapshot.providers.openrouter),
           recentModels: [
             ...new Set([
-              snapshot.providers.openrouter.selectedModel,
+              ensureProviderSelectedModel('openrouter', snapshot.providers.openrouter).selectedModel,
               ...(snapshot.providers.openrouter.recentModels || []),
             ].filter(Boolean)),
           ].slice(0, 24),
@@ -566,7 +578,11 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       return;
     }
 
-    const providers = settings.providers ?? createDefaultProviderSettings();
+    const providersRaw = settings.providers ?? createDefaultProviderSettings();
+    const providers: Record<LLMProvider, ProviderScopedSettings> = {
+      nim: ensureProviderSelectedModel('nim', providersRaw.nim),
+      openrouter: ensureProviderSelectedModel('openrouter', providersRaw.openrouter),
+    };
     const activeProvider = settings.activeProvider ?? 'nim';
     const providerDefaults = settings.providerDefaults ?? createDefaultProviderDefaults();
     const modelOverrides = settings.modelOverrides ?? { nim: {}, openrouter: {} };
@@ -592,6 +608,16 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
         phaseConfig[phaseId] = {
           provider: 'nim',
           model: providers.nim.selectedModel || DEFAULT_NIM_MODEL,
+        };
+      }
+    } else {
+      for (const phaseId of DEFAULT_PHASES) {
+        const selection = phaseConfig[phaseId];
+        const provider = selection?.provider ?? 'nim';
+        const fallbackModel = providers[provider].selectedModel;
+        phaseConfig[phaseId] = {
+          provider,
+          model: selection?.model?.trim() || fallbackModel,
         };
       }
     }

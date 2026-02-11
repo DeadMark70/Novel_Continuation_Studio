@@ -1,6 +1,19 @@
 import { test, expect } from '@playwright/test';
 
+async function saveSettings(page) {
+  const saveButton = page.getByRole('button', { name: 'Save Configuration' });
+  await expect(saveButton).toBeEnabled();
+  await saveButton.click();
+  await expect(page.getByText('Saved.')).toBeVisible();
+}
+
+async function openSettingsReady(page) {
+  await page.goto('/settings');
+  await expect(page.locator('#nim-selected-model')).toHaveValue(/.+/);
+}
+
 test.describe('Novel Continuation Studio smoke', () => {
+  test.describe.configure({ mode: 'serial' });
   test('home renders core navigation', async ({ page }) => {
     await page.goto('/');
     await expect(page.getByRole('heading', { name: /Novel Continuation/i })).toBeVisible();
@@ -9,7 +22,7 @@ test.describe('Novel Continuation Studio smoke', () => {
   });
 
   test('settings page can open and show prompt editor defaults', async ({ page }) => {
-    await page.goto('/settings');
+    await openSettingsReady(page);
     await expect(page.getByRole('heading', { name: 'Settings' })).toBeVisible();
     await page.getByRole('tab', { name: 'Prompts' }).click();
     await expect(page.getByRole('textbox', { name: 'Prompt Template' })).toBeVisible();
@@ -25,18 +38,66 @@ test.describe('Novel Continuation Studio smoke', () => {
   });
 
   test('settings save button toggles with dirty state', async ({ page }) => {
-    await page.goto('/settings');
+    await openSettingsReady(page);
     const saveButton = page.getByRole('button', { name: 'Save Configuration' });
     await expect(saveButton).toBeDisabled();
     await page.getByRole('tab', { name: 'Provider' }).click();
     const modelInput = page.locator('#nim-selected-model');
-    await modelInput.fill('meta/llama3-70b-instruct-test');
+    await modelInput.fill(`meta/llama3-70b-instruct-test-${Date.now()}`);
     await expect(saveButton).toBeEnabled();
   });
 
   test('settings debug panel can be toggled', async ({ page }) => {
-    await page.goto('/settings');
+    await openSettingsReady(page);
     await page.getByRole('button', { name: 'Show Debug' }).click();
     await expect(page.getByText(/persistCount=/)).toBeVisible();
+  });
+
+  test('provider + model selection can be saved in current session', async ({ page }) => {
+    const openrouterModel = `openai/gpt-4o-mini-e2e-${Date.now()}`;
+    await openSettingsReady(page);
+    await page.getByRole('button', { name: 'Show Debug' }).click();
+    const persistBeforeText = await page.getByText(/persistCount=/).innerText();
+    const persistBefore = Number(persistBeforeText.replace('persistCount=', ''));
+
+    await page.getByRole('tab', { name: 'Provider' }).click();
+    await page.locator('#openrouter-selected-model').fill(openrouterModel);
+    await expect(page.locator('#openrouter-selected-model')).toHaveValue(openrouterModel);
+    await page.locator('#active-provider').click();
+    await page.getByRole('option', { name: 'OpenRouter' }).click();
+    await saveSettings(page);
+
+    await expect(page.locator('#active-provider')).toContainText('OpenRouter');
+    const persistAfterText = await page.getByText(/persistCount=/).innerText();
+    const persistAfter = Number(persistAfterText.replace('persistCount=', ''));
+    expect(persistAfter).toBeGreaterThan(persistBefore);
+  });
+
+  test('phase routing selection is applied after save', async ({ page }) => {
+    const analysisModel = `openai/gpt-4o-mini-phase-${Date.now()}`;
+    await openSettingsReady(page);
+    await page.getByRole('tab', { name: 'Phase Routing' }).click();
+    await page.locator('#analysis-provider').click();
+    await page.getByRole('option', { name: 'OpenRouter' }).click();
+    await page.locator('#analysis-model').fill(analysisModel);
+    await saveSettings(page);
+
+    await page.getByRole('tab', { name: 'Model Params' }).click();
+    await expect(page.getByText(/Phase 1 Analysis/)).toBeVisible();
+    await expect(page.getByText(new RegExp(`model=${analysisModel.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`))).toBeVisible();
+  });
+
+  test('model params validation appears and save succeeds with valid values', async ({ page }) => {
+    await openSettingsReady(page);
+    await page.getByRole('tab', { name: 'Model Params' }).click();
+
+    const topPInput = page.locator('#nim-default-topP');
+    await topPInput.fill('1.5');
+    await expect(page.getByText('Must be between 0 and 1.')).toBeVisible();
+
+    await topPInput.fill('0.55');
+    await page.locator('#nim-default-temperature').fill('0.8');
+    await expect(page.getByText('Must be between 0 and 1.')).toHaveCount(0);
+    await saveSettings(page);
   });
 });

@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { isOpenRouterNetworkDisabled } from '@/lib/openrouter-guard';
 
 const OPENROUTER_API_BASE = 'https://openrouter.ai/api/v1';
 export const maxDuration = 300;
@@ -16,6 +17,13 @@ type OpenRouterGeneratePayload = {
 };
 
 export async function POST(request: Request) {
+  if (isOpenRouterNetworkDisabled()) {
+    return NextResponse.json(
+      { error: 'OpenRouter network calls are disabled in this environment.' },
+      { status: 403 }
+    );
+  }
+
   const authHeader = request.headers.get('Authorization');
   const apiKey = authHeader ? authHeader.replace('Bearer ', '') : process.env.OPENROUTER_API_KEY;
 
