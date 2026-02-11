@@ -1,5 +1,7 @@
 'use client';
 
+// Deprecated: history/export moved to /history page. Kept temporarily for compatibility tests.
+
 import React, { useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';

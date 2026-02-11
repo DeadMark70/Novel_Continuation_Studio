@@ -105,7 +105,7 @@ export default function Home() {
                   Security Notice
                 </h3>
                 <p className="text-[10px] text-muted-foreground leading-relaxed">
-                  All processing happens locally via NVIDIA NIM. Content is stored securely in IndexedDB.
+                  Generation routes through your configured provider (NIM/OpenRouter). Content is stored locally in IndexedDB.
                 </p>
               </div>
             </div>

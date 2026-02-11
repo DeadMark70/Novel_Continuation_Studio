@@ -54,6 +54,31 @@ describe('useSettingsStore', () => {
     expect(resolved.params.maxTokens).toBe(2048);
   });
 
+  it('applies model override over provider default for resolved config', async () => {
+    await act(async () => {
+      await useSettingsStore.getState().setProviderSelectedModel('nim', 'nim-model-a');
+      await useSettingsStore.getState().setProviderDefaultParams('nim', {
+        maxTokens: 3000,
+        temperature: 0.6,
+        topP: 0.9,
+        thinkingEnabled: false,
+      });
+      await useSettingsStore.getState().setModelOverrideParams('nim', 'nim-model-a', {
+        maxTokens: 1200,
+        temperature: 0.2,
+      });
+      await useSettingsStore.getState().setPhaseSelection('analysis', {
+        provider: 'nim',
+        model: 'nim-model-a',
+      });
+    });
+
+    const resolved = useSettingsStore.getState().getResolvedGenerationConfig('analysis');
+    expect(resolved.params.maxTokens).toBe(1200);
+    expect(resolved.params.temperature).toBe(0.2);
+    expect(resolved.params.topP).toBe(0.9);
+  });
+
   it('fetchProviderModels stores model ids in recentModels', async () => {
     const fetchSpy = vi.spyOn(global, 'fetch').mockResolvedValue({
       ok: true,

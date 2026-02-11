@@ -1,8 +1,10 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+## Novel Continuation Studio
+
+Multi-provider local writing workflow studio (NVIDIA NIM + OpenRouter) with phase-level model routing.
 
 ## Getting Started
 
-First, run the development server:
+### 1) Install and run
 
 ```bash
 npm run dev
@@ -16,7 +18,30 @@ bun dev
 
 Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+### 2) Environment
+
+Create `.env.local` with at least one provider key:
+
+```bash
+NIM_API_KEY=
+OPENROUTER_API_KEY=
+# optional OpenRouter attribution headers
+OPENROUTER_SITE_URL=
+OPENROUTER_SITE_NAME=
+```
+
+### 3) Settings model
+
+- `/settings` controls provider credentials, provider default model params, phase routing, and prompts.
+- Each phase (`compression`, `analysis`, `outline`, `breakdown`, `chapter1`, `continuation`) can choose `provider + model`.
+- Effective generation config resolution:
+  1. phase selection provider/model
+  2. provider defaults
+  3. model override (if present)
+
+### 4) History
+
+- `/history` provides reading room, version history, and TXT export.
 
 This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
 

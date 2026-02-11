@@ -194,10 +194,32 @@ function buildGeneratePayload(
   if (typeof presencePenalty === 'number') payload.presence_penalty = presencePenalty;
   if (typeof seed === 'number') payload.seed = seed;
 
+  const supported = new Set(
+    (options?.supportedParameters || []).map((entry) => entry.toLowerCase())
+  );
+  const hasSupportMap = supported.size > 0;
+  const keep = (name: string) => !hasSupportMap || supported.has(name.toLowerCase());
+  const maybeDelete = (key: string, supportKey: string) => {
+    if (!keep(supportKey)) {
+      delete payload[key];
+    }
+  };
+
+  maybeDelete('top_k', 'top_k');
+  maybeDelete('frequency_penalty', 'frequency_penalty');
+  maybeDelete('presence_penalty', 'presence_penalty');
+  maybeDelete('seed', 'seed');
+
+  const thinkingBudget = options?.thinkingBudget;
+  if (typeof thinkingBudget === 'number' && keep('reasoning') && provider === 'openrouter') {
+    payload.reasoning = { max_tokens: Math.max(0, Math.floor(thinkingBudget)) };
+  }
+
   if (
     provider === 'nim' &&
     enableThinking &&
     thinkingSupported &&
+    keep('thinking') &&
     !modelRejectsChatTemplateKwargs(model)
   ) {
     payload.chat_template_kwargs = { thinking: true };

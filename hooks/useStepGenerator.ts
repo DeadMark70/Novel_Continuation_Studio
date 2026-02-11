@@ -126,6 +126,7 @@ export function useStepGenerator() {
         apiKey,
         params: modelParams,
         capability: modelCapability,
+        supportedParameters,
       } = generationConfig;
 
       if (modelCapability && !modelCapability.chatSupported) {
@@ -262,6 +263,7 @@ export function useStepGenerator() {
                   // to avoid model-specific template incompatibilities (e.g. Mistral tokenizer errors).
                   enableThinking: false,
                   thinkingSupported: false,
+                  supportedParameters,
                   onRetry: (retryAttempt, maxRetries, delay) => {
                     console.log(`[Compression:${task.id}] Retrying request ${retryAttempt}/${maxRetries} after ${delay}ms`);
                   }
@@ -442,6 +444,7 @@ export function useStepGenerator() {
           seed: modelParams.seed,
           enableThinking: canUseThinking,
           thinkingSupported: canUseThinking,
+          supportedParameters,
           onRetry: (attempt, maxRetries, delay) => {
             console.log(`[Generator] Retrying request ${attempt}/${maxRetries} after ${delay}ms`);
           }
@@ -511,6 +514,7 @@ export function useStepGenerator() {
                     seed: consistencyConfig.params.seed,
                     enableThinking: false,
                     thinkingSupported: false,
+                    supportedParameters: consistencyConfig.supportedParameters,
                   }
                 );
 

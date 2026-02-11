@@ -1,5 +1,7 @@
 'use client';
 
+// Deprecated: settings moved to /settings page. Kept temporarily for compatibility tests.
+
 import React, { useState, useEffect } from 'react';
 import { useSettingsStore } from '@/store/useSettingsStore';
 import { Button } from '@/components/ui/button';

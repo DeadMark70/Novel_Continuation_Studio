@@ -34,6 +34,7 @@ export interface GenerationParams {
 export interface GenerateOptions extends Partial<GenerationParams> {
   enableThinking?: boolean;
   thinkingSupported?: boolean;
+  supportedParameters?: string[];
   timeout?: number;
   inactivityTimeout?: number;
   maxRetries?: number;
