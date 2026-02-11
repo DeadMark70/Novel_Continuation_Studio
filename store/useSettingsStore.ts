@@ -142,6 +142,25 @@ interface SettingsState {
   compressionChunkOverlap: number;
   compressionEvidenceSegments: number;
 
+  applySettingsSnapshot: (snapshot: {
+    activeProvider: LLMProvider;
+    providers: Record<LLMProvider, ProviderScopedSettings>;
+    phaseConfig: PhaseConfigMap;
+    providerDefaults: Record<LLMProvider, GenerationParams>;
+    modelOverrides: Record<LLMProvider, Record<string, Partial<GenerationParams>>>;
+    customPrompts: Record<string, string>;
+    context: Pick<
+      SettingsState,
+      | 'truncationThreshold'
+      | 'dualEndBuffer'
+      | 'compressionMode'
+      | 'compressionAutoThreshold'
+      | 'compressionChunkSize'
+      | 'compressionChunkOverlap'
+      | 'compressionEvidenceSegments'
+    >;
+  }) => Promise<void>;
+
   setActiveProvider: (provider: LLMProvider) => Promise<void>;
   setProviderApiKey: (provider: LLMProvider, key: string) => Promise<void>;
   setProviderSelectedModel: (provider: LLMProvider, model: string) => Promise<void>;
@@ -210,6 +229,57 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       const next = { ...state, activeProvider: provider };
       return { ...next, ...resolveCompatibilityFields(next) };
     });
+    await get().persist();
+  },
+
+  applySettingsSnapshot: async (snapshot) => {
+    set((state) => {
+      const normalizedProviders: Record<LLMProvider, ProviderScopedSettings> = {
+        nim: {
+          ...snapshot.providers.nim,
+          recentModels: [
+            ...new Set([
+              snapshot.providers.nim.selectedModel,
+              ...(snapshot.providers.nim.recentModels || []),
+            ].filter(Boolean)),
+          ].slice(0, 24),
+        },
+        openrouter: {
+          ...snapshot.providers.openrouter,
+          recentModels: [
+            ...new Set([
+              snapshot.providers.openrouter.selectedModel,
+              ...(snapshot.providers.openrouter.recentModels || []),
+            ].filter(Boolean)),
+          ].slice(0, 24),
+        },
+      };
+
+      const next = {
+        ...state,
+        activeProvider: snapshot.activeProvider,
+        providers: normalizedProviders,
+        phaseConfig: snapshot.phaseConfig,
+        providerDefaults: snapshot.providerDefaults,
+        modelOverrides: snapshot.modelOverrides,
+        customPrompts: snapshot.customPrompts,
+        truncationThreshold: sanitizePositiveInt(snapshot.context.truncationThreshold, state.truncationThreshold),
+        dualEndBuffer: sanitizePositiveInt(snapshot.context.dualEndBuffer, state.dualEndBuffer),
+        compressionMode: snapshot.context.compressionMode,
+        compressionAutoThreshold: sanitizePositiveInt(snapshot.context.compressionAutoThreshold, state.compressionAutoThreshold),
+        compressionChunkSize: sanitizePositiveInt(snapshot.context.compressionChunkSize, state.compressionChunkSize),
+        compressionChunkOverlap: Math.max(
+          0,
+          sanitizePositiveInt(snapshot.context.compressionChunkOverlap, state.compressionChunkOverlap)
+        ),
+        compressionEvidenceSegments: Math.max(
+          4,
+          Math.min(16, sanitizePositiveInt(snapshot.context.compressionEvidenceSegments, state.compressionEvidenceSegments))
+        ),
+      };
+      return { ...next, ...resolveCompatibilityFields(next) };
+    });
+
     await get().persist();
   },
 

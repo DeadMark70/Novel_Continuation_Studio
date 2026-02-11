@@ -129,4 +129,38 @@ describe('useSettingsStore', () => {
     expect(state.providers.nim.selectedModel).toBe('legacy-model');
     expect(state.providerDefaults.nim.thinkingEnabled).toBe(true);
   });
+
+  it('applySettingsSnapshot replaces model overrides atomically', async () => {
+    await act(async () => {
+      await useSettingsStore.getState().setModelOverrideParams('nim', 'nim-model-a', {
+        maxTokens: 1200,
+      });
+    });
+
+    const before = useSettingsStore.getState();
+    expect(before.modelOverrides.nim['nim-model-a']).toBeDefined();
+
+    await act(async () => {
+      await useSettingsStore.getState().applySettingsSnapshot({
+        activeProvider: before.activeProvider,
+        providers: before.providers,
+        phaseConfig: before.phaseConfig,
+        providerDefaults: before.providerDefaults,
+        modelOverrides: { nim: {}, openrouter: {} },
+        customPrompts: before.customPrompts,
+        context: {
+          truncationThreshold: before.truncationThreshold,
+          dualEndBuffer: before.dualEndBuffer,
+          compressionMode: before.compressionMode,
+          compressionAutoThreshold: before.compressionAutoThreshold,
+          compressionChunkSize: before.compressionChunkSize,
+          compressionChunkOverlap: before.compressionChunkOverlap,
+          compressionEvidenceSegments: before.compressionEvidenceSegments,
+        },
+      });
+    });
+
+    const after = useSettingsStore.getState();
+    expect(after.modelOverrides.nim['nim-model-a']).toBeUndefined();
+  });
 });

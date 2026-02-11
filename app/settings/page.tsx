@@ -297,33 +297,45 @@ export default function SettingsPage() {
 
     setIsSaving(true);
     try {
-      await settings.setActiveProvider(draftProvider);
-      for (const provider of PROVIDERS) {
-        await settings.setProviderApiKey(provider, draftProviders[provider].apiKey);
-        await settings.setProviderSelectedModel(provider, draftProviders[provider].selectedModel);
-        await settings.setProviderDefaultParams(provider, normalizeParams(draftDefaults[provider]));
-      }
-      for (const phase of PHASES) {
+      const normalizedPhaseConfig = PHASES.reduce((acc, phase) => {
         const selection = draftPhaseConfig[phase];
         const model = selection.model?.trim() || draftProviders[selection.provider].selectedModel;
-        await settings.setPhaseSelection(phase, { provider: selection.provider, model });
-      }
-      for (const provider of PROVIDERS) {
-        for (const model of Object.keys(draftOverrides[provider] || {})) {
-          const value = draftOverrides[provider][model];
-          if (!value || Object.keys(value).length === 0) {
-            await settings.clearModelOverrideParams(provider, model);
-          } else {
-            await settings.setModelOverrideParams(provider, model, value);
+        acc[phase] = { provider: selection.provider, model };
+        return acc;
+      }, {} as PhaseConfigMap);
+
+      const normalizedOverrides = PROVIDERS.reduce((acc, provider) => {
+        const source = draftOverrides[provider] || {};
+        const cleaned: Record<string, Partial<GenerationParams>> = {};
+        for (const [model, value] of Object.entries(source)) {
+          const modelId = model.trim();
+          if (!modelId || !value || Object.keys(value).length === 0) {
+            continue;
           }
+          cleaned[modelId] = value;
         }
-      }
-      for (const key of PROMPT_KEYS) {
+        acc[provider] = cleaned;
+        return acc;
+      }, {} as Record<LLMProvider, Record<string, Partial<GenerationParams>>>);
+
+      const normalizedPrompts = PROMPT_KEYS.reduce((acc, key) => {
         const nextValue = draftPrompts[key] ?? '';
-        const normalized = nextValue.trim() === DEFAULT_PROMPTS[key].trim() ? '' : nextValue;
-        await settings.setCustomPrompt(key, normalized);
-      }
-      await settings.updateContextSettings(draftContext);
+        acc[key] = nextValue.trim() === DEFAULT_PROMPTS[key].trim() ? '' : nextValue;
+        return acc;
+      }, {} as Record<string, string>);
+
+      await settings.applySettingsSnapshot({
+        activeProvider: draftProvider,
+        providers: draftProviders,
+        phaseConfig: normalizedPhaseConfig,
+        providerDefaults: {
+          nim: normalizeParams(draftDefaults.nim),
+          openrouter: normalizeParams(draftDefaults.openrouter),
+        },
+        modelOverrides: normalizedOverrides,
+        customPrompts: normalizedPrompts,
+        context: draftContext,
+      });
 
       initialSignatureRef.current = signature;
       setSaveMessage('Saved.');
