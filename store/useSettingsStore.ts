@@ -1,6 +1,18 @@
 import { create } from 'zustand';
 import { saveSettings, getSettings } from '@/lib/db';
-import { fetchModelCapability, type ModelCapability } from '@/lib/nim-client';
+import {
+  fetchModelCapabilityByProvider,
+  fetchModelsByProvider,
+} from '@/lib/nim-client';
+import type {
+  GenerationParams,
+  LLMProvider,
+  ModelCapability,
+  PhaseConfigMap,
+  PhaseModelSelection,
+  ProviderScopedSettings,
+} from '@/lib/llm-types';
+import type { WorkflowStepId } from '@/store/useWorkflowStore';
 import { getModelCapabilityOverride } from '@/lib/nim-model-overrides';
 import {
   DEFAULT_COMPRESSION_AUTO_THRESHOLD,
@@ -12,6 +24,17 @@ import {
 } from '@/lib/compression';
 
 const CAPABILITY_CACHE_TTL_MS = 10 * 60 * 1000;
+
+const DEFAULT_NIM_MODEL = 'meta/llama3-70b-instruct';
+const DEFAULT_OPENROUTER_MODEL = 'openai/gpt-4o-mini';
+const DEFAULT_PHASES: WorkflowStepId[] = [
+  'compression',
+  'analysis',
+  'outline',
+  'breakdown',
+  'chapter1',
+  'continuation',
+];
 
 function isCapabilityFresh(capability?: ModelCapability): boolean {
   if (!capability) {
@@ -34,10 +57,82 @@ function sanitizePositiveInt(value: number, fallback: number): number {
   return Math.floor(value);
 }
 
+function createDefaultProviderSettings(): Record<LLMProvider, ProviderScopedSettings> {
+  return {
+    nim: {
+      apiKey: '',
+      selectedModel: DEFAULT_NIM_MODEL,
+      recentModels: [],
+      modelCapabilities: {},
+      modelParameterSupport: {},
+    },
+    openrouter: {
+      apiKey: '',
+      selectedModel: DEFAULT_OPENROUTER_MODEL,
+      recentModels: [],
+      modelCapabilities: {},
+      modelParameterSupport: {},
+    },
+  };
+}
+
+function createDefaultProviderDefaults(): Record<LLMProvider, GenerationParams> {
+  return {
+    nim: {
+      maxTokens: 4096,
+      temperature: 0.7,
+      topP: 1,
+      thinkingEnabled: false,
+    },
+    openrouter: {
+      maxTokens: 4096,
+      temperature: 0.7,
+      topP: 1,
+      thinkingEnabled: false,
+    },
+  };
+}
+
+function createDefaultPhaseConfig(): PhaseConfigMap {
+  return {
+    compression: { provider: 'nim', model: DEFAULT_NIM_MODEL },
+    analysis: { provider: 'nim', model: DEFAULT_NIM_MODEL },
+    outline: { provider: 'nim', model: DEFAULT_NIM_MODEL },
+    breakdown: { provider: 'nim', model: DEFAULT_NIM_MODEL },
+    chapter1: { provider: 'nim', model: DEFAULT_NIM_MODEL },
+    continuation: { provider: 'nim', model: DEFAULT_NIM_MODEL },
+  };
+}
+
+function resolveCompatibilityFields(state: Pick<
+  SettingsState,
+  'activeProvider' | 'providers' | 'providerDefaults'
+>) {
+  const active = state.providers[state.activeProvider];
+  const defaults = state.providerDefaults[state.activeProvider];
+  return {
+    apiKey: active.apiKey,
+    selectedModel: active.selectedModel,
+    recentModels: active.recentModels,
+    modelCapabilities: active.modelCapabilities,
+    thinkingEnabled: defaults.thinkingEnabled,
+  };
+}
+
 interface SettingsState {
+  activeProvider: LLMProvider;
+  providers: Record<LLMProvider, ProviderScopedSettings>;
+  phaseConfig: PhaseConfigMap;
+  providerDefaults: Record<LLMProvider, GenerationParams>;
+  modelOverrides: Record<LLMProvider, Record<string, Partial<GenerationParams>>>;
+
+  // Legacy compatibility projections for existing components.
   apiKey: string;
   selectedModel: string;
   recentModels: string[];
+  thinkingEnabled: boolean;
+  modelCapabilities: Record<string, ModelCapability>;
+
   customPrompts: Record<string, string>;
   truncationThreshold: number;
   dualEndBuffer: number;
@@ -46,17 +141,33 @@ interface SettingsState {
   compressionChunkSize: number;
   compressionChunkOverlap: number;
   compressionEvidenceSegments: number;
-  thinkingEnabled: boolean;
-  modelCapabilities: Record<string, ModelCapability>;
-  
-  // Actions
+
+  setActiveProvider: (provider: LLMProvider) => Promise<void>;
+  setProviderApiKey: (provider: LLMProvider, key: string) => Promise<void>;
+  setProviderSelectedModel: (provider: LLMProvider, model: string) => Promise<void>;
+  setPhaseSelection: (phaseId: WorkflowStepId, selection: PhaseModelSelection) => Promise<void>;
+  setProviderDefaultParams: (provider: LLMProvider, params: Partial<GenerationParams>) => Promise<void>;
+  setModelOverrideParams: (provider: LLMProvider, model: string, params: Partial<GenerationParams>) => Promise<void>;
+  clearModelOverrideParams: (provider: LLMProvider, model: string) => Promise<void>;
+  getResolvedGenerationConfig: (phaseId: WorkflowStepId) => {
+    provider: LLMProvider;
+    model: string;
+    apiKey: string;
+    params: GenerationParams;
+    capability?: ModelCapability;
+    supportedParameters: string[];
+  };
+  getActiveApiKey: () => string;
+
+  // Legacy actions kept for compatibility with existing code.
   setApiKey: (key: string) => Promise<void>;
   setSelectedModel: (model: string) => Promise<void>;
-  addRecentModel: (model: string) => Promise<void>;
+  addRecentModel: (model: string, provider?: LLMProvider) => Promise<void>;
   setCustomPrompt: (key: string, prompt: string) => Promise<void>;
-  setThinkingEnabled: (enabled: boolean) => Promise<void>;
-  upsertModelCapability: (model: string, capability: ModelCapability) => Promise<void>;
-  probeModelCapability: (model: string, apiKey?: string) => Promise<ModelCapability>;
+  setThinkingEnabled: (enabled: boolean, provider?: LLMProvider) => Promise<void>;
+  upsertModelCapability: (model: string, capability: ModelCapability, provider?: LLMProvider) => Promise<void>;
+  probeModelCapability: (model: string, apiKey?: string, provider?: LLMProvider) => Promise<ModelCapability>;
+  fetchProviderModels: (provider: LLMProvider, apiKey?: string) => Promise<string[]>;
   updateContextSettings: (settings: Partial<Pick<
     SettingsState,
     | 'truncationThreshold'
@@ -73,9 +184,18 @@ interface SettingsState {
 }
 
 export const useSettingsStore = create<SettingsState>((set, get) => ({
+  activeProvider: 'nim',
+  providers: createDefaultProviderSettings(),
+  phaseConfig: createDefaultPhaseConfig(),
+  providerDefaults: createDefaultProviderDefaults(),
+  modelOverrides: { nim: {}, openrouter: {} },
+
   apiKey: '',
-  selectedModel: 'meta/llama3-70b-instruct', // Default fallback
+  selectedModel: DEFAULT_NIM_MODEL,
   recentModels: [],
+  thinkingEnabled: false,
+  modelCapabilities: {},
+
   customPrompts: {},
   truncationThreshold: 799,
   dualEndBuffer: 500,
@@ -84,95 +204,249 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   compressionChunkSize: DEFAULT_COMPRESSION_CHUNK_SIZE,
   compressionChunkOverlap: DEFAULT_COMPRESSION_CHUNK_OVERLAP,
   compressionEvidenceSegments: DEFAULT_COMPRESSION_EVIDENCE_SEGMENTS,
-  thinkingEnabled: false,
-  modelCapabilities: {},
 
-  setApiKey: async (key: string) => {
-    set({ apiKey: key });
+  setActiveProvider: async (provider) => {
+    set((state) => {
+      const next = { ...state, activeProvider: provider };
+      return { ...next, ...resolveCompatibilityFields(next) };
+    });
     await get().persist();
   },
 
-  setSelectedModel: async (model: string) => {
-    set({ selectedModel: model });
-    await get().addRecentModel(model);
+  setProviderApiKey: async (provider, key) => {
+    set((state) => {
+      const providers = {
+        ...state.providers,
+        [provider]: { ...state.providers[provider], apiKey: key },
+      };
+      const next = { ...state, providers };
+      return { ...next, ...resolveCompatibilityFields(next) };
+    });
+    await get().persist();
+  },
 
-    const existingCapability = get().modelCapabilities[model];
-    if (isCapabilityFresh(existingCapability)) {
+  setProviderSelectedModel: async (provider, model) => {
+    await get().addRecentModel(model, provider);
+    set((state) => {
+      const providers = {
+        ...state.providers,
+        [provider]: {
+          ...state.providers[provider],
+          selectedModel: model,
+        },
+      };
+      const next = { ...state, providers };
+      return { ...next, ...resolveCompatibilityFields(next) };
+    });
+    await get().persist();
+
+    const capability = get().providers[provider].modelCapabilities[model];
+    if (isCapabilityFresh(capability)) {
       return;
     }
-
-    void (async () => {
-      try {
-        const capability = await get().probeModelCapability(model);
-        await get().upsertModelCapability(model, capability);
-      } catch (error) {
-        console.warn('Capability probe failed:', error);
-      }
-    })();
+    void get().probeModelCapability(model, undefined, provider);
   },
 
-  addRecentModel: async (model: string) => {
-    const { recentModels } = get();
-    // Move to top, limit to 5
-    const newRecent = [model, ...recentModels.filter(m => m !== model)].slice(0, 5);
-    set({ recentModels: newRecent });
+  setPhaseSelection: async (phaseId, selection) => {
+    set((state) => ({
+      phaseConfig: {
+        ...state.phaseConfig,
+        [phaseId]: selection,
+      },
+    }));
     await get().persist();
   },
 
-  setCustomPrompt: async (key: string, prompt: string) => {
+  setProviderDefaultParams: async (provider, params) => {
+    set((state) => ({
+      providerDefaults: {
+        ...state.providerDefaults,
+        [provider]: {
+          ...state.providerDefaults[provider],
+          ...params,
+        },
+      },
+      ...(provider === state.activeProvider
+        ? { thinkingEnabled: params.thinkingEnabled ?? state.thinkingEnabled }
+        : {}),
+    }));
+    await get().persist();
+  },
+
+  setModelOverrideParams: async (provider, model, params) => {
+    set((state) => ({
+      modelOverrides: {
+        ...state.modelOverrides,
+        [provider]: {
+          ...state.modelOverrides[provider],
+          [model]: {
+            ...(state.modelOverrides[provider]?.[model] || {}),
+            ...params,
+          },
+        },
+      },
+    }));
+    await get().persist();
+  },
+
+  clearModelOverrideParams: async (provider, model) => {
+    set((state) => {
+      const providerOverrides = { ...(state.modelOverrides[provider] || {}) };
+      delete providerOverrides[model];
+      return {
+        modelOverrides: {
+          ...state.modelOverrides,
+          [provider]: providerOverrides,
+        },
+      };
+    });
+    await get().persist();
+  },
+
+  getResolvedGenerationConfig: (phaseId) => {
+    const state = get();
+    const phaseSelection = state.phaseConfig[phaseId];
+    const provider = phaseSelection?.provider ?? state.activeProvider;
+    const scoped = state.providers[provider];
+    const model = phaseSelection?.model || scoped.selectedModel;
+    const defaults = state.providerDefaults[provider];
+    const override = state.modelOverrides[provider]?.[model] || {};
+    return {
+      provider,
+      model,
+      apiKey: scoped.apiKey,
+      params: { ...defaults, ...override },
+      capability: scoped.modelCapabilities[model],
+      supportedParameters: scoped.modelParameterSupport[model] || [],
+    };
+  },
+
+  getActiveApiKey: () => {
+    const state = get();
+    return state.providers[state.activeProvider].apiKey;
+  },
+
+  setApiKey: async (key) => {
+    await get().setProviderApiKey(get().activeProvider, key);
+  },
+
+  setSelectedModel: async (model) => {
+    await get().setProviderSelectedModel(get().activeProvider, model);
+  },
+
+  addRecentModel: async (model, provider) => {
+    const targetProvider = provider ?? get().activeProvider;
+    set((state) => {
+      const providerState = state.providers[targetProvider];
+      const newRecent = [model, ...providerState.recentModels.filter((m) => m !== model)].slice(0, 8);
+      const providers = {
+        ...state.providers,
+        [targetProvider]: {
+          ...providerState,
+          recentModels: newRecent,
+        },
+      };
+      const next = { ...state, providers };
+      return { ...next, ...resolveCompatibilityFields(next) };
+    });
+    await get().persist();
+  },
+
+  setCustomPrompt: async (key, prompt) => {
     const { customPrompts } = get();
     set({ customPrompts: { ...customPrompts, [key]: prompt } });
     await get().persist();
   },
 
-  setThinkingEnabled: async (enabled: boolean) => {
-    set({ thinkingEnabled: enabled });
-    await get().persist();
+  setThinkingEnabled: async (enabled, provider) => {
+    const targetProvider = provider ?? get().activeProvider;
+    await get().setProviderDefaultParams(targetProvider, { thinkingEnabled: enabled });
   },
 
-  upsertModelCapability: async (model: string, capability: ModelCapability) => {
-    const { modelCapabilities } = get();
-    set({
-      modelCapabilities: {
-        ...modelCapabilities,
-        [model]: capability
-      }
+  upsertModelCapability: async (model, capability, provider) => {
+    const targetProvider = provider ?? get().activeProvider;
+    set((state) => {
+      const providerState = state.providers[targetProvider];
+      const providers = {
+        ...state.providers,
+        [targetProvider]: {
+          ...providerState,
+          modelCapabilities: {
+            ...providerState.modelCapabilities,
+            [model]: capability,
+          },
+        },
+      };
+      const next = { ...state, providers };
+      return { ...next, ...resolveCompatibilityFields(next) };
     });
     await get().persist();
   },
 
-  probeModelCapability: async (model: string, apiKeyOverride?: string) => {
-    const override = getModelCapabilityOverride(model);
-    const resolvedApiKey = apiKeyOverride ?? get().apiKey;
-    const existingCapability = get().modelCapabilities[model];
+  probeModelCapability: async (model, apiKeyOverride, provider) => {
+    const targetProvider = provider ?? get().activeProvider;
+    const state = get();
+    const providerState = state.providers[targetProvider];
+    const override = targetProvider === 'nim' ? getModelCapabilityOverride(model) : undefined;
+    const resolvedApiKey = apiKeyOverride ?? providerState.apiKey;
+    const existing = providerState.modelCapabilities[model];
 
     try {
-      const capability = await fetchModelCapability(model, resolvedApiKey);
+      const capability = await fetchModelCapabilityByProvider(targetProvider, model, resolvedApiKey);
       if (
         capability.thinkingSupported === 'unknown' &&
         isRateLimitReason(capability.reason) &&
-        existingCapability
+        existing
       ) {
-        return existingCapability;
+        return existing;
       }
+      await get().upsertModelCapability(model, capability, targetProvider);
       return capability;
     } catch (error) {
       if (override) {
+        await get().upsertModelCapability(model, override, targetProvider);
         return override;
       }
-
-      if (existingCapability) {
-        return existingCapability;
+      if (existing) {
+        return existing;
       }
-
-      return {
+      const fallback: ModelCapability = {
         chatSupported: true,
         thinkingSupported: 'unknown',
         reason: error instanceof Error ? error.message : 'Capability probe failed',
         checkedAt: Date.now(),
         source: 'probe',
       };
+      await get().upsertModelCapability(model, fallback, targetProvider);
+      return fallback;
     }
+  },
+
+  fetchProviderModels: async (provider, apiKey) => {
+    const models = await fetchModelsByProvider(provider, apiKey ?? get().providers[provider].apiKey);
+    const ids = models.map((entry) => entry.id);
+    const supportMap = Object.fromEntries(
+      models.map((entry) => [entry.id, entry.supportedParameters ?? []])
+    ) as Record<string, string[]>;
+
+    set((state) => {
+      const providerState = state.providers[provider];
+      const providers = {
+        ...state.providers,
+        [provider]: {
+          ...providerState,
+          modelParameterSupport: {
+            ...providerState.modelParameterSupport,
+            ...supportMap,
+          },
+          recentModels: [...new Set([...ids, ...providerState.recentModels])].slice(0, 24),
+        },
+      };
+      const next = { ...state, providers };
+      return { ...next, ...resolveCompatibilityFields(next) };
+    });
+    await get().persist();
+    return ids;
   },
 
   updateContextSettings: async (settings) => {
@@ -202,46 +476,87 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     await get().persist();
   },
 
-  resetPrompt: async (key: string) => {
+  resetPrompt: async (key) => {
     const { customPrompts } = get();
-    const newPrompts = { ...customPrompts };
-    delete newPrompts[key];
-    set({ customPrompts: newPrompts });
+    const next = { ...customPrompts };
+    delete next[key];
+    set({ customPrompts: next });
     await get().persist();
   },
 
   initialize: async () => {
-    try {
-      const settings = await getSettings();
-      if (settings) {
-        set({
-          apiKey: settings.apiKey || '',
-          selectedModel: settings.selectedModel || 'meta/llama3-70b-instruct',
-          recentModels: settings.recentModels || [],
-          customPrompts: settings.customPrompts || {},
-          truncationThreshold: settings.truncationThreshold ?? 799,
-          dualEndBuffer: settings.dualEndBuffer ?? 500,
-          compressionMode: settings.compressionMode ?? DEFAULT_COMPRESSION_MODE,
-          compressionAutoThreshold: settings.compressionAutoThreshold ?? DEFAULT_COMPRESSION_AUTO_THRESHOLD,
-          compressionChunkSize: settings.compressionChunkSize ?? DEFAULT_COMPRESSION_CHUNK_SIZE,
-          compressionChunkOverlap: settings.compressionChunkOverlap ?? DEFAULT_COMPRESSION_CHUNK_OVERLAP,
-          compressionEvidenceSegments: settings.compressionEvidenceSegments ?? DEFAULT_COMPRESSION_EVIDENCE_SEGMENTS,
-          thinkingEnabled: settings.thinkingEnabled ?? false,
-          modelCapabilities: settings.modelCapabilities ?? {},
-        });
-      }
-    } catch (error) {
-      console.error('Failed to load settings:', error);
+    const settings = await getSettings();
+    if (!settings) {
+      return;
     }
+
+    const providers = settings.providers ?? createDefaultProviderSettings();
+    const activeProvider = settings.activeProvider ?? 'nim';
+    const providerDefaults = settings.providerDefaults ?? createDefaultProviderDefaults();
+    const modelOverrides = settings.modelOverrides ?? { nim: {}, openrouter: {} };
+    const phaseConfig = { ...createDefaultPhaseConfig(), ...(settings.phaseConfig || {}) };
+
+    // Backfill legacy values into nim provider when needed.
+    if (!settings.providers) {
+      providers.nim = {
+        ...providers.nim,
+        apiKey: settings.apiKey || providers.nim.apiKey,
+        selectedModel: settings.selectedModel || providers.nim.selectedModel,
+        recentModels: settings.recentModels || providers.nim.recentModels,
+        modelCapabilities: settings.modelCapabilities || providers.nim.modelCapabilities,
+      };
+      providerDefaults.nim = {
+        ...providerDefaults.nim,
+        thinkingEnabled: settings.thinkingEnabled ?? providerDefaults.nim.thinkingEnabled,
+      };
+    }
+
+    if (!settings.phaseConfig) {
+      for (const phaseId of DEFAULT_PHASES) {
+        phaseConfig[phaseId] = {
+          provider: 'nim',
+          model: providers.nim.selectedModel || DEFAULT_NIM_MODEL,
+        };
+      }
+    }
+
+    const nextPartial = {
+      activeProvider,
+      providers,
+      providerDefaults,
+      modelOverrides,
+      phaseConfig,
+      customPrompts: settings.customPrompts || {},
+      truncationThreshold: settings.truncationThreshold ?? 799,
+      dualEndBuffer: settings.dualEndBuffer ?? 500,
+      compressionMode: settings.compressionMode ?? DEFAULT_COMPRESSION_MODE,
+      compressionAutoThreshold: settings.compressionAutoThreshold ?? DEFAULT_COMPRESSION_AUTO_THRESHOLD,
+      compressionChunkSize: settings.compressionChunkSize ?? DEFAULT_COMPRESSION_CHUNK_SIZE,
+      compressionChunkOverlap: settings.compressionChunkOverlap ?? DEFAULT_COMPRESSION_CHUNK_OVERLAP,
+      compressionEvidenceSegments: settings.compressionEvidenceSegments ?? DEFAULT_COMPRESSION_EVIDENCE_SEGMENTS,
+    };
+    set((state) => {
+      const merged = { ...state, ...nextPartial };
+      return { ...merged, ...resolveCompatibilityFields(merged) };
+    });
   },
 
-  // Helper to save current state
   persist: async () => {
     const state = get();
     await saveSettings({
-      apiKey: state.apiKey,
-      selectedModel: state.selectedModel,
-      recentModels: state.recentModels,
+      // Legacy fields preserved for compatibility with older code snapshots.
+      apiKey: state.providers.nim.apiKey,
+      selectedModel: state.providers.nim.selectedModel,
+      recentModels: state.providers.nim.recentModels,
+      modelCapabilities: state.providers.nim.modelCapabilities,
+      thinkingEnabled: state.providerDefaults.nim.thinkingEnabled,
+
+      activeProvider: state.activeProvider,
+      providers: state.providers,
+      providerDefaults: state.providerDefaults,
+      modelOverrides: state.modelOverrides,
+      phaseConfig: state.phaseConfig,
+
       customPrompts: state.customPrompts,
       truncationThreshold: state.truncationThreshold,
       dualEndBuffer: state.dualEndBuffer,
@@ -250,8 +565,6 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       compressionChunkSize: state.compressionChunkSize,
       compressionChunkOverlap: state.compressionChunkOverlap,
       compressionEvidenceSegments: state.compressionEvidenceSegments,
-      thinkingEnabled: state.thinkingEnabled,
-      modelCapabilities: state.modelCapabilities,
     });
-  }
+  },
 }));

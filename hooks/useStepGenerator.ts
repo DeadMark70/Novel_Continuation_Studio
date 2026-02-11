@@ -2,7 +2,7 @@ import { useRef, useCallback } from 'react';
 import { useWorkflowStore, WorkflowStepId } from '@/store/useWorkflowStore';
 import { useSettingsStore } from '@/store/useSettingsStore';
 import { useNovelStore } from '@/store/useNovelStore';
-import { generateStream } from '@/lib/nim-client';
+import { generateStreamByProvider } from '@/lib/nim-client';
 import { injectPrompt } from '@/lib/prompt-engine';
 import { DEFAULT_PROMPTS } from '@/lib/prompts';
 import { canAttemptThinking } from '@/lib/thinking-mode';
@@ -93,9 +93,8 @@ export function useStepGenerator() {
     try {
       // 2. Prepare Context & Prompt
       // Get fresh state directly from stores to avoid stale closures during automation
+      const settingsState = useSettingsStore.getState();
       const {
-        apiKey,
-        selectedModel,
         customPrompts,
         truncationThreshold,
         dualEndBuffer,
@@ -104,9 +103,7 @@ export function useStepGenerator() {
         compressionChunkSize,
         compressionChunkOverlap,
         compressionEvidenceSegments,
-        thinkingEnabled,
-        modelCapabilities,
-      } = useSettingsStore.getState();
+      } = settingsState;
       const {
         originalNovel,
         analysis,
@@ -121,11 +118,20 @@ export function useStepGenerator() {
         evidencePack,
         compressedContext,
       } = useNovelStore.getState();
-      const modelCapability = modelCapabilities[selectedModel];
+
+      const generationConfig = settingsState.getResolvedGenerationConfig(stepId);
+      const {
+        provider: selectedProvider,
+        model: selectedModel,
+        apiKey,
+        params: modelParams,
+        capability: modelCapability,
+      } = generationConfig;
+
       if (modelCapability && !modelCapability.chatSupported) {
         throw new Error(`Model "${selectedModel}" is marked as unavailable: ${modelCapability.reason || 'Unsupported model.'}`);
       }
-      const canUseThinking = canAttemptThinking(thinkingEnabled, modelCapability);
+      const canUseThinking = canAttemptThinking(modelParams.thinkingEnabled, modelCapability);
       const sourceChars = originalNovel?.length ?? 0;
       const compressionActive = shouldRunCompression(
         compressionMode,
@@ -238,12 +244,20 @@ export function useStepGenerator() {
               });
 
               let output = '';
-              const stream = generateStream(
+              const stream = generateStreamByProvider(
+                selectedProvider,
                 prompt,
                 selectedModel,
                 apiKey,
                 undefined,
                 {
+                  maxTokens: modelParams.maxTokens,
+                  temperature: modelParams.temperature,
+                  topP: modelParams.topP,
+                  topK: modelParams.topK,
+                  frequencyPenalty: modelParams.frequencyPenalty,
+                  presencePenalty: modelParams.presencePenalty,
+                  seed: modelParams.seed,
                   // Phase 0 tasks favor stability over deep reasoning. Disable thinking kwargs
                   // to avoid model-specific template incompatibilities (e.g. Mistral tokenizer errors).
                   enableThinking: false,
@@ -412,12 +426,20 @@ export function useStepGenerator() {
       });
 
       // 3. Stream
-      const stream = generateStream(
+      const stream = generateStreamByProvider(
+        selectedProvider,
         prompt, 
         selectedModel, 
         apiKey, 
         undefined, 
         {
+          maxTokens: modelParams.maxTokens,
+          temperature: modelParams.temperature,
+          topP: modelParams.topP,
+          topK: modelParams.topK,
+          frequencyPenalty: modelParams.frequencyPenalty,
+          presencePenalty: modelParams.presencePenalty,
+          seed: modelParams.seed,
           enableThinking: canUseThinking,
           thinkingSupported: canUseThinking,
           onRetry: (attempt, maxRetries, delay) => {
@@ -459,6 +481,7 @@ export function useStepGenerator() {
         const latestGeneratedChapter = content;
         const consistencyTemplate = customPrompts.consistency || DEFAULT_PROMPTS.consistency;
         const canRunLlmChecker = Boolean(apiKey?.trim());
+        const consistencyConfig = settingsState.getResolvedGenerationConfig(stepId);
 
         void (async () => {
           try {
@@ -472,12 +495,20 @@ export function useStepGenerator() {
             const llmCheck = canRunLlmChecker
               ? async (checkerPrompt: string): Promise<string> => {
                 let checkerOutput = '';
-                const checkerStream = generateStream(
+                const checkerStream = generateStreamByProvider(
+                  consistencyConfig.provider,
                   checkerPrompt,
-                  selectedModel,
-                  apiKey,
+                  consistencyConfig.model,
+                  consistencyConfig.apiKey,
                   undefined,
                   {
+                    maxTokens: consistencyConfig.params.maxTokens,
+                    temperature: consistencyConfig.params.temperature,
+                    topP: consistencyConfig.params.topP,
+                    topK: consistencyConfig.params.topK,
+                    frequencyPenalty: consistencyConfig.params.frequencyPenalty,
+                    presencePenalty: consistencyConfig.params.presencePenalty,
+                    seed: consistencyConfig.params.seed,
                     enableThinking: false,
                     thinkingSupported: false,
                   }

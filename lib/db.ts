@@ -5,6 +5,37 @@ import type {
   ConsistencySummary,
   ForeshadowEntry,
 } from './consistency-types';
+import type {
+  GenerationParams,
+  LLMProvider,
+  ModelCapability,
+  PhaseConfigMap,
+  ProviderScopedSettings,
+} from './llm-types';
+
+type WorkflowPhaseId =
+  | 'compression'
+  | 'analysis'
+  | 'outline'
+  | 'breakdown'
+  | 'chapter1'
+  | 'continuation';
+
+const DEFAULT_PHASE_IDS: WorkflowPhaseId[] = [
+  'compression',
+  'analysis',
+  'outline',
+  'breakdown',
+  'chapter1',
+  'continuation',
+];
+
+const DEFAULT_MODEL_PARAMS: GenerationParams = {
+  maxTokens: 4096,
+  temperature: 0.7,
+  topP: 1,
+  thinkingEnabled: false,
+};
 
 export interface NovelEntry {
   id?: number;
@@ -44,9 +75,9 @@ export interface NovelEntry {
 
 export interface SettingsEntry {
   id?: string; // 'global'
-  apiKey: string;
-  selectedModel: string;
-  recentModels: string[];
+  apiKey?: string;
+  selectedModel?: string;
+  recentModels?: string[];
   customPrompts: Record<string, string>;
   truncationThreshold?: number;
   dualEndBuffer?: number;
@@ -56,13 +87,12 @@ export interface SettingsEntry {
   compressionChunkOverlap?: number;
   compressionEvidenceSegments?: number;
   thinkingEnabled?: boolean;
-  modelCapabilities?: Record<string, {
-    chatSupported: boolean;
-    thinkingSupported: 'supported' | 'unsupported' | 'unknown';
-    reason?: string;
-    checkedAt: number;
-    source: 'probe' | 'override';
-  }>;
+  modelCapabilities?: Record<string, ModelCapability>;
+  activeProvider?: LLMProvider;
+  providers?: Record<LLMProvider, ProviderScopedSettings>;
+  providerDefaults?: Record<LLMProvider, GenerationParams>;
+  modelOverrides?: Record<LLMProvider, Record<string, Partial<GenerationParams>>>;
+  phaseConfig?: Partial<PhaseConfigMap>;
   updatedAt: number;
 }
 
@@ -159,6 +189,68 @@ export class NovelDatabase extends Dexie {
         if (!Array.isArray(entry.foreshadowLedger)) {
           entry.foreshadowLedger = [];
         }
+      });
+    });
+    this.version(7).stores({
+      novels: '++id, sessionId, updatedAt, createdAt',
+      settings: 'id, updatedAt'
+    }).upgrade(async (tx) => {
+      await tx.table('settings').toCollection().modify((entry: SettingsEntry) => {
+        const legacySelectedModel = entry.selectedModel || 'meta/llama3-70b-instruct';
+        const legacyRecentModels = entry.recentModels || [];
+        const legacyCapabilities = entry.modelCapabilities || {};
+        const legacyThinkingEnabled = entry.thinkingEnabled ?? false;
+
+        const nimProvider: ProviderScopedSettings = entry.providers?.nim ?? {
+          apiKey: entry.apiKey || '',
+          selectedModel: legacySelectedModel,
+          recentModels: legacyRecentModels,
+          modelCapabilities: legacyCapabilities,
+          modelParameterSupport: {},
+        };
+
+        const openrouterProvider: ProviderScopedSettings = entry.providers?.openrouter ?? {
+          apiKey: '',
+          selectedModel: 'openai/gpt-4o-mini',
+          recentModels: [],
+          modelCapabilities: {},
+          modelParameterSupport: {},
+        };
+
+        if (!entry.providers) {
+          entry.providers = {
+            nim: nimProvider,
+            openrouter: openrouterProvider,
+          };
+        } else {
+          entry.providers.nim = nimProvider;
+          entry.providers.openrouter = openrouterProvider;
+        }
+
+        entry.activeProvider = entry.activeProvider ?? 'nim';
+        entry.providerDefaults = entry.providerDefaults ?? {
+          nim: { ...DEFAULT_MODEL_PARAMS, thinkingEnabled: legacyThinkingEnabled },
+          openrouter: { ...DEFAULT_MODEL_PARAMS, thinkingEnabled: false },
+        };
+        entry.modelOverrides = entry.modelOverrides ?? { nim: {}, openrouter: {} };
+
+        if (!entry.phaseConfig) {
+          const phaseConfig = {} as Partial<PhaseConfigMap>;
+          for (const phaseId of DEFAULT_PHASE_IDS) {
+            phaseConfig[phaseId] = {
+              provider: 'nim',
+              model: legacySelectedModel,
+            };
+          }
+          entry.phaseConfig = phaseConfig;
+        }
+
+        // Keep legacy fields synchronized for backwards compatibility.
+        entry.apiKey = entry.providers.nim.apiKey;
+        entry.selectedModel = entry.providers.nim.selectedModel;
+        entry.recentModels = entry.providers.nim.recentModels;
+        entry.modelCapabilities = entry.providers.nim.modelCapabilities;
+        entry.thinkingEnabled = entry.providerDefaults.nim.thinkingEnabled;
       });
     });
   }
