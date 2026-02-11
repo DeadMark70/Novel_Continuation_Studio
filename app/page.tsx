@@ -1,19 +1,19 @@
 'use client';
 
 import React, { useEffect } from 'react';
+import Link from 'next/link';
 import { useNovelStore } from '@/store/useNovelStore';
 import { useSettingsStore } from '@/store/useSettingsStore';
 import { NovelStats } from '@/components/NovelStats';
 import { StoryUpload } from '@/components/StoryUpload';
-import { SettingsPanel } from '@/components/SettingsPanel';
-import { HistoryExportDialog } from '@/components/workflow/HistoryExportDialog';
 import { WorkflowStepper } from '@/components/WorkflowStepper';
 import { Separator } from '@/components/ui/separator';
-import { Terminal, ShieldAlert } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Terminal, ShieldAlert, History, Settings } from 'lucide-react';
 
 export default function Home() {
   const { initialize: initializeNovel } = useNovelStore();
-  const { initialize: initializeSettings } = useSettingsStore();
+  const { initialize: initializeSettings, activeProvider } = useSettingsStore();
 
   useEffect(() => {
     initializeNovel();
@@ -39,7 +39,7 @@ export default function Home() {
             <div className="hidden md:flex items-center gap-4 text-xs font-mono">
               <div className="flex items-center gap-1.5 text-cyan-400">
                 <div className="size-1.5 rounded-full bg-cyan-400 animate-pulse" />
-                NIM_API: ONLINE
+                {activeProvider.toUpperCase()}_API: READY
               </div>
               <div className="text-muted-foreground">|</div>
               <div className="flex items-center gap-1.5 text-muted-foreground">
@@ -48,8 +48,19 @@ export default function Home() {
               </div>
             </div>
             <Separator orientation="vertical" className="h-6 hidden md:block" />
-            <HistoryExportDialog />
-            <SettingsPanel />
+            <div className="flex items-center gap-2">
+              <Button asChild variant="outline" className="gap-2">
+                <Link href="/history">
+                  <History className="size-4" />
+                  History
+                </Link>
+              </Button>
+              <Button asChild variant="ghost" size="icon">
+                <Link href="/settings" aria-label="Open settings">
+                  <Settings className="size-5" />
+                </Link>
+              </Button>
+            </div>
           </div>
         </div>
       </header>
