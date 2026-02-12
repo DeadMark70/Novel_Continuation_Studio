@@ -227,7 +227,9 @@ export default function SettingsPage() {
   useEffect(() => {
     let active = true;
     void (async () => {
-      await settings.initialize();
+      // Use store getter here and run once to avoid re-initializing on every state update.
+      // Re-initializing during save can overwrite fresh drafts with stale persisted data.
+      await useSettingsStore.getState().initialize();
       if (active) {
         setIsInitialized(true);
       }
@@ -235,7 +237,7 @@ export default function SettingsPage() {
     return () => {
       active = false;
     };
-  }, [settings]);
+  }, []);
 
   useEffect(() => {
     if (isInitialized && !didHydrateRef.current) {
