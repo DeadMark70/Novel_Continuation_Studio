@@ -9,6 +9,8 @@ export interface LLMModel {
   owned_by?: string;
   name?: string;
   supportedParameters?: string[];
+  contextLength?: number;
+  maxCompletionTokens?: number;
 }
 
 export interface ModelCapability {
@@ -35,6 +37,8 @@ export interface GenerateOptions extends Partial<GenerationParams> {
   enableThinking?: boolean;
   thinkingSupported?: boolean;
   supportedParameters?: string[];
+  maxContextTokens?: number;
+  maxCompletionTokens?: number;
   timeout?: number;
   inactivityTimeout?: number;
   maxRetries?: number;
@@ -50,6 +54,7 @@ export interface ProviderScopedSettings {
   recentModels: string[];
   modelCapabilities: Record<string, ModelCapability>;
   modelParameterSupport: Record<string, string[]>;
+  modelTokenLimits: Record<string, { contextLength?: number; maxCompletionTokens?: number }>;
 }
 
 export interface PhaseModelSelection {

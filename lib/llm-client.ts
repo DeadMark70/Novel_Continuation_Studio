@@ -15,6 +15,64 @@ class ProviderHttpError extends Error {
   }
 }
 
+function estimateTokenCount(text: string): number {
+  if (!text) {
+    return 0;
+  }
+  const asciiCount = (text.match(/[\x00-\x7F]/g) || []).length;
+  const nonAsciiCount = text.length - asciiCount;
+  // Heuristic: ASCII ~4 chars/token, CJK and other non-ASCII ~1.5 chars/token.
+  return Math.max(1, Math.ceil(asciiCount / 4 + nonAsciiCount / 1.5));
+}
+
+function clampOpenRouterMaxTokens(
+  prompt: string,
+  requestedMaxTokens: number,
+  maxContextTokens?: number,
+  maxCompletionTokens?: number
+): number {
+  let upperBound = Math.max(1, Math.floor(requestedMaxTokens));
+
+  if (typeof maxCompletionTokens === 'number' && Number.isFinite(maxCompletionTokens) && maxCompletionTokens > 0) {
+    upperBound = Math.min(upperBound, Math.floor(maxCompletionTokens));
+  }
+
+  if (typeof maxContextTokens === 'number' && Number.isFinite(maxContextTokens) && maxContextTokens > 0) {
+    const estimatedPromptTokens = estimateTokenCount(prompt);
+    const reservedTail = 256; // Leave safety margin for wrappers/tooling tokens.
+    const byContext = Math.max(1, Math.floor(maxContextTokens) - estimatedPromptTokens - reservedTail);
+    upperBound = Math.min(upperBound, byContext);
+  }
+
+  return Math.max(1, upperBound);
+}
+
+function parseOpenRouterContextError(message: string): {
+  maxContextTokens: number;
+  inputTokens?: number;
+  requestedOutputTokens?: number;
+} | null {
+  const maxMatch = message.match(/maximum context length is\s*([\d,]+)\s*tokens/i);
+  if (!maxMatch) {
+    return null;
+  }
+
+  const maxContextTokens = Number.parseInt(maxMatch[1].replace(/,/g, ''), 10);
+  if (!Number.isFinite(maxContextTokens) || maxContextTokens <= 0) {
+    return null;
+  }
+
+  const ioMatch = message.match(/\(([\d,]+)\s*of text input,\s*([\d,]+)\s*in the output/i);
+  const inputTokens = ioMatch ? Number.parseInt(ioMatch[1].replace(/,/g, ''), 10) : undefined;
+  const requestedOutputTokens = ioMatch ? Number.parseInt(ioMatch[2].replace(/,/g, ''), 10) : undefined;
+
+  return {
+    maxContextTokens,
+    inputTokens: Number.isFinite(inputTokens) ? inputTokens : undefined,
+    requestedOutputTokens: Number.isFinite(requestedOutputTokens) ? requestedOutputTokens : undefined,
+  };
+}
+
 function createAbortError(): Error {
   const error = new Error('Aborted');
   error.name = 'AbortError';
@@ -181,10 +239,19 @@ function buildGeneratePayload(
     { role: 'user', content: prompt },
   ];
 
+  const effectiveMaxTokens = provider === 'openrouter'
+    ? clampOpenRouterMaxTokens(
+      prompt,
+      maxTokens,
+      options?.maxContextTokens,
+      options?.maxCompletionTokens
+    )
+    : Math.max(1, Math.floor(maxTokens));
+
   const payload: Record<string, unknown> = {
     model,
     messages,
-    max_tokens: maxTokens,
+    max_tokens: effectiveMaxTokens,
     temperature,
     top_p: topP,
   };
@@ -212,7 +279,7 @@ function buildGeneratePayload(
 
   const thinkingBudget = options?.thinkingBudget;
   if (typeof thinkingBudget === 'number' && keep('reasoning') && provider === 'openrouter') {
-    payload.reasoning = { max_tokens: Math.max(0, Math.floor(thinkingBudget)) };
+    payload.reasoning = { max_tokens: Math.max(0, Math.min(Math.floor(thinkingBudget), effectiveMaxTokens)) };
   }
 
   if (
@@ -257,6 +324,7 @@ export async function* generateStream(
   );
 
   let lastError: unknown = null;
+  let attemptOptions: GenerateOptions | undefined = options ? { ...options } : undefined;
 
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
     const controller = new AbortController();
@@ -297,7 +365,7 @@ export async function* generateStream(
         headers.Authorization = `Bearer ${apiKey.trim()}`;
       }
 
-      const payload = buildGeneratePayload(provider, prompt, model, systemPrompt, options);
+      const payload = buildGeneratePayload(provider, prompt, model, systemPrompt, attemptOptions);
       const response = await fetch(getGenerateUrl(provider), {
         method: 'POST',
         headers,
@@ -388,6 +456,45 @@ export async function* generateStream(
         normalizedError = new Error('Request timed out');
       }
       lastError = normalizedError;
+
+      if (
+        provider === 'openrouter' &&
+        normalizedError instanceof ProviderHttpError &&
+        normalizedError.status === 400 &&
+        attempt < maxRetries
+      ) {
+        const hint = parseOpenRouterContextError(normalizedError.message);
+        if (hint) {
+          const currentMaxTokens = Math.max(
+            1,
+            Math.floor(attemptOptions?.maxTokens ?? options?.maxTokens ?? 4096)
+          );
+          const estimatedInput = hint.inputTokens ?? estimateTokenCount(prompt);
+          const safeByContext = Math.max(1, hint.maxContextTokens - estimatedInput - 256);
+          const safeByRequested = hint.requestedOutputTokens
+            ? Math.max(1, hint.requestedOutputTokens - 1)
+            : safeByContext;
+          const nextMaxTokens = Math.max(1, Math.min(safeByContext, safeByRequested));
+
+          if (nextMaxTokens < currentMaxTokens) {
+            attemptOptions = {
+              ...(attemptOptions || {}),
+              maxTokens: nextMaxTokens,
+              thinkingBudget: typeof attemptOptions?.thinkingBudget === 'number'
+                ? Math.min(attemptOptions.thinkingBudget, nextMaxTokens)
+                : attemptOptions?.thinkingBudget,
+            };
+
+            onRetry?.(
+              attempt + 1,
+              maxRetries,
+              0,
+              new Error(`OpenRouter context overflow; reducing max_tokens ${currentMaxTokens} -> ${nextMaxTokens}`)
+            );
+            continue;
+          }
+        }
+      }
 
       if (
         (isRetryableError(normalizedError, retryableErrors) || isTimeoutError(normalizedError)) &&

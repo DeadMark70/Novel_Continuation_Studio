@@ -10,6 +10,13 @@ function normalizeSupportedParameters(raw: unknown): string[] {
   return raw.filter((value): value is string => typeof value === 'string');
 }
 
+function normalizePositiveNumber(raw: unknown): number | undefined {
+  if (typeof raw === 'number' && Number.isFinite(raw) && raw > 0) {
+    return Math.floor(raw);
+  }
+  return undefined;
+}
+
 export async function GET(request: Request) {
   if (isOpenRouterNetworkDisabled()) {
     return NextResponse.json(
@@ -45,6 +52,12 @@ export async function GET(request: Request) {
       created: typeof model.created === 'number' ? model.created : Date.now(),
       owned_by: 'openrouter',
       name: typeof model.name === 'string' ? model.name : undefined,
+      contextLength: normalizePositiveNumber(model.context_length ?? model.contextLength),
+      maxCompletionTokens: normalizePositiveNumber(
+        (model.top_provider as Record<string, unknown> | undefined)?.max_completion_tokens ??
+        model.max_output_length ??
+        model.maxCompletionTokens
+      ),
       supportedParameters: normalizeSupportedParameters(
         model.supported_parameters ?? model.supportedParameters
       ),

@@ -212,6 +212,7 @@ export class NovelDatabase extends Dexie {
           recentModels: legacyRecentModels,
           modelCapabilities: legacyCapabilities,
           modelParameterSupport: {},
+          modelTokenLimits: {},
         };
 
         const openrouterProvider: ProviderScopedSettings = entry.providers?.openrouter ?? {
@@ -220,6 +221,7 @@ export class NovelDatabase extends Dexie {
           recentModels: [],
           modelCapabilities: {},
           modelParameterSupport: {},
+          modelTokenLimits: {},
         };
 
         if (!entry.providers) {

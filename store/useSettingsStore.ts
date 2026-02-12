@@ -65,6 +65,7 @@ function createDefaultProviderSettings(): Record<LLMProvider, ProviderScopedSett
       recentModels: [],
       modelCapabilities: {},
       modelParameterSupport: {},
+      modelTokenLimits: {},
     },
     openrouter: {
       apiKey: '',
@@ -72,6 +73,7 @@ function createDefaultProviderSettings(): Record<LLMProvider, ProviderScopedSett
       recentModels: [],
       modelCapabilities: {},
       modelParameterSupport: {},
+      modelTokenLimits: {},
     },
   };
 }
@@ -85,6 +87,7 @@ function ensureProviderSelectedModel(
   return {
     ...providerState,
     selectedModel,
+    modelTokenLimits: providerState.modelTokenLimits || {},
   };
 }
 
@@ -190,6 +193,8 @@ interface SettingsState {
     params: GenerationParams;
     capability?: ModelCapability;
     supportedParameters: string[];
+    maxContextTokens?: number;
+    maxCompletionTokens?: number;
   };
   getActiveApiKey: () => string;
 
@@ -406,6 +411,8 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       params: { ...defaults, ...override },
       capability: scoped.modelCapabilities[model],
       supportedParameters: scoped.modelParameterSupport[model] || [],
+      maxContextTokens: scoped.modelTokenLimits?.[model]?.contextLength,
+      maxCompletionTokens: scoped.modelTokenLimits?.[model]?.maxCompletionTokens,
     };
   },
 
@@ -516,6 +523,12 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     const supportMap = Object.fromEntries(
       models.map((entry) => [entry.id, entry.supportedParameters ?? []])
     ) as Record<string, string[]>;
+    const tokenLimitMap = Object.fromEntries(
+      models.map((entry) => [entry.id, {
+        contextLength: entry.contextLength,
+        maxCompletionTokens: entry.maxCompletionTokens,
+      }])
+    ) as Record<string, { contextLength?: number; maxCompletionTokens?: number }>;
 
     set((state) => {
       const providerState = state.providers[provider];
@@ -526,6 +539,10 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
           modelParameterSupport: {
             ...providerState.modelParameterSupport,
             ...supportMap,
+          },
+          modelTokenLimits: {
+            ...providerState.modelTokenLimits,
+            ...tokenLimitMap,
           },
           recentModels: [...new Set([...ids, ...providerState.recentModels])].slice(0, 24),
         },

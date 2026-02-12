@@ -123,7 +123,20 @@ export function useStepGenerator() {
         compressedContext,
       } = useNovelStore.getState();
 
-      const generationConfig = settingsState.getResolvedGenerationConfig(stepId);
+      let generationConfig = settingsState.getResolvedGenerationConfig(stepId);
+      if (
+        generationConfig.provider === 'openrouter' &&
+        generationConfig.apiKey?.trim() &&
+        !generationConfig.maxContextTokens &&
+        !generationConfig.maxCompletionTokens
+      ) {
+        try {
+          await settingsState.fetchProviderModels('openrouter', generationConfig.apiKey);
+          generationConfig = useSettingsStore.getState().getResolvedGenerationConfig(stepId);
+        } catch (metadataError) {
+          console.warn('[Generator] Failed to fetch OpenRouter model metadata for token limits:', metadataError);
+        }
+      }
       const {
         provider: selectedProvider,
         model: selectedModel,
@@ -131,6 +144,8 @@ export function useStepGenerator() {
         params: modelParams,
         capability: modelCapability,
         supportedParameters,
+        maxContextTokens,
+        maxCompletionTokens,
       } = generationConfig;
 
       if (modelCapability && !modelCapability.chatSupported) {
@@ -268,6 +283,8 @@ export function useStepGenerator() {
                   enableThinking: false,
                   thinkingSupported: false,
                   supportedParameters,
+                  maxContextTokens,
+                  maxCompletionTokens,
                   onRetry: (retryAttempt, maxRetries, delay) => {
                     console.log(`[Compression:${task.id}] Retrying request ${retryAttempt}/${maxRetries} after ${delay}ms`);
                   }
@@ -454,6 +471,8 @@ export function useStepGenerator() {
           enableThinking: canUseThinking,
           thinkingSupported: canUseThinking,
           supportedParameters,
+          maxContextTokens,
+          maxCompletionTokens,
           onRetry: (attempt, maxRetries, delay) => {
             console.log(`[Generator] Retrying request ${attempt}/${maxRetries} after ${delay}ms`);
           }
@@ -524,6 +543,8 @@ export function useStepGenerator() {
                     enableThinking: false,
                     thinkingSupported: false,
                     supportedParameters: consistencyConfig.supportedParameters,
+                    maxContextTokens: consistencyConfig.maxContextTokens,
+                    maxCompletionTokens: consistencyConfig.maxCompletionTokens,
                   }
                 );
 

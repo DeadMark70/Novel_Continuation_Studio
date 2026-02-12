@@ -18,6 +18,8 @@ describe('/api/openrouter routes', () => {
             id: 'openai/gpt-4o-mini',
             created: 123,
             name: 'GPT-4o mini',
+            context_length: 128000,
+            top_provider: { max_completion_tokens: 8192 },
             supported_parameters: ['temperature', 'top_p'],
           },
         ],
@@ -25,10 +27,12 @@ describe('/api/openrouter routes', () => {
     } as Response);
 
     const response = await getModels(new Request('http://localhost/api/openrouter/models'));
-    const json = await response.json() as { data: Array<{ id: string; supportedParameters: string[] }> };
+    const json = await response.json() as { data: Array<{ id: string; supportedParameters: string[]; contextLength?: number; maxCompletionTokens?: number }> };
     expect(response.status).toBe(200);
     expect(json.data[0].id).toBe('openai/gpt-4o-mini');
     expect(json.data[0].supportedParameters).toContain('temperature');
+    expect(json.data[0].contextLength).toBe(128000);
+    expect(json.data[0].maxCompletionTokens).toBe(8192);
   });
 
   it('proxies streaming generation responses', async () => {
