@@ -387,6 +387,7 @@ export default function SettingsPage() {
   const selectedOverrideModel = (overrideModel || draftProviders[overrideProvider].selectedModel).trim();
   const hasSelectedOverrideModel = selectedOverrideModel.length > 0;
   const selectedOverrideValue = draftOverrides[overrideProvider]?.[selectedOverrideModel] || {};
+  const canInteract = isInitialized && didHydrateRef.current;
 
   return (
     <main className="min-h-screen bg-background text-foreground">
@@ -402,8 +403,8 @@ export default function SettingsPage() {
                 Back to Studio
               </Link>
             </Button>
-            <Button variant="outline" disabled={!isDirty || isSaving} onClick={hydrateFromStore}>Reload Saved</Button>
-            <Button disabled={!isDirty || isSaving} onClick={save}>{isSaving ? 'Saving…' : 'Save Configuration'}</Button>
+            <Button variant="outline" disabled={!canInteract || isSaving} onClick={hydrateFromStore}>Reload Saved</Button>
+            <Button disabled={!canInteract || isSaving} onClick={save}>{isSaving ? 'Saving…' : 'Save Configuration'}</Button>
           </div>
         </div>
 
