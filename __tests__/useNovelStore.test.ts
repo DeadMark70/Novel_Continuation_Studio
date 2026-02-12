@@ -231,4 +231,42 @@ describe('useNovelStore Integration', () => {
     expect(session?.characterTimeline?.length).toBe(1);
     expect(session?.foreshadowLedger?.[0].title).toBe('戒指來源');
   });
+
+  it('should hydrate workflow store from database on initialize', async () => {
+    // 1. Create a session in DB with progress
+    const sessionId = generateSessionId();
+    await saveNovel({
+      sessionId,
+      content: 'Hydrate Test',
+      wordCount: 12,
+      currentStep: 2, // Outline step
+      analysis: 'Test Analysis',
+      outline: 'Test Outline',
+      outlineDirection: 'More tension',
+      breakdown: '',
+      chapters: [],
+      compressedContext: 'Compressed text',
+      targetStoryWordCount: 15000,
+      targetChapterCount: 3
+    });
+
+    // 2. Initialize store
+    await act(async () => {
+      await useNovelStore.getState().initialize();
+    });
+
+    // 3. Verify state
+    const novelState = useNovelStore.getState();
+    const workflowState = useWorkflowStore.getState();
+
+    expect(novelState.currentSessionId).toBe(sessionId);
+    expect(novelState.originalNovel).toBe('Hydrate Test');
+    expect(novelState.outlineDirection).toBe('More tension');
+    expect(novelState.compressedContext).toBe('Compressed text');
+
+    expect(workflowState.currentStepId).toBe('outline');
+    expect(workflowState.steps.analysis.content).toBe('Test Analysis');
+    expect(workflowState.steps.outline.content).toBe('Test Outline');
+    expect(workflowState.steps.compression.content).toBe('Compressed text');
+  });
 });

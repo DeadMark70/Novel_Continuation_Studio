@@ -64,7 +64,21 @@ describe('useWorkflowStore', () => {
     });
     const state = useWorkflowStore.getState();
     expect(state.steps.analysis.status).toBe('completed');
-    expect(mockUpdateWorkflow).toHaveBeenCalled();
+    expect(mockUpdateWorkflow).toHaveBeenCalledWith(expect.objectContaining({
+      analysis: 'Analysis Content'
+    }));
+  });
+
+  it('should sync compression output to novel store when completed', async () => {
+    act(() => {
+      useWorkflowStore.getState().updateStepContent('compression', 'Compression Content');
+    });
+    await act(async () => {
+      await useWorkflowStore.getState().completeStep('compression');
+    });
+    expect(mockUpdateWorkflow).toHaveBeenCalledWith(expect.objectContaining({
+      compressedContext: 'Compression Content'
+    }));
   });
 
   it('should auto-trigger analysis after compression completes', async () => {

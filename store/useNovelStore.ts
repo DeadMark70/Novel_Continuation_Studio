@@ -309,6 +309,16 @@ export const useNovelStore = create<NovelState>((set, get) => ({
         foreshadowLedger: latest.foreshadowLedger ?? [],
         latestConsistencySummary: latest.latestConsistencySummary,
       });
+
+      // Hydrate workflow store
+      useWorkflowStore.getState().hydrateFromNovelSession({
+        currentStep: latest.currentStep,
+        analysis: latest.analysis,
+        outline: latest.outline,
+        breakdown: latest.breakdown,
+        chapters: latest.chapters,
+        compressedContext: latest.compressedContext ?? '',
+      });
     }
     await get().loadSessions();
   },

@@ -215,13 +215,10 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
     console.log(`[CompleteStep] Syncing ${stepId} to novelStore. Content lengths: analysis=${steps.analysis.content.length}, outline=${steps.outline.content.length}, breakdown=${steps.breakdown.content.length}`);
 
     await novelStore.updateWorkflow({
-
+      compressedContext: steps.compression.content,
       analysis: steps.analysis.content,
-
       outline: steps.outline.content,
-
       breakdown: steps.breakdown.content,
-
     });
 
     // Verify sync worked
