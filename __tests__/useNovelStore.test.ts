@@ -252,6 +252,7 @@ describe('useNovelStore Integration', () => {
 
     // 2. Initialize store
     await act(async () => {
+      useNovelStore.setState({ isInitialized: false }); // Force re-initialization
       await useNovelStore.getState().initialize();
     });
 
@@ -268,5 +269,38 @@ describe('useNovelStore Integration', () => {
     expect(workflowState.steps.analysis.content).toBe('Test Analysis');
     expect(workflowState.steps.outline.content).toBe('Test Outline');
     expect(workflowState.steps.compression.content).toBe('Compressed text');
+  });
+
+  it('should hydrate workflow store on loadSession', async () => {
+    // 1. Create a session in DB with progress
+    const sessionId = generateSessionId();
+    await saveNovel({
+      sessionId,
+      content: 'LoadSession Test',
+      wordCount: 15,
+      currentStep: 3, // Breakdown step
+      analysis: 'Analysis content',
+      outline: 'Outline content',
+      outlineDirection: '',
+      breakdown: 'Breakdown content',
+      chapters: ['Chapter 1'],
+      compressedContext: 'Compressed content',
+      targetStoryWordCount: 20000,
+      targetChapterCount: 5
+    });
+
+    // 2. Load the session
+    await act(async () => {
+      await useNovelStore.getState().loadSession(sessionId);
+    });
+
+    // 3. Verify workflow hydration
+    const workflowState = useWorkflowStore.getState();
+    expect(workflowState.currentStepId).toBe('breakdown');
+    expect(workflowState.steps.compression.content).toBe('Compressed content');
+    expect(workflowState.steps.analysis.content).toBe('Analysis content');
+    expect(workflowState.steps.outline.content).toBe('Outline content');
+    expect(workflowState.steps.breakdown.content).toBe('Breakdown content');
+    expect(workflowState.steps.chapter1.content).toBe('Chapter 1');
   });
 });

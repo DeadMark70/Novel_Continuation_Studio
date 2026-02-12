@@ -39,6 +39,9 @@ interface NovelState {
   foreshadowLedger: ForeshadowEntry[];
   latestConsistencySummary?: ConsistencySummary;
   
+  // State flags
+  isInitialized: boolean;
+
   // Session list (history)
   sessions: NovelEntry[];
   
@@ -106,6 +109,7 @@ export const useNovelStore = create<NovelState>((set, get) => ({
   characterTimeline: [],
   foreshadowLedger: [],
   latestConsistencySummary: undefined,
+  isInitialized: false,
   sessions: [],
 
   setNovel: async (content: string) => {
@@ -237,6 +241,7 @@ export const useNovelStore = create<NovelState>((set, get) => ({
         chapters: session.chapters,
         compressedContext: session.compressedContext ?? '',
       });
+      set({ isInitialized: true });
     }
   },
 
@@ -264,6 +269,7 @@ export const useNovelStore = create<NovelState>((set, get) => ({
       characterTimeline: [],
       foreshadowLedger: [],
       latestConsistencySummary: undefined,
+      isInitialized: true,
     });
     useWorkflowStore.getState().resetAllSteps();
   },
@@ -284,6 +290,8 @@ export const useNovelStore = create<NovelState>((set, get) => ({
   },
 
   initialize: async () => {
+    if (get().isInitialized) return;
+
     const latest = await getLatestNovel();
     if (latest) {
       set({
@@ -321,5 +329,6 @@ export const useNovelStore = create<NovelState>((set, get) => ({
       });
     }
     await get().loadSessions();
+    set({ isInitialized: true });
   },
 }));

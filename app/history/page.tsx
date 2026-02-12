@@ -16,6 +16,7 @@ export default function HistoryPage() {
   const router = useRouter();
   const { sessions, currentSessionId, originalNovel, chapters, loadSessions, reset } = useNovelStore();
   const [selectedSessionId, setSelectedSessionId] = useState(currentSessionId);
+  const [activeTab, setActiveTab] = useState('reading');
 
   useEffect(() => {
     void loadSessions();
@@ -23,6 +24,10 @@ export default function HistoryPage() {
 
   useEffect(() => {
     setSelectedSessionId(currentSessionId);
+    // If we were on history tab and a session was loaded, switch to reading
+    if (activeTab === 'history') {
+      setActiveTab('reading');
+    }
   }, [currentSessionId]);
 
   const selectedSession = sessions.find((session) => session.sessionId === selectedSessionId);
@@ -52,7 +57,7 @@ export default function HistoryPage() {
           </Button>
         </div>
 
-        <Tabs defaultValue="reading" className="space-y-4">
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
           <TabsList className="grid w-full grid-cols-3">
             <TabsTrigger value="reading">Reading Room</TabsTrigger>
             <TabsTrigger value="history">Version History</TabsTrigger>
