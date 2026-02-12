@@ -149,6 +149,11 @@ describe('useNovelStore Integration', () => {
     expect(novel.outlineDirection).toBe('');
     expect(novel.targetStoryWordCount).toBe(20000);
     expect(novel.targetChapterCount).toBe(5);
+    expect(novel.pacingMode).toBe('fixed');
+    expect(novel.plotPercent).toBe(60);
+    expect(novel.curvePlotPercentStart).toBe(80);
+    expect(novel.curvePlotPercentEnd).toBe(40);
+    expect(novel.eroticSceneLimitPerChapter).toBe(2);
     expect(novel.consistencyReports).toEqual([]);
     expect(novel.characterTimeline).toEqual([]);
     expect(novel.foreshadowLedger).toEqual([]);
@@ -172,6 +177,25 @@ describe('useNovelStore Integration', () => {
     const session = await db.novels.where('sessionId').equals(useNovelStore.getState().currentSessionId).first();
     expect(session?.targetStoryWordCount).toBe(30000);
     expect(session?.targetChapterCount).toBe(8);
+  });
+
+  it('should persist pacing settings', async () => {
+    await act(async () => {
+      await useNovelStore.getState().setPacingSettings({
+        pacingMode: 'curve',
+        plotPercent: 55,
+        curvePlotPercentStart: 85,
+        curvePlotPercentEnd: 45,
+        eroticSceneLimitPerChapter: 3,
+      });
+    });
+
+    const session = await db.novels.where('sessionId').equals(useNovelStore.getState().currentSessionId).first();
+    expect(session?.pacingMode).toBe('curve');
+    expect(session?.plotPercent).toBe(55);
+    expect(session?.curvePlotPercentStart).toBe(85);
+    expect(session?.curvePlotPercentEnd).toBe(45);
+    expect(session?.eroticSceneLimitPerChapter).toBe(3);
   });
 
   it('should append and persist consistency state', async () => {

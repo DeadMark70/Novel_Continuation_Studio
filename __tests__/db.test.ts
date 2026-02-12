@@ -135,6 +135,11 @@ describe('NovelDatabase', () => {
     const latest = await getLatestNovel();
     expect(latest?.targetStoryWordCount).toBe(20000);
     expect(latest?.targetChapterCount).toBe(5);
+    expect(latest?.pacingMode).toBe('fixed');
+    expect(latest?.plotPercent).toBe(60);
+    expect(latest?.curvePlotPercentStart).toBe(80);
+    expect(latest?.curvePlotPercentEnd).toBe(40);
+    expect(latest?.eroticSceneLimitPerChapter).toBe(2);
     expect(latest?.consistencyReports).toEqual([]);
     expect(latest?.characterTimeline).toEqual([]);
     expect(latest?.foreshadowLedger).toEqual([]);

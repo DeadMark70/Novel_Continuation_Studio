@@ -43,6 +43,10 @@ const OUTLINE_COMPRESSED_PROMPT = `基於以下資訊，為這部成人小說生
 - 讓角色的行為和心理有邏輯演變
 - 在核心主題（如限制、被動、權力動態）上深化發展
 {{USER_DIRECTION_REQUIREMENT}}
+
+**節奏配比（硬性）**
+{{PACING_RATIO_SECTION}}
+
 ${STYLE_ALIGNMENT_FOCUS}
 ${ADULT_FICTION_GUARDRAILS}
 
@@ -86,6 +90,10 @@ const OUTLINE_RAW_PROMPT = `基於以下資訊，為這部成人小說生成續�
 - 讓角色的行為和心理有邏輯演變
 - 在核心主題（如限制、被動、權力動態）上深化發展
 {{USER_DIRECTION_REQUIREMENT}}
+
+**節奏配比（硬性）**
+{{PACING_RATIO_SECTION}}
+
 ${STYLE_ALIGNMENT_FOCUS}
 ${EROTIC_CONTINUATION_FOCUS}
 
@@ -197,7 +205,7 @@ const CONTINUATION_COMPRESSED_PROMPT = `基於所有資訊和已生成章節，�
 
 ---
 
-**任務：** 撰寫第 {{NEXT_CHAPTER_NUMBER}} 章，字數 4000-5000 字。
+**任務：** 撰寫第 {{NEXT_CHAPTER_NUMBER}} 章，字數以章節框架裡對當下章節所建議的字數。
 
 **要求：**
 - 自然銜接前面的內容
@@ -229,7 +237,7 @@ const CONTINUATION_RAW_PROMPT = `基於原文與已生成章節，撰寫下一�
 
 ---
 
-**任務：** 撰寫第 {{NEXT_CHAPTER_NUMBER}} 章，字數 4000-5000 字。
+**任務：** 撰寫第 {{NEXT_CHAPTER_NUMBER}} 章，字數以章節框架裡對當下章節所建議的字數。
 
 **要求：**
 - 自然銜接前章並延續原文語感

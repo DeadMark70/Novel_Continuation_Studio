@@ -28,6 +28,11 @@ interface NovelState {
   chapters: string[];
   targetStoryWordCount: number;
   targetChapterCount: number;
+  pacingMode: 'fixed' | 'curve';
+  plotPercent: number;
+  curvePlotPercentStart: number;
+  curvePlotPercentEnd: number;
+  eroticSceneLimitPerChapter: number;
   characterCards: string;
   styleGuide: string;
   compressionOutline: string;
@@ -69,6 +74,14 @@ interface NovelState {
   setOutlineDirection: (value: string) => Promise<void>;
   setTargetStoryWordCount: (value: number) => Promise<void>;
   setTargetChapterCount: (value: number) => Promise<void>;
+  setPacingSettings: (data: Partial<Pick<
+    NovelState,
+    | 'pacingMode'
+    | 'plotPercent'
+    | 'curvePlotPercentStart'
+    | 'curvePlotPercentEnd'
+    | 'eroticSceneLimitPerChapter'
+  >>) => Promise<void>;
   setConsistencyState: (data: Partial<Pick<
     NovelState,
     | 'consistencyReports'
@@ -99,6 +112,11 @@ export const useNovelStore = create<NovelState>((set, get) => ({
   chapters: [],
   targetStoryWordCount: 20000,
   targetChapterCount: 5,
+  pacingMode: 'fixed',
+  plotPercent: 60,
+  curvePlotPercentStart: 80,
+  curvePlotPercentEnd: 40,
+  eroticSceneLimitPerChapter: 2,
   characterCards: '',
   styleGuide: '',
   compressionOutline: '',
@@ -146,6 +164,25 @@ export const useNovelStore = create<NovelState>((set, get) => ({
     await get().persist();
   },
 
+  setPacingSettings: async (data) => {
+    set((state) => ({
+      pacingMode: data.pacingMode ?? state.pacingMode,
+      plotPercent: data.plotPercent === undefined
+        ? state.plotPercent
+        : Math.max(0, Math.min(100, Math.floor(data.plotPercent))),
+      curvePlotPercentStart: data.curvePlotPercentStart === undefined
+        ? state.curvePlotPercentStart
+        : Math.max(0, Math.min(100, Math.floor(data.curvePlotPercentStart))),
+      curvePlotPercentEnd: data.curvePlotPercentEnd === undefined
+        ? state.curvePlotPercentEnd
+        : Math.max(0, Math.min(100, Math.floor(data.curvePlotPercentEnd))),
+      eroticSceneLimitPerChapter: data.eroticSceneLimitPerChapter === undefined
+        ? state.eroticSceneLimitPerChapter
+        : Math.max(0, Math.min(8, Math.floor(data.eroticSceneLimitPerChapter))),
+    }));
+    await get().persist();
+  },
+
   setConsistencyState: async (data) => {
     set((state) => ({ ...state, ...data }));
     await get().persist();
@@ -188,6 +225,11 @@ export const useNovelStore = create<NovelState>((set, get) => ({
       chapters: state.chapters,
       targetStoryWordCount: state.targetStoryWordCount,
       targetChapterCount: state.targetChapterCount,
+      pacingMode: state.pacingMode,
+      plotPercent: state.plotPercent,
+      curvePlotPercentStart: state.curvePlotPercentStart,
+      curvePlotPercentEnd: state.curvePlotPercentEnd,
+      eroticSceneLimitPerChapter: state.eroticSceneLimitPerChapter,
       characterCards: state.characterCards,
       styleGuide: state.styleGuide,
       compressionOutline: state.compressionOutline,
@@ -222,6 +264,11 @@ export const useNovelStore = create<NovelState>((set, get) => ({
         chapters: session.chapters,
         targetStoryWordCount: session.targetStoryWordCount ?? 20000,
         targetChapterCount: session.targetChapterCount ?? 5,
+        pacingMode: session.pacingMode ?? 'fixed',
+        plotPercent: session.plotPercent ?? 60,
+        curvePlotPercentStart: session.curvePlotPercentStart ?? 80,
+        curvePlotPercentEnd: session.curvePlotPercentEnd ?? 40,
+        eroticSceneLimitPerChapter: session.eroticSceneLimitPerChapter ?? 2,
         characterCards: session.characterCards ?? '',
         styleGuide: session.styleGuide ?? '',
         compressionOutline: session.compressionOutline ?? '',
@@ -259,6 +306,11 @@ export const useNovelStore = create<NovelState>((set, get) => ({
       chapters: [],
       targetStoryWordCount: 20000,
       targetChapterCount: 5,
+      pacingMode: 'fixed',
+      plotPercent: 60,
+      curvePlotPercentStart: 80,
+      curvePlotPercentEnd: 40,
+      eroticSceneLimitPerChapter: 2,
       characterCards: '',
       styleGuide: '',
       compressionOutline: '',
@@ -306,6 +358,11 @@ export const useNovelStore = create<NovelState>((set, get) => ({
         chapters: latest.chapters,
         targetStoryWordCount: latest.targetStoryWordCount ?? 20000,
         targetChapterCount: latest.targetChapterCount ?? 5,
+        pacingMode: latest.pacingMode ?? 'fixed',
+        plotPercent: latest.plotPercent ?? 60,
+        curvePlotPercentStart: latest.curvePlotPercentStart ?? 80,
+        curvePlotPercentEnd: latest.curvePlotPercentEnd ?? 40,
+        eroticSceneLimitPerChapter: latest.eroticSceneLimitPerChapter ?? 2,
         characterCards: latest.characterCards ?? '',
         styleGuide: latest.styleGuide ?? '',
         compressionOutline: latest.compressionOutline ?? '',

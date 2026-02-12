@@ -115,4 +115,34 @@ describe('Prompt Engine', () => {
     const result = injectPrompt(template, { targetChapterCount: 7 });
     expect(result).toBe('Chapters: 7');
   });
+
+  it('injects fixed pacing ratio section', () => {
+    const template = 'Rules:\n{{PACING_RATIO_SECTION}}';
+    const result = injectPrompt(template, {
+      targetStoryWordCount: 24000,
+      targetChapterCount: 6,
+      pacingMode: 'fixed',
+      plotPercent: 60,
+      eroticSceneLimitPerChapter: 2,
+    });
+    expect(result).toContain('全書目標配比（固定）');
+    expect(result).toContain('60%；親密/色情描寫 40%');
+    expect(result).toContain('每章硬限制：親密場景最多 2 場');
+  });
+
+  it('injects curve pacing ratio section', () => {
+    const template = 'Rules:\n{{PACING_RATIO_SECTION}}';
+    const result = injectPrompt(template, {
+      targetStoryWordCount: 20000,
+      targetChapterCount: 5,
+      pacingMode: 'curve',
+      curvePlotPercentStart: 80,
+      curvePlotPercentEnd: 40,
+      eroticSceneLimitPerChapter: 3,
+    });
+    expect(result).toContain('全書目標配比（曲線升溫）');
+    expect(result).toContain('前期（約前 30% 章節）劇情/心理/關係推進 80%');
+    expect(result).toContain('後期（約後 30% 章節）劇情/心理/關係推進 40%');
+    expect(result).toContain('每章硬限制：親密場景最多 3 場');
+  });
 });

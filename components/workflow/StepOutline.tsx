@@ -36,6 +36,12 @@ export const StepOutline: React.FC = () => {
     setTargetStoryWordCount,
     targetChapterCount,
     setTargetChapterCount,
+    pacingMode,
+    plotPercent,
+    curvePlotPercentStart,
+    curvePlotPercentEnd,
+    eroticSceneLimitPerChapter,
+    setPacingSettings,
     wordCount,
     compressedContext,
   } = useNovelStore();
@@ -43,6 +49,10 @@ export const StepOutline: React.FC = () => {
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const [storyWordCountInput, setStoryWordCountInput] = React.useState(targetStoryWordCount.toString());
   const [chapterCountInput, setChapterCountInput] = React.useState(targetChapterCount.toString());
+  const [plotPercentInput, setPlotPercentInput] = React.useState(plotPercent.toString());
+  const [curveStartInput, setCurveStartInput] = React.useState(curvePlotPercentStart.toString());
+  const [curveEndInput, setCurveEndInput] = React.useState(curvePlotPercentEnd.toString());
+  const [sceneLimitInput, setSceneLimitInput] = React.useState(eroticSceneLimitPerChapter.toString());
   
   const step = steps.outline;
   const isStreaming = step.status === 'streaming';
@@ -74,6 +84,22 @@ export const StepOutline: React.FC = () => {
     setChapterCountInput(targetChapterCount.toString());
   }, [targetChapterCount]);
 
+  useEffect(() => {
+    setPlotPercentInput(plotPercent.toString());
+  }, [plotPercent]);
+
+  useEffect(() => {
+    setCurveStartInput(curvePlotPercentStart.toString());
+  }, [curvePlotPercentStart]);
+
+  useEffect(() => {
+    setCurveEndInput(curvePlotPercentEnd.toString());
+  }, [curvePlotPercentEnd]);
+
+  useEffect(() => {
+    setSceneLimitInput(eroticSceneLimitPerChapter.toString());
+  }, [eroticSceneLimitPerChapter]);
+
   const commitStoryWordCount = async (rawValue: string) => {
     const parsed = parseInt(rawValue, 10);
     const safeValue = Number.isFinite(parsed) ? clampStoryWordCount(parsed) : targetStoryWordCount;
@@ -86,6 +112,44 @@ export const StepOutline: React.FC = () => {
     const safeValue = Number.isFinite(parsed) ? clampChapterCount(parsed) : targetChapterCount;
     setChapterCountInput(safeValue.toString());
     await setTargetChapterCount(safeValue);
+  };
+
+  const clampPercent = (value: number, fallback: number): number => {
+    if (!Number.isFinite(value)) return fallback;
+    return Math.max(0, Math.min(100, Math.floor(value)));
+  };
+
+  const clampSceneLimit = (value: number, fallback: number): number => {
+    if (!Number.isFinite(value)) return fallback;
+    return Math.max(0, Math.min(8, Math.floor(value)));
+  };
+
+  const commitPlotPercent = async (rawValue: string) => {
+    const parsed = parseInt(rawValue, 10);
+    const safeValue = clampPercent(parsed, plotPercent);
+    setPlotPercentInput(safeValue.toString());
+    await setPacingSettings({ plotPercent: safeValue });
+  };
+
+  const commitCurveStart = async (rawValue: string) => {
+    const parsed = parseInt(rawValue, 10);
+    const safeValue = clampPercent(parsed, curvePlotPercentStart);
+    setCurveStartInput(safeValue.toString());
+    await setPacingSettings({ curvePlotPercentStart: safeValue });
+  };
+
+  const commitCurveEnd = async (rawValue: string) => {
+    const parsed = parseInt(rawValue, 10);
+    const safeValue = clampPercent(parsed, curvePlotPercentEnd);
+    setCurveEndInput(safeValue.toString());
+    await setPacingSettings({ curvePlotPercentEnd: safeValue });
+  };
+
+  const commitSceneLimit = async (rawValue: string) => {
+    const parsed = parseInt(rawValue, 10);
+    const safeValue = clampSceneLimit(parsed, eroticSceneLimitPerChapter);
+    setSceneLimitInput(safeValue.toString());
+    await setPacingSettings({ eroticSceneLimitPerChapter: safeValue });
   };
 
   return (
@@ -161,6 +225,107 @@ export const StepOutline: React.FC = () => {
             <span className="text-xs text-muted-foreground">
               Range: {MIN_TARGET_CHAPTER_COUNT}-{MAX_TARGET_CHAPTER_COUNT}
             </span>
+          </div>
+        </div>
+
+        <div className="space-y-3 rounded-lg border border-cyan-500/20 bg-card/30 p-3">
+          <Label className="text-xs font-mono text-cyan-500 font-bold">
+            PACING RATIO MODE (PLOT VS EROTIC)
+          </Label>
+          <div className="flex gap-2">
+            <Button
+              type="button"
+              size="sm"
+              variant={pacingMode === 'fixed' ? 'default' : 'outline'}
+              onClick={() => void setPacingSettings({ pacingMode: 'fixed' })}
+            >
+              Fixed
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant={pacingMode === 'curve' ? 'default' : 'outline'}
+              onClick={() => void setPacingSettings({ pacingMode: 'curve' })}
+            >
+              Curve (Warm Up)
+            </Button>
+          </div>
+
+          {pacingMode === 'fixed' ? (
+            <div className="space-y-2">
+              <Label htmlFor="plot-percent" className="text-xs font-mono">Plot % (Erotic % = 100 - Plot %)</Label>
+              <div className="flex items-center gap-3">
+                <Input
+                  id="plot-percent"
+                  type="number"
+                  min={0}
+                  max={100}
+                  step={5}
+                  value={plotPercentInput}
+                  onChange={(event) => setPlotPercentInput(event.target.value)}
+                  onBlur={() => void commitPlotPercent(plotPercentInput)}
+                  className="w-32"
+                />
+                <span className="text-xs text-muted-foreground">
+                  Current: {plotPercent}/{100 - plotPercent}
+                </span>
+              </div>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="curve-start" className="text-xs font-mono">Early Plot %</Label>
+                <Input
+                  id="curve-start"
+                  type="number"
+                  min={0}
+                  max={100}
+                  step={5}
+                  value={curveStartInput}
+                  onChange={(event) => setCurveStartInput(event.target.value)}
+                  onBlur={() => void commitCurveStart(curveStartInput)}
+                  className="w-32"
+                />
+                <p className="text-xs text-muted-foreground">Early ratio: {curvePlotPercentStart}/{100 - curvePlotPercentStart}</p>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="curve-end" className="text-xs font-mono">Late Plot %</Label>
+                <Input
+                  id="curve-end"
+                  type="number"
+                  min={0}
+                  max={100}
+                  step={5}
+                  value={curveEndInput}
+                  onChange={(event) => setCurveEndInput(event.target.value)}
+                  onBlur={() => void commitCurveEnd(curveEndInput)}
+                  className="w-32"
+                />
+                <p className="text-xs text-muted-foreground">Late ratio: {curvePlotPercentEnd}/{100 - curvePlotPercentEnd}</p>
+              </div>
+            </div>
+          )}
+
+          <div className="space-y-2">
+            <Label htmlFor="erotic-scene-limit" className="text-xs font-mono">
+              EROTIC SCENE LIMIT PER CHAPTER
+            </Label>
+            <div className="flex items-center gap-3">
+              <Input
+                id="erotic-scene-limit"
+                type="number"
+                min={0}
+                max={8}
+                step={1}
+                value={sceneLimitInput}
+                onChange={(event) => setSceneLimitInput(event.target.value)}
+                onBlur={() => void commitSceneLimit(sceneLimitInput)}
+                className="w-24"
+              />
+              <span className="text-xs text-muted-foreground">
+                0 means no explicit scene cap.
+              </span>
+            </div>
           </div>
         </div>
 

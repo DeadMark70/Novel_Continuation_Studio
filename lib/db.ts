@@ -51,6 +51,11 @@ export interface NovelEntry {
   chapters: string[];
   targetStoryWordCount?: number;
   targetChapterCount?: number;
+  pacingMode?: 'fixed' | 'curve';
+  plotPercent?: number;
+  curvePlotPercentStart?: number;
+  curvePlotPercentEnd?: number;
+  eroticSceneLimitPerChapter?: number;
   characterCards?: string;
   styleGuide?: string;
   compressionOutline?: string;
@@ -253,6 +258,28 @@ export class NovelDatabase extends Dexie {
         entry.thinkingEnabled = entry.providerDefaults.nim.thinkingEnabled;
       });
     });
+    this.version(8).stores({
+      novels: '++id, sessionId, updatedAt, createdAt',
+      settings: 'id, updatedAt'
+    }).upgrade(async (tx) => {
+      await tx.table('novels').toCollection().modify((entry: NovelEntry) => {
+        if (!entry.pacingMode) {
+          entry.pacingMode = 'fixed';
+        }
+        if (entry.plotPercent === undefined) {
+          entry.plotPercent = 60;
+        }
+        if (entry.curvePlotPercentStart === undefined) {
+          entry.curvePlotPercentStart = 80;
+        }
+        if (entry.curvePlotPercentEnd === undefined) {
+          entry.curvePlotPercentEnd = 40;
+        }
+        if (entry.eroticSceneLimitPerChapter === undefined) {
+          entry.eroticSceneLimitPerChapter = 2;
+        }
+      });
+    });
   }
 }
 
@@ -268,6 +295,11 @@ export async function saveNovel(entry: Omit<NovelEntry, 'id' | 'updatedAt' | 'cr
     ...entry,
     targetStoryWordCount: entry.targetStoryWordCount ?? 20000,
     targetChapterCount: entry.targetChapterCount ?? 5,
+    pacingMode: entry.pacingMode ?? 'fixed',
+    plotPercent: entry.plotPercent ?? 60,
+    curvePlotPercentStart: entry.curvePlotPercentStart ?? 80,
+    curvePlotPercentEnd: entry.curvePlotPercentEnd ?? 40,
+    eroticSceneLimitPerChapter: entry.eroticSceneLimitPerChapter ?? 2,
     characterCards: entry.characterCards ?? '',
     styleGuide: entry.styleGuide ?? '',
     compressionOutline: entry.compressionOutline ?? '',

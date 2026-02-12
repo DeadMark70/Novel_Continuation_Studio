@@ -15,9 +15,58 @@ export interface PromptContext {
   dualEndBuffer?: number;
   targetStoryWordCount?: number;
   targetChapterCount?: number;
+  pacingMode?: 'fixed' | 'curve';
+  plotPercent?: number;
+  curvePlotPercentStart?: number;
+  curvePlotPercentEnd?: number;
+  eroticSceneLimitPerChapter?: number;
   compressionOutlineTargetRange?: string;
   compressionChunkCount?: number;
   compressionSampledChunkCount?: number;
+}
+
+function clampPercent(value: number | undefined, fallback: number): number {
+  if (!Number.isFinite(value)) {
+    return fallback;
+  }
+  return Math.max(0, Math.min(100, Math.round(value as number)));
+}
+
+function buildPacingRatioSection(context: PromptContext): string {
+  const targetStoryWordCount = context.targetStoryWordCount ?? 20000;
+  const targetChapterCount = Math.max(1, context.targetChapterCount ?? 5);
+  const avgChapterWords = Math.max(1000, Math.round(targetStoryWordCount / targetChapterCount));
+  const chapterMin = Math.max(800, Math.floor(avgChapterWords * 0.8));
+  const chapterMax = Math.max(chapterMin + 200, Math.ceil(avgChapterWords * 1.2));
+  const eroticSceneLimitPerChapter = Math.max(0, Math.min(8, context.eroticSceneLimitPerChapter ?? 2));
+  const pacingMode = context.pacingMode ?? 'fixed';
+
+  if (pacingMode === 'curve') {
+    const plotStart = clampPercent(context.curvePlotPercentStart, 80);
+    const plotEnd = clampPercent(context.curvePlotPercentEnd, 40);
+    const eroticStart = 100 - plotStart;
+    const eroticEnd = 100 - plotEnd;
+    return [
+      '- 全書目標配比（曲線升溫）：',
+      `  - 前期（約前 30% 章節）劇情/心理/關係推進 ${plotStart}%；親密/色情描寫 ${eroticStart}%。`,
+      `  - 後期（約後 30% 章節）劇情/心理/關係推進 ${plotEnd}%；親密/色情描寫 ${eroticEnd}%。`,
+      '  - 中段請線性過渡，避免比例突跳。',
+      `- 每章字數預算：建議 ${avgChapterWords} 字（可在 ${chapterMin}-${chapterMax} 字浮動）。`,
+      '- 每個情節段落必填：`本段劇情:色情 = __:__`、`預估字數 __`、`本段親密戲的劇情功能（至少1項）__`。',
+      `- 每章硬限制：親密場景最多 ${eroticSceneLimitPerChapter} 場；若有親密場景，必須帶來可感知的關係位移 + 留下鉤子。`,
+      '- 硬規則：任何親密/色情段落必須完成至少 1 個劇情功能（埋伏筆 / 揭露情報 / 權力位置翻轉 / 關係位移）。',
+    ].join('\n');
+  }
+
+  const plotPercent = clampPercent(context.plotPercent, 60);
+  const eroticPercent = 100 - plotPercent;
+  return [
+    `- 全書目標配比（固定）：劇情/心理/關係推進 ${plotPercent}%；親密/色情描寫 ${eroticPercent}%（兩者合計 100）。`,
+    `- 每章字數預算：建議 ${avgChapterWords} 字（可在 ${chapterMin}-${chapterMax} 字浮動）。`,
+    '- 每個情節段落必填：`本段劇情:色情 = __:__`、`預估字數 __`、`本段親密戲的劇情功能（至少1項）__`。',
+    `- 每章硬限制：親密場景最多 ${eroticSceneLimitPerChapter} 場；若有親密場景，必須帶來可感知的關係位移 + 留下鉤子。`,
+    '- 硬規則：任何親密/色情段落必須完成至少 1 個劇情功能（埋伏筆 / 揭露情報 / 權力位置翻轉 / 關係位移）。',
+  ].join('\n');
 }
 
 /**
@@ -126,6 +175,24 @@ export function injectPrompt(template: string, context: PromptContext): string {
 
   const targetChapterCount = context.targetChapterCount ?? 5;
   result = result.replace(/{{TARGET_CHAPTER_COUNT}}/g, targetChapterCount.toString());
+  result = result.replace(/{{PACING_RATIO_SECTION}}/g, buildPacingRatioSection(context));
+
+  const plotPercent = clampPercent(context.plotPercent, 60);
+  const eroticPercent = 100 - plotPercent;
+  const curvePlotPercentStart = clampPercent(context.curvePlotPercentStart, 80);
+  const curveEroticPercentStart = 100 - curvePlotPercentStart;
+  const curvePlotPercentEnd = clampPercent(context.curvePlotPercentEnd, 40);
+  const curveEroticPercentEnd = 100 - curvePlotPercentEnd;
+  result = result.replace(/{{PLOT_PERCENT}}/g, plotPercent.toString());
+  result = result.replace(/{{EROTIC_PERCENT}}/g, eroticPercent.toString());
+  result = result.replace(/{{PLOT_PERCENT_START}}/g, curvePlotPercentStart.toString());
+  result = result.replace(/{{EROTIC_PERCENT_START}}/g, curveEroticPercentStart.toString());
+  result = result.replace(/{{PLOT_PERCENT_END}}/g, curvePlotPercentEnd.toString());
+  result = result.replace(/{{EROTIC_PERCENT_END}}/g, curveEroticPercentEnd.toString());
+  result = result.replace(
+    /{{EROTIC_SCENE_LIMIT_PER_CHAPTER}}/g,
+    Math.max(0, Math.min(8, context.eroticSceneLimitPerChapter ?? 2)).toString()
+  );
 
   // Handle User Notes / Direction
   if (context.userNotes) {
