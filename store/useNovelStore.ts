@@ -3,6 +3,7 @@ import { saveNovel, getLatestNovel, getAllSessions, getSession, deleteSession, g
 import { useWorkflowStore } from './useWorkflowStore';
 import { normalizeNovelText } from '@/lib/utils';
 import type { CompressionMeta } from '@/lib/compression';
+import type { WorkflowStepId } from '@/store/useWorkflowStore';
 import type {
   CharacterTimelineEntry,
   ConsistencyCheckResult,
@@ -53,6 +54,7 @@ interface NovelState {
   // Actions
   setNovel: (content: string) => Promise<void>;
   setStep: (step: number) => Promise<void>;
+  applyStepResult: (stepId: WorkflowStepId, content: string) => Promise<void>;
   updateWorkflow: (data: Partial<Pick<
     NovelState,
     | 'analysis'
@@ -139,6 +141,31 @@ export const useNovelStore = create<NovelState>((set, get) => ({
 
   setStep: async (step: number) => {
     set({ currentStep: step });
+    await get().persist();
+  },
+
+  applyStepResult: async (stepId, content) => {
+    set((state) => {
+      if (stepId === 'compression') {
+        return { ...state, compressedContext: content };
+      }
+      if (stepId === 'analysis') {
+        return { ...state, analysis: content };
+      }
+      if (stepId === 'outline') {
+        return { ...state, outline: content };
+      }
+      if (stepId === 'breakdown') {
+        return { ...state, breakdown: content };
+      }
+      if (stepId === 'chapter1') {
+        return { ...state, chapters: [content] };
+      }
+      if (!content.trim()) {
+        return state;
+      }
+      return { ...state, chapters: [...state.chapters, content] };
+    });
     await get().persist();
   },
 

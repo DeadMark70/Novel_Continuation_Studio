@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { generateStream } from '../lib/llm-client';
+import { fetchModels, generateStream } from '../lib/llm-client';
 
 global.fetch = vi.fn();
 
@@ -14,6 +14,19 @@ describe('llm-client parameter filtering', () => {
 
   afterEach(() => {
     vi.clearAllMocks();
+    delete process.env.NEXT_PUBLIC_OPENROUTER_DISABLE_NETWORK;
+    delete process.env.NEXT_PUBLIC_E2E_MODE;
+  });
+
+  it('fails fast when openrouter network guard is enabled on client env', async () => {
+    process.env.NEXT_PUBLIC_OPENROUTER_DISABLE_NETWORK = '1';
+    await expect(fetchModels('openrouter', 'key')).rejects.toThrow(
+      'OpenRouter network calls are disabled in this environment.'
+    );
+    await expect(
+      collect(generateStream('openrouter', 'hello', 'openai/gpt-4o-mini', 'key'))
+    ).rejects.toThrow('OpenRouter network calls are disabled in this environment.');
+    expect(global.fetch).not.toHaveBeenCalled();
   });
 
   it('drops unsupported params for openrouter when support map is present', async () => {

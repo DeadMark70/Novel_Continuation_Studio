@@ -31,7 +31,7 @@ export function ProgressIndicator({ current, total, onStop, stopDisabled = false
           size="sm" 
           onClick={handleStop}
           disabled={stopDisabled}
-          className="h-8 px-3"
+          className="h-11 px-3 md:h-8"
         >
           <StopCircle className="mr-2 h-4 w-4" />
           暫停 / 停止

@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { sanitizeLogValue } from '@/lib/server-log-sanitizer';
 
 const NIM_API_BASE = 'https://integrate.api.nvidia.com/v1';
 
@@ -27,7 +28,7 @@ export async function GET(request: Request) {
     const data = await response.json();
     return NextResponse.json(data);
   } catch (error) {
-    console.error('Model fetch error:', error);
+    console.error('Model fetch error:', sanitizeLogValue(error));
     return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
   }
 }

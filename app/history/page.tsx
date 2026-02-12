@@ -15,22 +15,15 @@ import { Label } from '@/components/ui/label';
 export default function HistoryPage() {
   const router = useRouter();
   const { sessions, currentSessionId, originalNovel, chapters, loadSessions, reset } = useNovelStore();
-  const [selectedSessionId, setSelectedSessionId] = useState(currentSessionId);
+  const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState('reading');
 
   useEffect(() => {
     void loadSessions();
   }, [loadSessions]);
 
-  useEffect(() => {
-    setSelectedSessionId(currentSessionId);
-    // If we were on history tab and a session was loaded, switch to reading
-    if (activeTab === 'history') {
-      setActiveTab('reading');
-    }
-  }, [currentSessionId]);
-
-  const selectedSession = sessions.find((session) => session.sessionId === selectedSessionId);
+  const effectiveSelectedSessionId = selectedSessionId ?? currentSessionId;
+  const selectedSession = sessions.find((session) => session.sessionId === effectiveSelectedSessionId);
   const displayOriginal = selectedSession ? selectedSession.content : originalNovel;
   const displayChapters = selectedSession ? selectedSession.chapters : chapters;
   const displayWordCount = selectedSession ? selectedSession.wordCount : originalNovel.length;
@@ -78,7 +71,7 @@ export default function HistoryPage() {
             <div className="max-w-lg rounded-lg border border-border p-4 space-y-4">
               <div className="space-y-2">
                 <Label>Select Session</Label>
-                <Select value={selectedSessionId} onValueChange={setSelectedSessionId}>
+                <Select value={effectiveSelectedSessionId} onValueChange={setSelectedSessionId}>
                   <SelectTrigger>
                     <SelectValue placeholder="Select a session" />
                   </SelectTrigger>

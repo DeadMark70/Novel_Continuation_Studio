@@ -173,7 +173,7 @@ export const ConsistencyPanel: React.FC = () => {
                   <FileText className="size-3.5" />
                   Regeneration Draft
                 </div>
-                <Button type="button" size="sm" variant="outline" className="h-7 text-[11px]" onClick={handleCopy}>
+                <Button type="button" size="sm" variant="outline" className="h-11 text-[11px] md:h-7" onClick={handleCopy}>
                   {copyState === 'done' ? 'Copied' : copyState === 'failed' ? 'Copy Failed' : 'Copy'}
                 </Button>
               </div>

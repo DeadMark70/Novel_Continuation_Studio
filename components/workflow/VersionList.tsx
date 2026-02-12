@@ -109,7 +109,7 @@ export const VersionList: React.FC<VersionListProps> = ({ onCreateNew }) => {
             <Button
               variant="ghost"
               size="icon"
-              className="shrink-0 size-7 opacity-0 group-hover:opacity-100 transition-opacity hover:bg-destructive/20 hover:text-destructive"
+              className="shrink-0 size-11 opacity-0 transition-opacity hover:bg-destructive/20 hover:text-destructive md:size-7 group-hover:opacity-100"
               onClick={(e) => {
                 e.stopPropagation();
                 if (window.confirm('確定要刪除這個創作記錄嗎？此操作無法撤銷。')) {

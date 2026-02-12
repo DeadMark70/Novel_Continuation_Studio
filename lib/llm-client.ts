@@ -1,4 +1,6 @@
 import type { GenerateOptions, LLMModel, LLMProvider, ModelCapability } from '@/lib/llm-types';
+import { assertOpenRouterNetworkEnabled } from '@/lib/openrouter-guard';
+import { estimateTokenCount, estimateTokenCountHeuristic } from '@/lib/token-estimator';
 
 function modelRejectsChatTemplateKwargs(model: string): boolean {
   const normalized = model.toLowerCase();
@@ -15,19 +17,9 @@ class ProviderHttpError extends Error {
   }
 }
 
-function estimateTokenCount(text: string): number {
-  if (!text) {
-    return 0;
-  }
-  const asciiCount = (text.match(/[\x00-\x7F]/g) || []).length;
-  const nonAsciiCount = text.length - asciiCount;
-  // Heuristic: ASCII ~4 chars/token, CJK and other non-ASCII ~1.5 chars/token.
-  return Math.max(1, Math.ceil(asciiCount / 4 + nonAsciiCount / 1.5));
-}
-
 function clampOpenRouterMaxTokens(
-  prompt: string,
   requestedMaxTokens: number,
+  estimatedPromptTokens: number,
   maxContextTokens?: number,
   maxCompletionTokens?: number
 ): number {
@@ -38,7 +30,6 @@ function clampOpenRouterMaxTokens(
   }
 
   if (typeof maxContextTokens === 'number' && Number.isFinite(maxContextTokens) && maxContextTokens > 0) {
-    const estimatedPromptTokens = estimateTokenCount(prompt);
     const reservedTail = 256; // Leave safety margin for wrappers/tooling tokens.
     const byContext = Math.max(1, Math.floor(maxContextTokens) - estimatedPromptTokens - reservedTail);
     upperBound = Math.min(upperBound, byContext);
@@ -136,6 +127,10 @@ export async function fetchModels(
   provider: LLMProvider,
   apiKey?: string
 ): Promise<LLMModel[]> {
+  if (provider === 'openrouter') {
+    assertOpenRouterNetworkEnabled();
+  }
+
   const headers: HeadersInit = {
     Accept: 'application/json',
   };
@@ -220,7 +215,8 @@ function buildGeneratePayload(
   prompt: string,
   model: string,
   systemPrompt: string | undefined,
-  options: GenerateOptions | undefined
+  options: GenerateOptions | undefined,
+  estimatedPromptTokens: number
 ) {
   const {
     maxTokens = 4096,
@@ -241,8 +237,8 @@ function buildGeneratePayload(
 
   const effectiveMaxTokens = provider === 'openrouter'
     ? clampOpenRouterMaxTokens(
-      prompt,
       maxTokens,
+      estimatedPromptTokens,
       options?.maxContextTokens,
       options?.maxCompletionTokens
     )
@@ -304,6 +300,10 @@ export async function* generateStream(
   options?: GenerateOptions,
   signal?: AbortSignal
 ): AsyncGenerator<string, void, unknown> {
+  if (provider === 'openrouter') {
+    assertOpenRouterNetworkEnabled();
+  }
+
   const {
     enableThinking = false,
     thinkingSupported = false,
@@ -325,6 +325,9 @@ export async function* generateStream(
 
   let lastError: unknown = null;
   let attemptOptions: GenerateOptions | undefined = options ? { ...options } : undefined;
+  const estimatedPromptTokens = provider === 'openrouter'
+    ? await estimateTokenCount(prompt)
+    : estimateTokenCountHeuristic(prompt);
 
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
     const controller = new AbortController();
@@ -365,7 +368,14 @@ export async function* generateStream(
         headers.Authorization = `Bearer ${apiKey.trim()}`;
       }
 
-      const payload = buildGeneratePayload(provider, prompt, model, systemPrompt, attemptOptions);
+      const payload = buildGeneratePayload(
+        provider,
+        prompt,
+        model,
+        systemPrompt,
+        attemptOptions,
+        estimatedPromptTokens
+      );
       const response = await fetch(getGenerateUrl(provider), {
         method: 'POST',
         headers,
@@ -469,7 +479,7 @@ export async function* generateStream(
             1,
             Math.floor(attemptOptions?.maxTokens ?? options?.maxTokens ?? 4096)
           );
-          const estimatedInput = hint.inputTokens ?? estimateTokenCount(prompt);
+          const estimatedInput = hint.inputTokens ?? estimatedPromptTokens;
           const safeByContext = Math.max(1, hint.maxContextTokens - estimatedInput - 256);
           const safeByRequested = hint.requestedOutputTokens
             ? Math.max(1, hint.requestedOutputTokens - 1)

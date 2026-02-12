@@ -15,6 +15,8 @@ import {
   shouldRunCompression,
 } from '@/lib/compression';
 import { runConsistencyCheck } from '@/lib/consistency-checker';
+import { createThrottledUpdater } from '@/lib/streaming-throttle';
+import { useWorkflowOrchestrator } from '@/hooks/useWorkflowOrchestrator';
 
 type PromptTemplateKey = keyof typeof DEFAULT_PROMPTS;
 let activeAbortController: AbortController | null = null;
@@ -69,6 +71,7 @@ async function runWithConcurrency<T>(
 
 export function useStepGenerator() {
   const { startStep, updateStepContent, completeStep, setStepError, cancelStep, forceResetGeneration } = useWorkflowStore();
+  const { handleStepCompletion } = useWorkflowOrchestrator();
 
   const generate = useCallback(async (stepId: WorkflowStepId, userNotes?: string) => {
     // ✅ Use global Zustand state for mutex lock
@@ -214,6 +217,7 @@ export function useStepGenerator() {
 
           updateStepContent(stepId, skippedMessage);
           await completeStep(stepId);
+          await handleStepCompletion(stepId, skippedMessage);
           return;
         }
         const builtSource = buildCompressionSource(originalNovel, {
@@ -412,6 +416,7 @@ export function useStepGenerator() {
         });
 
         await completeStep(stepId);
+        await handleStepCompletion(stepId, content);
         return;
       }
 
@@ -481,16 +486,26 @@ export function useStepGenerator() {
       );
 
       let chunkCount = 0;
+      const throttledContentUpdate = createThrottledUpdater({
+        intervalMs: 100,
+        onUpdate: (next) => updateStepContent(stepId, next),
+      });
       
-      for await (const chunk of stream) {
-        chunkCount++;
-        content += chunk;
-        updateStepContent(stepId, content);
-        
-        // Log every 10th chunk to avoid flooding console
-        if (chunkCount % 10 === 0) {
-          console.log(`[Generator] ${stepId}: Received ${chunkCount} chunks, total length: ${content.length}`);
+      try {
+        for await (const chunk of stream) {
+          chunkCount++;
+          content += chunk;
+          throttledContentUpdate.push(content);
+          
+          // Log every 10th chunk to avoid flooding console
+          if (chunkCount % 10 === 0) {
+            console.log(`[Generator] ${stepId}: Received ${chunkCount} chunks, total length: ${content.length}`);
+          }
         }
+      } finally {
+        // Ensure the latest content is committed before completion/error handling.
+        throttledContentUpdate.flush();
+        throttledContentUpdate.cancel();
       }
 
       console.log(`[Generator] Streaming finished for ${stepId}. Total chunks: ${chunkCount}, Final content length: ${content.length}`);
@@ -507,6 +522,7 @@ export function useStepGenerator() {
       }
 
       await completeStep(stepId);
+      await handleStepCompletion(stepId, content);
 
       if (stepId === 'chapter1' || stepId === 'continuation') {
         const latestGeneratedChapter = content;
@@ -594,7 +610,7 @@ export function useStepGenerator() {
         activeAbortController = null;
       }
     }
-  }, [startStep, updateStepContent, completeStep, setStepError, cancelStep, forceResetGeneration]);
+  }, [startStep, updateStepContent, completeStep, setStepError, cancelStep, forceResetGeneration, handleStepCompletion]);
 
   const stop = useCallback(() => {
     console.log('[Generator] Stop requested. AbortController exists:', !!activeAbortController);

@@ -6,6 +6,7 @@ describe('NovelDatabase', () => {
       await db.open();
     }
     await db.novels.clear();
+    await db.novelBlobs.clear();
   });
 
   afterAll(async () => {

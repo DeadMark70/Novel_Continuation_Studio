@@ -7,6 +7,7 @@ import { vi, beforeEach, describe, expect, it } from 'vitest';
 // Mock store
 const mockSetAutoMode = vi.fn();
 const mockSetAutoRange = vi.fn();
+const mockSetMaxAutoChapter = vi.fn();
 const mockStartStep = vi.fn();
 
 vi.mock('../store/useWorkflowStore', () => ({
@@ -22,6 +23,7 @@ type AutoModeState = {
   autoRangeEnd: number;
   setAutoMode: typeof mockSetAutoMode;
   setAutoRange: typeof mockSetAutoRange;
+  setMaxAutoChapter: typeof mockSetMaxAutoChapter;
   startStep: typeof mockStartStep;
 };
 
@@ -56,6 +58,7 @@ describe('AutoModeControl', () => {
       autoRangeEnd: 7,
       setAutoMode: mockSetAutoMode,
       setAutoRange: mockSetAutoRange,
+      setMaxAutoChapter: mockSetMaxAutoChapter,
       startStep: mockStartStep,
     });
   });
@@ -81,6 +84,7 @@ describe('AutoModeControl', () => {
       autoRangeEnd: 7,
       setAutoMode: mockSetAutoMode,
       setAutoRange: mockSetAutoRange,
+      setMaxAutoChapter: mockSetMaxAutoChapter,
       startStep: mockStartStep,
     });
 

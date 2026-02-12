@@ -1,7 +1,7 @@
 import { useNovelStore } from '../store/useNovelStore';
 import { useWorkflowStore } from '../store/useWorkflowStore';
 import { act } from '@testing-library/react';
-import { db, saveNovel, generateSessionId } from '../lib/db';
+import { db, getLatestNovel, getSession, saveNovel, generateSessionId } from '../lib/db';
 
 describe('useNovelStore Integration', () => {
   beforeEach(async () => {
@@ -9,6 +9,7 @@ describe('useNovelStore Integration', () => {
       await db.open();
     }
     await db.novels.clear();
+    await db.novelBlobs.clear();
     act(() => {
         // Reset store state
         useNovelStore.getState().startNewSession();
@@ -28,7 +29,7 @@ describe('useNovelStore Integration', () => {
     const count = await db.novels.count();
     expect(count).toBe(1);
     
-    const latest = await db.novels.toCollection().last();
+    const latest = await getLatestNovel();
     expect(latest?.content).toBe('Integration Test');
     expect(latest?.sessionId).toBeDefined();
   });
@@ -43,7 +44,7 @@ describe('useNovelStore Integration', () => {
     
     expect(useNovelStore.getState().originalNovel).toBe(expectedContent);
     
-    const latest = await db.novels.toCollection().last();
+    const latest = await getLatestNovel();
     expect(latest?.content).toBe(expectedContent);
   });
 
@@ -164,7 +165,7 @@ describe('useNovelStore Integration', () => {
       await useNovelStore.getState().setOutlineDirection('Add political intrigue');
     });
 
-    const session = await db.novels.where('sessionId').equals(useNovelStore.getState().currentSessionId).first();
+    const session = await getSession(useNovelStore.getState().currentSessionId);
     expect(session?.outlineDirection).toBe('Add political intrigue');
   });
 
@@ -174,7 +175,7 @@ describe('useNovelStore Integration', () => {
       await useNovelStore.getState().setTargetChapterCount(8);
     });
 
-    const session = await db.novels.where('sessionId').equals(useNovelStore.getState().currentSessionId).first();
+    const session = await getSession(useNovelStore.getState().currentSessionId);
     expect(session?.targetStoryWordCount).toBe(30000);
     expect(session?.targetChapterCount).toBe(8);
   });
@@ -190,7 +191,7 @@ describe('useNovelStore Integration', () => {
       });
     });
 
-    const session = await db.novels.where('sessionId').equals(useNovelStore.getState().currentSessionId).first();
+    const session = await getSession(useNovelStore.getState().currentSessionId);
     expect(session?.pacingMode).toBe('curve');
     expect(session?.plotPercent).toBe(55);
     expect(session?.curvePlotPercentStart).toBe(85);
@@ -250,7 +251,7 @@ describe('useNovelStore Integration', () => {
     expect(state.foreshadowLedger.length).toBe(1);
     expect(state.getLatestConsistencyReport()?.chapterNumber).toBe(1);
 
-    const session = await db.novels.where('sessionId').equals(state.currentSessionId).first();
+    const session = await getSession(state.currentSessionId);
     expect(session?.consistencyReports?.length).toBe(1);
     expect(session?.characterTimeline?.length).toBe(1);
     expect(session?.foreshadowLedger?.[0].title).toBe('戒指來源');

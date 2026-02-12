@@ -78,6 +78,30 @@ export interface NovelEntry {
   updatedAt: number;
 }
 
+type NovelBlobFields = Pick<
+  NovelEntry,
+  | 'content'
+  | 'analysis'
+  | 'outline'
+  | 'breakdown'
+  | 'chapters'
+  | 'characterCards'
+  | 'styleGuide'
+  | 'compressionOutline'
+  | 'evidencePack'
+  | 'compressedContext'
+  | 'consistencyReports'
+  | 'characterTimeline'
+  | 'foreshadowLedger'
+>;
+
+type NovelMetaRecord = Omit<NovelEntry, keyof NovelBlobFields> & Partial<NovelBlobFields>;
+
+interface NovelBlobEntry extends NovelBlobFields {
+  sessionId: string;
+  updatedAt: number;
+}
+
 export interface SettingsEntry {
   id?: string; // 'global'
   apiKey?: string;
@@ -102,7 +126,8 @@ export interface SettingsEntry {
 }
 
 export class NovelDatabase extends Dexie {
-  novels!: Table<NovelEntry>;
+  novels!: Table<NovelMetaRecord>;
+  novelBlobs!: Table<NovelBlobEntry>;
   settings!: Table<SettingsEntry>;
 
   constructor() {
@@ -282,10 +307,139 @@ export class NovelDatabase extends Dexie {
         }
       });
     });
+    this.version(9).stores({
+      novels: '++id, sessionId, updatedAt, createdAt',
+      settings: 'id, updatedAt',
+      novelBlobs: 'sessionId, updatedAt'
+    }).upgrade(async (tx) => {
+      const novelsTable = tx.table('novels');
+      const blobsTable = tx.table('novelBlobs');
+      const entries = await novelsTable.toArray() as NovelMetaRecord[];
+
+      for (const entry of entries) {
+        if (!entry.sessionId) {
+          continue;
+        }
+
+        const existingBlob = await blobsTable.get(entry.sessionId) as NovelBlobEntry | undefined;
+        if (!existingBlob) {
+          await blobsTable.put({
+            sessionId: entry.sessionId,
+            updatedAt: entry.updatedAt ?? Date.now(),
+            content: entry.content ?? '',
+            analysis: entry.analysis ?? '',
+            outline: entry.outline ?? '',
+            breakdown: entry.breakdown ?? '',
+            chapters: Array.isArray(entry.chapters) ? entry.chapters : [],
+            characterCards: entry.characterCards ?? '',
+            styleGuide: entry.styleGuide ?? '',
+            compressionOutline: entry.compressionOutline ?? '',
+            evidencePack: entry.evidencePack ?? '',
+            compressedContext: entry.compressedContext ?? '',
+            consistencyReports: entry.consistencyReports ?? [],
+            characterTimeline: entry.characterTimeline ?? [],
+            foreshadowLedger: entry.foreshadowLedger ?? [],
+          });
+        }
+
+        if (entry.id) {
+          await novelsTable.update(entry.id, {
+            content: '',
+            analysis: '',
+            outline: '',
+            breakdown: '',
+            chapters: [],
+            characterCards: '',
+            styleGuide: '',
+            compressionOutline: '',
+            evidencePack: '',
+            compressedContext: '',
+            consistencyReports: [],
+            characterTimeline: [],
+            foreshadowLedger: [],
+          });
+        }
+      }
+    });
   }
 }
 
 export const db = new NovelDatabase();
+
+function createEmptyBlobFields(): NovelBlobFields {
+  return {
+    content: '',
+    analysis: '',
+    outline: '',
+    breakdown: '',
+    chapters: [],
+    characterCards: '',
+    styleGuide: '',
+    compressionOutline: '',
+    evidencePack: '',
+    compressedContext: '',
+    consistencyReports: [],
+    characterTimeline: [],
+    foreshadowLedger: [],
+  };
+}
+
+function extractBlobFields(entry: Omit<NovelEntry, 'id' | 'updatedAt' | 'createdAt'>): NovelBlobFields {
+  return {
+    content: entry.content,
+    analysis: entry.analysis,
+    outline: entry.outline,
+    breakdown: entry.breakdown,
+    chapters: entry.chapters,
+    characterCards: entry.characterCards ?? '',
+    styleGuide: entry.styleGuide ?? '',
+    compressionOutline: entry.compressionOutline ?? '',
+    evidencePack: entry.evidencePack ?? '',
+    compressedContext: entry.compressedContext ?? '',
+    consistencyReports: entry.consistencyReports ?? [],
+    characterTimeline: entry.characterTimeline ?? [],
+    foreshadowLedger: entry.foreshadowLedger ?? [],
+  };
+}
+
+function mergeNovelRecord(meta: NovelMetaRecord, blob?: NovelBlobEntry): NovelEntry {
+  const source = blob ?? {
+    ...createEmptyBlobFields(),
+    content: meta.content ?? '',
+    analysis: meta.analysis ?? '',
+    outline: meta.outline ?? '',
+    breakdown: meta.breakdown ?? '',
+    chapters: meta.chapters ?? [],
+    characterCards: meta.characterCards ?? '',
+    styleGuide: meta.styleGuide ?? '',
+    compressionOutline: meta.compressionOutline ?? '',
+    evidencePack: meta.evidencePack ?? '',
+    compressedContext: meta.compressedContext ?? '',
+    consistencyReports: meta.consistencyReports ?? [],
+    characterTimeline: meta.characterTimeline ?? [],
+    foreshadowLedger: meta.foreshadowLedger ?? [],
+    sessionId: meta.sessionId,
+    updatedAt: meta.updatedAt,
+  };
+
+  return {
+    ...meta,
+    content: source.content ?? '',
+    analysis: source.analysis ?? '',
+    outline: source.outline ?? '',
+    breakdown: source.breakdown ?? '',
+    chapters: source.chapters ?? [],
+    characterCards: source.characterCards ?? '',
+    styleGuide: source.styleGuide ?? '',
+    compressionOutline: source.compressionOutline ?? '',
+    evidencePack: source.evidencePack ?? '',
+    compressedContext: source.compressedContext ?? '',
+    consistencyReports: source.consistencyReports ?? [],
+    characterTimeline: source.characterTimeline ?? [],
+    foreshadowLedger: source.foreshadowLedger ?? [],
+    latestConsistencySummary: meta.latestConsistencySummary,
+  } as NovelEntry;
+}
 
 /**
  * Save or update a novel entry within a session.
@@ -313,32 +467,54 @@ export async function saveNovel(entry: Omit<NovelEntry, 'id' | 'updatedAt' | 'cr
     foreshadowLedger: entry.foreshadowLedger ?? [],
     latestConsistencySummary: entry.latestConsistencySummary,
   };
-  
-  // Check if this session already exists
-  const existing = await db.novels.where('sessionId').equals(entry.sessionId).first();
-  
-  if (existing && existing.id) {
-    // Update existing session
-    return await db.novels.update(existing.id, { 
+
+  const blobFields = extractBlobFields(normalizedEntry);
+  const metaBlobFields = createEmptyBlobFields();
+  let mutationResult = 0;
+
+  await db.transaction('rw', db.novels, db.novelBlobs, async () => {
+    const existing = await db.novels.where('sessionId').equals(entry.sessionId).first();
+
+    const metaPayload: Omit<NovelMetaRecord, 'id' | 'updatedAt' | 'createdAt'> = {
       ...normalizedEntry,
+      ...metaBlobFields,
+    };
+
+    if (existing && existing.id) {
+      mutationResult = await db.novels.update(existing.id, {
+        ...metaPayload,
+        updatedAt: now,
+        createdAt: existing.createdAt,
+      });
+    } else {
+      const id = await db.novels.add({
+        ...metaPayload,
+        createdAt: now,
+        updatedAt: now,
+      });
+      mutationResult = Number(id);
+    }
+
+    await db.novelBlobs.put({
+      sessionId: entry.sessionId,
       updatedAt: now,
-      createdAt: existing.createdAt // Keep original creation time
+      ...blobFields,
     });
-  } else {
-    // Create new session
-    return await db.novels.add({ 
-      ...normalizedEntry, 
-      createdAt: now,
-      updatedAt: now 
-    });
-  }
+  });
+
+  return mutationResult;
 }
 
 /**
  * Get the most recently updated novel entry
  */
 export async function getLatestNovel(): Promise<NovelEntry | undefined> {
-  return await db.novels.orderBy('updatedAt').last();
+  const latest = await db.novels.orderBy('updatedAt').last();
+  if (!latest?.sessionId) {
+    return undefined;
+  }
+  const blob = await db.novelBlobs.get(latest.sessionId);
+  return mergeNovelRecord(latest, blob);
 }
 
 /**
@@ -348,7 +524,15 @@ export async function getLatestNovel(): Promise<NovelEntry | undefined> {
 export async function getAllSessions(): Promise<NovelEntry[]> {
   const all = await db.novels.orderBy('updatedAt').reverse().toArray();
   // Filter out legacy entries without sessionId
-  return all.filter(entry => entry.sessionId && typeof entry.sessionId === 'string');
+  const filtered = all.filter(entry => entry.sessionId && typeof entry.sessionId === 'string');
+  const blobs = await db.novelBlobs.bulkGet(filtered.map((entry) => entry.sessionId));
+  const blobMap = new Map<string, NovelBlobEntry>();
+  for (const blob of blobs) {
+    if (blob?.sessionId) {
+      blobMap.set(blob.sessionId, blob);
+    }
+  }
+  return filtered.map((entry) => mergeNovelRecord(entry, blobMap.get(entry.sessionId)));
 }
 
 /**
@@ -359,14 +543,22 @@ export async function getSession(sessionId: string): Promise<NovelEntry | undefi
     console.warn('[DB] Invalid sessionId provided:', sessionId);
     return undefined;
   }
-  return await db.novels.where('sessionId').equals(sessionId).first();
+  const meta = await db.novels.where('sessionId').equals(sessionId).first();
+  if (!meta) {
+    return undefined;
+  }
+  const blob = await db.novelBlobs.get(sessionId);
+  return mergeNovelRecord(meta, blob);
 }
 
 /**
  * Delete a session
  */
 export async function deleteSession(sessionId: string): Promise<void> {
-  await db.novels.where('sessionId').equals(sessionId).delete();
+  await db.transaction('rw', db.novels, db.novelBlobs, async () => {
+    await db.novels.where('sessionId').equals(sessionId).delete();
+    await db.novelBlobs.where('sessionId').equals(sessionId).delete();
+  });
 }
 
 /**

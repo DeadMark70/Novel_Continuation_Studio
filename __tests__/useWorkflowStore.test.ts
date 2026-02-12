@@ -1,173 +1,54 @@
-import { useWorkflowStore } from '../store/useWorkflowStore';
 import { act } from '@testing-library/react';
-import { vi } from 'vitest';
-
-// Mock useNovelStore
-const mockUpdateWorkflow = vi.fn().mockResolvedValue(undefined);
-const mockStartNewSession = vi.fn();
-const mockGetState = vi.fn();
-
-vi.mock('../store/useNovelStore', () => ({
-  useNovelStore: {
-    getState: () => mockGetState(),
-  },
-}));
+import { describe, expect, it } from 'vitest';
+import { useWorkflowStore } from '../store/useWorkflowStore';
 
 describe('useWorkflowStore', () => {
   beforeEach(() => {
-    mockUpdateWorkflow.mockClear();
-    mockStartNewSession.mockClear();
-    mockGetState.mockReturnValue({
-      updateWorkflow: mockUpdateWorkflow,
-      startNewSession: mockStartNewSession,
-      analysis: '',
-      outline: '',
-      breakdown: '',
-      chapters: [],
-      targetChapterCount: 5
-    });
     act(() => {
       useWorkflowStore.getState().resetWorkflow();
+      useWorkflowStore.getState().setMaxAutoChapter(5);
     });
   });
 
-  it('should initialize with idle steps', () => {
+  it('initializes with idle steps', () => {
     const state = useWorkflowStore.getState();
-    expect(state.steps.compression.status).toBe('idle');
-    expect(state.steps.analysis.status).toBe('idle');
     expect(state.currentStepId).toBe('compression');
-  });
-
-  it('should transition to streaming on startStep', () => {
-    act(() => {
-      useWorkflowStore.getState().startStep('analysis');
-    });
-    const state = useWorkflowStore.getState();
-    expect(state.steps.analysis.status).toBe('streaming');
-  });
-
-  it('should update content', () => {
-    act(() => {
-      useWorkflowStore.getState().updateStepContent('analysis', 'New content');
-    });
-    const state = useWorkflowStore.getState();
-    expect(state.steps.analysis.content).toBe('New content');
-  });
-
-  it('should complete step and sync with novel store', async () => {
-    act(() => {
-      useWorkflowStore.getState().updateStepContent('analysis', 'Analysis Content');
-    });
-    
-    await act(async () => {
-      await useWorkflowStore.getState().completeStep('analysis');
-    });
-    const state = useWorkflowStore.getState();
-    expect(state.steps.analysis.status).toBe('completed');
-    expect(mockUpdateWorkflow).toHaveBeenCalledWith(expect.objectContaining({
-      analysis: 'Analysis Content'
-    }));
-  });
-
-  it('should sync compression output to novel store when completed', async () => {
-    act(() => {
-      useWorkflowStore.getState().updateStepContent('compression', 'Compression Content');
-    });
-    await act(async () => {
-      await useWorkflowStore.getState().completeStep('compression');
-    });
-    expect(mockUpdateWorkflow).toHaveBeenCalledWith(expect.objectContaining({
-      compressedContext: 'Compression Content'
-    }));
-  });
-
-  it('should auto-trigger analysis after compression completes', async () => {
-    act(() => {
-      useWorkflowStore.getState().updateStepContent('compression', 'Compression Content');
-    });
-    await act(async () => {
-      await useWorkflowStore.getState().completeStep('compression');
-    });
-    const state = useWorkflowStore.getState();
-    expect(state.currentStepId).toBe('analysis');
-    expect(state.autoTriggerStepId).toBe('analysis');
-  });
-
-  it('should auto-progress to outline (idle) after analysis completes', async () => {
-    act(() => {
-      useWorkflowStore.getState().updateStepContent('analysis', 'Analysis Content');
-    });
-    await act(async () => {
-      await useWorkflowStore.getState().completeStep('analysis');
-    });
-    const state = useWorkflowStore.getState();
-    expect(state.currentStepId).toBe('outline');
-    expect(state.autoTriggerStepId).toBeNull(); 
-  });
-
-  it('should auto-trigger breakdown after outline completes', async () => {
-    act(() => {
-      useWorkflowStore.getState().updateStepContent('outline', 'Outline Content');
-    });
-    await act(async () => {
-      await useWorkflowStore.getState().completeStep('outline');
-    });
-    const state = useWorkflowStore.getState();
-    expect(state.currentStepId).toBe('breakdown');
-    expect(state.autoTriggerStepId).toBe('breakdown');
-  });
-
-  it('should auto-trigger chapter1 after breakdown completes', async () => {
-    act(() => {
-      useWorkflowStore.getState().updateStepContent('breakdown', 'Breakdown Content');
-    });
-    await act(async () => {
-      await useWorkflowStore.getState().completeStep('breakdown');
-    });
-    const state = useWorkflowStore.getState();
-    expect(state.currentStepId).toBe('chapter1');
-    expect(state.autoTriggerStepId).toBe('chapter1');
-  });
-
-  it('should NOT auto-trigger continuation after chapter1 completes', async () => {
-    act(() => {
-      useWorkflowStore.getState().updateStepContent('chapter1', 'Chapter 1 Content');
-    });
-    await act(async () => {
-      await useWorkflowStore.getState().completeStep('chapter1');
-    });
-    const state = useWorkflowStore.getState();
-    expect(state.currentStepId).toBe('continuation');
+    expect(state.steps.analysis.status).toBe('idle');
     expect(state.autoTriggerStepId).toBeNull();
   });
-});
 
-describe('useWorkflowStore - Automation Actions', () => {
-  beforeEach(() => {
+  it('starts and completes a step', async () => {
     act(() => {
-      useWorkflowStore.getState().resetWorkflow();
+      useWorkflowStore.getState().startStep('analysis');
+      useWorkflowStore.getState().updateStepContent('analysis', 'done');
     });
+    expect(useWorkflowStore.getState().steps.analysis.status).toBe('streaming');
+
+    await act(async () => {
+      await useWorkflowStore.getState().completeStep('analysis');
+    });
+
+    expect(useWorkflowStore.getState().steps.analysis.status).toBe('completed');
+    expect(useWorkflowStore.getState().steps.analysis.content).toBe('done');
   });
 
-  it('should set auto mode correctly', () => {
+  it('sets step error and resets generation flags', () => {
     act(() => {
+      useWorkflowStore.getState().setIsGenerating(true);
       useWorkflowStore.getState().setAutoMode('full_auto');
+      useWorkflowStore.getState().setStepError('analysis', 'boom');
     });
+
     const state = useWorkflowStore.getState();
-    expect(state.autoMode).toBe('full_auto');
+    expect(state.steps.analysis.status).toBe('error');
+    expect(state.autoMode).toBe('manual');
+    expect(state.isGenerating).toBe(false);
+    expect(state.autoTriggerStepId).toBeNull();
   });
 
-  it('should set auto range correctly', () => {
+  it('clamps auto range by max auto chapter', () => {
     act(() => {
-      useWorkflowStore.getState().setAutoRange(2, 4);
-    });
-    const state = useWorkflowStore.getState();
-    expect(state.autoRangeStart).toBe(2);
-    expect(state.autoRangeEnd).toBe(4);
-  });
-
-  it('should clamp auto range to target chapter count', () => {
-    act(() => {
+      useWorkflowStore.getState().setMaxAutoChapter(5);
       useWorkflowStore.getState().setAutoRange(2, 10);
     });
 
@@ -176,231 +57,61 @@ describe('useWorkflowStore - Automation Actions', () => {
     expect(state.autoRangeEnd).toBe(5);
   });
 
-  it('should pause generation and abort active step', () => {
+  it('re-clamps range when max auto chapter is lowered', () => {
+    act(() => {
+      useWorkflowStore.getState().setAutoRange(2, 7);
+      useWorkflowStore.getState().setMaxAutoChapter(4);
+    });
+
+    const state = useWorkflowStore.getState();
+    expect(state.maxAutoChapter).toBe(4);
+    expect(state.autoRangeEnd).toBe(4);
+  });
+
+  it('pauses and resumes generation', () => {
     act(() => {
       useWorkflowStore.getState().startStep('continuation');
-      useWorkflowStore.getState().resumeGeneration();
-    });
-    
-    act(() => {
       useWorkflowStore.getState().pauseGeneration();
     });
-    
-    const state = useWorkflowStore.getState();
-    expect(state.isPaused).toBe(true);
-    expect(state.isGenerating).toBe(false);
-    expect(state.autoTriggerStepId).toBeNull();
-  });
+    expect(useWorkflowStore.getState().isPaused).toBe(true);
+    expect(useWorkflowStore.getState().steps.continuation.status).toBe('idle');
 
-  it('should resume generation', () => {
-    act(() => {
-      useWorkflowStore.getState().pauseGeneration();
-    });
-    
     act(() => {
       useWorkflowStore.getState().resumeGeneration();
     });
-    
-    const state = useWorkflowStore.getState();
-    expect(state.isPaused).toBe(false);
-    expect(state.autoTriggerStepId).toBe(state.currentStepId);
+    expect(useWorkflowStore.getState().isPaused).toBe(false);
+    expect(useWorkflowStore.getState().autoTriggerStepId).toBe('continuation');
   });
 
-  it('should reset autoMode to manual on error', () => {
+  it('resets continuation step for next chapter loop', () => {
     act(() => {
-      useWorkflowStore.getState().setAutoMode('full_auto');
-      useWorkflowStore.getState().setStepError('continuation', 'API Error');
-    });
-    
-    const state = useWorkflowStore.getState();
-    expect(state.autoTriggerStepId).toBeNull();
-    expect(state.autoMode).toBe('manual');
-  });
-
-  it('should force reset generation flags', () => {
-    act(() => {
-      useWorkflowStore.getState().setIsGenerating(true);
-      useWorkflowStore.getState().setAutoMode('full_auto');
-      useWorkflowStore.getState().resumeGeneration();
-      useWorkflowStore.getState().pauseGeneration();
-      useWorkflowStore.getState().forceResetGeneration();
+      useWorkflowStore.getState().updateStepContent('continuation', 'chapter text');
+      useWorkflowStore.getState().resetContinuationStep('continuation');
     });
 
     const state = useWorkflowStore.getState();
-    expect(state.isGenerating).toBe(false);
-    expect(state.isPaused).toBe(false);
-    expect(state.autoTriggerStepId).toBeNull();
-  });
-
-  it('should reset all steps state', () => {
-    act(() => {
-      useWorkflowStore.getState().updateStepContent('analysis', 'temp');
-      useWorkflowStore.getState().setStepError('analysis', 'err');
-      useWorkflowStore.getState().setCurrentStep('continuation');
-      useWorkflowStore.getState().setAutoMode('full_auto');
-      useWorkflowStore.getState().setIsGenerating(true);
-      useWorkflowStore.getState().resetAllSteps();
-    });
-
-    const state = useWorkflowStore.getState();
-    expect(state.currentStepId).toBe('compression');
-    expect(state.steps.compression.status).toBe('idle');
-    expect(state.steps.analysis.status).toBe('idle');
-    expect(state.steps.analysis.content).toBe('');
-    expect(state.autoMode).toBe('manual');
-    expect(state.isGenerating).toBe(false);
-    expect(state.autoTriggerStepId).toBeNull();
-  });
-});
-
-describe('useWorkflowStore - Automation Logic', () => {
-  beforeEach(() => {
-    mockUpdateWorkflow.mockClear();
-    mockGetState.mockReturnValue({
-      updateWorkflow: mockUpdateWorkflow,
-      startNewSession: mockStartNewSession,
-      analysis: '',
-      outline: '',
-      breakdown: '',
-      chapters: ['Chapter 1'],
-      targetChapterCount: 5
-    });
-    act(() => {
-      useWorkflowStore.getState().resetWorkflow();
-      useWorkflowStore.getState().setAutoMode('full_auto');
-      useWorkflowStore.getState().updateStepContent('continuation', 'Chapter 2 Content');
-    });
-  });
-
-  it('should auto-trigger next chapter in full_auto mode', async () => {
-    // Setup: just finished chapter 2 (so chapters will be 2)
-    mockGetState.mockReturnValue({
-        updateWorkflow: mockUpdateWorkflow,
-        startNewSession: mockStartNewSession,
-        analysis: '',
-        outline: '',
-        breakdown: '',
-        chapters: ['Chapter 1', 'Chapter 2'],
-        targetChapterCount: 5
-    });
-
-    await act(async () => {
-      await useWorkflowStore.getState().completeStep('continuation');
-    });
-
-    const state = useWorkflowStore.getState();
+    expect(state.steps.continuation.status).toBe('idle');
+    expect(state.steps.continuation.content).toBe('');
     expect(state.autoTriggerStepId).toBe('continuation');
   });
 
-  it('should auto-trigger next chapter in range mode if within range', async () => {
+  it('hydrates workflow state from persisted session', () => {
     act(() => {
-      useWorkflowStore.getState().setAutoMode('range');
-      useWorkflowStore.getState().setAutoRange(2, 3); // Generate up to 3
-    });
-
-    // Setup: just finished chapter 2 (so chapters will be 2). Next is 3. 3 <= 3. Trigger.
-    mockGetState.mockReturnValue({
-        updateWorkflow: mockUpdateWorkflow,
-        startNewSession: mockStartNewSession,
-        analysis: '',
-        outline: '',
+      useWorkflowStore.getState().hydrateFromNovelSession({
+        currentStep: 3,
+        compressedContext: 'compressed',
+        analysis: 'analysis',
+        outline: 'outline',
         breakdown: '',
-        chapters: ['Chapter 1', 'Chapter 2'],
-        targetChapterCount: 5
-    });
-
-    await act(async () => {
-      await useWorkflowStore.getState().completeStep('continuation');
+        chapters: ['chapter 1'],
+      });
     });
 
     const state = useWorkflowStore.getState();
-    expect(state.autoTriggerStepId).toBe('continuation');
-  });
-
-  it('should NOT auto-trigger next chapter in range mode if end reached', async () => {
-    act(() => {
-      useWorkflowStore.getState().setAutoMode('range');
-      useWorkflowStore.getState().setAutoRange(2, 2); // Generate up to 2
-    });
-
-    // Setup: just finished chapter 2 (so chapters will be 2). Next is 3. 3 > 2. Stop.
-    mockGetState.mockReturnValue({
-        updateWorkflow: mockUpdateWorkflow,
-        startNewSession: mockStartNewSession,
-        analysis: '',
-        outline: '',
-        breakdown: '',
-        chapters: ['Chapter 1', 'Chapter 2'],
-        targetChapterCount: 5
-    });
-
-    await act(async () => {
-      await useWorkflowStore.getState().completeStep('continuation');
-    });
-
-    const state = useWorkflowStore.getState();
-    expect(state.autoTriggerStepId).toBeNull();
-  });
-
-  it('should NOT auto-trigger if paused', async () => {
-    act(() => {
-      useWorkflowStore.getState().setAutoMode('full_auto');
-      useWorkflowStore.getState().pauseGeneration();
-    });
-
-    // Setup: just finished chapter 2
-    mockGetState.mockReturnValue({
-        updateWorkflow: mockUpdateWorkflow,
-        startNewSession: mockStartNewSession,
-        analysis: '',
-        outline: '',
-        breakdown: '',
-        chapters: ['Chapter 1', 'Chapter 2'],
-        targetChapterCount: 5
-    });
-
-    await act(async () => {
-      await useWorkflowStore.getState().completeStep('continuation');
-    });
-
-    const state = useWorkflowStore.getState();
-    expect(state.autoTriggerStepId).toBeNull();
-  });
-
-  it('should release isGenerating lock when current step output is empty', async () => {
-    act(() => {
-      useWorkflowStore.getState().setIsGenerating(true);
-    });
-
-    await act(async () => {
-      await useWorkflowStore.getState().completeStep('analysis');
-    });
-
-    const state = useWorkflowStore.getState();
-    expect(state.isGenerating).toBe(false);
-  });
-
-  it('should stop auto-trigger when target chapter count is reached', async () => {
-    act(() => {
-      useWorkflowStore.getState().setAutoMode('full_auto');
-      useWorkflowStore.getState().updateStepContent('continuation', 'Chapter 3 Content');
-    });
-
-    mockGetState.mockReturnValue({
-      updateWorkflow: mockUpdateWorkflow,
-      startNewSession: mockStartNewSession,
-      analysis: '',
-      outline: '',
-      breakdown: '',
-      chapters: ['Chapter 1', 'Chapter 2', 'Chapter 3'],
-      targetChapterCount: 3
-    });
-
-    await act(async () => {
-      await useWorkflowStore.getState().completeStep('continuation');
-    });
-
-    const state = useWorkflowStore.getState();
-    expect(state.autoTriggerStepId).toBeNull();
+    expect(state.steps.compression.status).toBe('completed');
+    expect(state.steps.analysis.status).toBe('completed');
+    expect(state.steps.outline.status).toBe('completed');
+    expect(state.steps.chapter1.status).toBe('completed');
+    expect(state.currentStepId).toBe('breakdown');
   });
 });

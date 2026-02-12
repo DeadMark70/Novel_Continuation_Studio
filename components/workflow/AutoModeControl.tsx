@@ -18,12 +18,17 @@ export function AutoModeControl({ onStart }: AutoModeControlProps) {
     setAutoMode, 
     autoRangeStart, 
     autoRangeEnd, 
-    setAutoRange
+    setAutoRange,
+    setMaxAutoChapter
   } = useWorkflowStore();
   const { targetChapterCount } = useNovelStore();
 
   const maxChapter = Math.max(2, targetChapterCount ?? 5);
   const chapterOptions = Array.from({ length: Math.max(1, maxChapter - 1) }, (_, index) => index + 2);
+
+  React.useEffect(() => {
+    setMaxAutoChapter(maxChapter);
+  }, [maxChapter, setMaxAutoChapter]);
 
   React.useEffect(() => {
     const clampedStart = Math.max(2, Math.min(autoRangeStart, maxChapter));
@@ -123,7 +128,7 @@ export function AutoModeControl({ onStart }: AutoModeControlProps) {
               value={autoRangeStart.toString()} 
               onValueChange={(v) => setAutoRange(parseInt(v), autoRangeEnd)}
             >
-              <SelectTrigger className="w-[80px] h-8 text-xs">
+              <SelectTrigger className="h-11 w-[80px] text-xs md:h-8">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -142,7 +147,7 @@ export function AutoModeControl({ onStart }: AutoModeControlProps) {
               value={autoRangeEnd.toString()} 
               onValueChange={(v) => setAutoRange(autoRangeStart, parseInt(v))}
             >
-              <SelectTrigger className="w-[80px] h-8 text-xs">
+              <SelectTrigger className="h-11 w-[80px] text-xs md:h-8">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>

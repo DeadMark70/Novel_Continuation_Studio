@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { sanitizeLogValue } from '@/lib/server-log-sanitizer';
 
 const NIM_API_BASE = 'https://integrate.api.nvidia.com/v1';
 
@@ -158,7 +159,7 @@ export async function POST(request: Request) {
       source: 'probe',
     });
   } catch (error) {
-    console.error('Capability probe error:', error);
+    console.error('Capability probe error:', sanitizeLogValue(error));
     return NextResponse.json({
       chatSupported: true,
       thinkingSupported: 'unknown',

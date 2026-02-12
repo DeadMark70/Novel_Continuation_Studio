@@ -1,5 +1,9 @@
 import { NextResponse } from 'next/server';
-import { isOpenRouterNetworkDisabled } from '@/lib/openrouter-guard';
+import {
+  getOpenRouterGuardMessage,
+  isOpenRouterNetworkDisabledServer,
+} from '@/lib/openrouter-guard';
+import { sanitizeLogValue } from '@/lib/server-log-sanitizer';
 
 const OPENROUTER_API_BASE = 'https://openrouter.ai/api/v1';
 export const maxDuration = 300;
@@ -17,9 +21,9 @@ type OpenRouterGeneratePayload = {
 };
 
 export async function POST(request: Request) {
-  if (isOpenRouterNetworkDisabled()) {
+  if (isOpenRouterNetworkDisabledServer()) {
     return NextResponse.json(
-      { error: 'OpenRouter network calls are disabled in this environment.' },
+      { error: getOpenRouterGuardMessage() },
       { status: 403 }
     );
   }
@@ -82,7 +86,7 @@ export async function POST(request: Request) {
       },
     });
   } catch (error) {
-    console.error('OpenRouter generation error:', error);
+    console.error('OpenRouter generation error:', sanitizeLogValue(error));
     return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
   }
 }

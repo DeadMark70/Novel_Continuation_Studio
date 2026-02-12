@@ -406,7 +406,7 @@ export default function SettingsPage() {
               </Link>
             </Button>
             <Button variant="outline" disabled={!canInteract || isSaving} onClick={hydrateFromStore}>Reload Saved</Button>
-            <Button disabled={!canInteract || isSaving} onClick={save}>{isSaving ? 'Saving…' : 'Save Configuration'}</Button>
+            <Button disabled={!canInteract || isSaving} onClick={save}>{isSaving ? 'Saving...' : 'Save Configuration'}</Button>
           </div>
         </div>
 
@@ -456,7 +456,7 @@ export default function SettingsPage() {
               </Select>
             </div>
             {PROVIDERS.map((provider) => (
-              <div key={provider} className="rounded-lg border border-border p-4 space-y-2">
+              <div key={provider} className="rounded-lg border border-border p-4 space-y-2" aria-busy={loadingModels[provider]}>
                 <h3 className="font-semibold uppercase text-sm">{provider}</h3>
                 <Label htmlFor={`${provider}-api-key`}>{provider === 'nim' ? 'NIM API Key' : 'OpenRouter API Key'}</Label>
                 <Input
@@ -478,8 +478,15 @@ export default function SettingsPage() {
                     autoComplete="off"
                   />
                   <datalist id={`${provider}-models`}>{availableModels[provider].map((model) => <option key={`${provider}-${model}`} value={model} />)}</datalist>
-                  <Button variant="outline" disabled={loadingModels[provider]} onClick={() => void fetchModels(provider)}>{loadingModels[provider] ? 'Loading…' : 'Fetch Models'}</Button>
+                  <Button variant="outline" disabled={loadingModels[provider]} onClick={() => void fetchModels(provider)}>{loadingModels[provider] ? 'Loading...' : 'Fetch Models'}</Button>
                 </div>
+                {loadingModels[provider] ? (
+                  <div className="space-y-2 rounded-md border border-border/60 p-2">
+                    <div className="h-4 w-32 animate-pulse rounded bg-muted/60" />
+                    <div className="h-4 w-full animate-pulse rounded bg-muted/50" />
+                    <div className="h-4 w-5/6 animate-pulse rounded bg-muted/40" />
+                  </div>
+                ) : null}
               </div>
             ))}
           </TabsContent>
@@ -861,7 +868,7 @@ export default function SettingsPage() {
                 name="prompt-search"
                 value={promptSearch}
                 onChange={(e) => setPromptSearch(e.target.value)}
-                placeholder="Search prompts…"
+                placeholder="Search prompts..."
                 autoComplete="off"
               />
               <div className="flex gap-2">
@@ -881,7 +888,7 @@ export default function SettingsPage() {
                     <div key={group.title} className="space-y-2">
                       <p className="text-xs font-bold uppercase text-muted-foreground">{group.title}</p>
                       {keys.map((key) => (
-                        <button key={key} type="button" className={`w-full rounded border px-2 py-2 text-left text-xs ${selectedPrompt === key ? 'border-primary bg-primary/10' : 'border-border bg-card/20'}`} onClick={() => setSelectedPrompt(key)}>
+                        <button key={key} type="button" className={`min-h-11 w-full rounded border px-2 py-2 text-left text-xs ${selectedPrompt === key ? 'border-primary bg-primary/10' : 'border-border bg-card/20'}`} onClick={() => setSelectedPrompt(key)}>
                           <p className="font-semibold">{getPromptLabel(key)}</p>
                           <p className="text-[11px] text-muted-foreground line-clamp-2">{getPromptDescription(key)}</p>
                         </button>

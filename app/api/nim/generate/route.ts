@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { sanitizeLogValue } from '@/lib/server-log-sanitizer';
 
 const NIM_API_BASE = 'https://integrate.api.nvidia.com/v1';
 export const maxDuration = 300;
@@ -128,7 +129,7 @@ export async function POST(request: Request) {
       },
     });
   } catch (error) {
-    console.error('Generation error:', error);
+    console.error('Generation error:', sanitizeLogValue(error));
     return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
   }
 }

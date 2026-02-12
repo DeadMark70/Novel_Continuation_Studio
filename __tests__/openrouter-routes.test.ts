@@ -6,6 +6,16 @@ describe('/api/openrouter routes', () => {
   afterEach(() => {
     vi.restoreAllMocks();
     delete process.env.OPENROUTER_API_KEY;
+    delete process.env.OPENROUTER_DISABLE_NETWORK;
+    delete process.env.E2E_MODE;
+  });
+
+  it('returns 403 when network guard is enabled', async () => {
+    process.env.OPENROUTER_DISABLE_NETWORK = '1';
+    const fetchSpy = vi.spyOn(global, 'fetch');
+    const response = await getModels(new Request('http://localhost/api/openrouter/models'));
+    expect(response.status).toBe(403);
+    expect(fetchSpy).not.toHaveBeenCalled();
   });
 
   it('returns normalized models response', async () => {
