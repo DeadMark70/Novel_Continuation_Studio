@@ -12,6 +12,7 @@
 - Settings persistence was optimized via snapshot-style save (`applySettingsSnapshot`) to reduce slow multi-write saves.
 - Prompt editor issues around empty custom prompts were fixed (defaults render correctly; custom prompt is optional overlay).
 - OpenRouter paid-network guard is implemented for test/offline environments.
+- Phase 0-4 outputs and Phase 2 manual guidance (plotDirection) are now correctly persisted and hydrated on refresh (2026-02-12).
 
 ## 3. Runtime Stack
 - Framework: Next.js App Router (`next@16.1.6`)
@@ -22,7 +23,13 @@
   - NIM routes: `app/api/nim/*`
   - OpenRouter routes: `app/api/openrouter/*`
 
-## 4. Key Paths
+## 4. Agent Skills
+- **vercel-react-best-practices**: Guidelines for React 19/Next.js performance and patterns.
+- **vercel-composition-patterns**: React component architecture and composition.
+- **web-design-guidelines**: Accessibility and UI best practices.
+- **chrome-devtools**: Browser debugging and automation.
+
+## 5. Key Paths
 - Main app: `app/page.tsx`
 - Settings page: `app/settings/page.tsx`
 - History page: `app/history/page.tsx`

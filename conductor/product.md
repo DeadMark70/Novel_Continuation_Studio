@@ -6,7 +6,7 @@
 - Goal: Continue long-form novels using a structured Phase 0-5 workflow with per-phase provider/model control.
 - Core principle: high control and reproducibility without clutter.
 
-## Current Product Shape (2026-02-11)
+## Current Product Shape (2026-02-12)
 1. Provider architecture
 - Dual provider support: NVIDIA NIM + OpenRouter.
 - Per-phase routing: each phase can select its own `{ provider, model }`.
@@ -14,7 +14,7 @@
 
 2. Workflow
 - Phase 0: optional compression pipeline for long novels.
-- Phase 1-5: analysis -> outline -> breakdown -> chapter1 -> continuation.
+- Phase 1-5: analysis -> outline -> breakdown -> chapter1 -> continuation. (Phase 0-4 results survive page refresh).
 - Global generation lock to prevent concurrent conflicting runs.
 
 3. Settings

@@ -16,9 +16,10 @@
   - `useWorkflowStore`: phase execution + generation lock (`isGenerating`)
   - `useNovelStore`: novel/session data, restore/reset, history
   - `useSettingsStore`: provider settings, phase routing, defaults, model overrides, prompt customizations
+  - **Hydration**: `useNovelStore` hydrates `useWorkflowStore` during initialization to maintain phase progress.
 - IndexedDB via Dexie (`lib/db.ts`)
   - Current schema version: v7
-  - Persists provider-scoped settings, phase config, model overrides, prompts, context settings
+  - Persists provider-scoped settings, phase config, model overrides, prompts, context settings, and per-session phase outputs (Phase 0-4).
 
 ## AI & Integration
 - Providers:
