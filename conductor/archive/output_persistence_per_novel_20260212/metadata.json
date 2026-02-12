@@ -1,0 +1,8 @@
+{
+  "track_id": "output_persistence_per_novel_20260212",
+  "type": "feature",
+  "status": "new",
+  "created_at": "2026-02-12T11:31:00Z",
+  "updated_at": "2026-02-12T11:31:00Z",
+  "description": "Save and restore Phase 0-5 outputs and Phase 2 manual guidance (Plot Direction) per novel to survive page refresh (F5)."
+}

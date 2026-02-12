@@ -36,8 +36,3 @@ This file records major project tracks and their documentation anchors.
   - Path: `conductor/archive/workflow_customization_nim_compat_20260207/`
   - Scope:
     - Workflow customization, target placeholders, and NIM capability handling.
-
----
-
-- [x] **Track: output_persistence_per_novel_20260212**
-*Link: [./tracks/output_persistence_per_novel_20260212/](./tracks/output_persistence_per_novel_20260212/)*
