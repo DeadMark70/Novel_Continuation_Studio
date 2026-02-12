@@ -36,3 +36,8 @@ This file records major project tracks and their documentation anchors.
   - Path: `conductor/archive/workflow_customization_nim_compat_20260207/`
   - Scope:
     - Workflow customization, target placeholders, and NIM capability handling.
+\
+---
+
+- [~] **Track: Comprehensive Project Audit & E2E Resilience Plan**
+*Link: [./tracks/project_audit_20260212/](./tracks/project_audit_20260212/)*\
