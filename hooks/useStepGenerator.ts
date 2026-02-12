@@ -1,4 +1,4 @@
-import { useRef, useCallback } from 'react';
+import { useCallback } from 'react';
 import { useWorkflowStore, WorkflowStepId } from '@/store/useWorkflowStore';
 import { useSettingsStore } from '@/store/useSettingsStore';
 import { useNovelStore } from '@/store/useNovelStore';
@@ -17,6 +17,7 @@ import {
 import { runConsistencyCheck } from '@/lib/consistency-checker';
 
 type PromptTemplateKey = keyof typeof DEFAULT_PROMPTS;
+let activeAbortController: AbortController | null = null;
 
 function resolvePromptTemplateKey(stepId: WorkflowStepId, useCompressedContext: boolean): PromptTemplateKey {
   if (stepId === 'analysis') {
@@ -68,9 +69,6 @@ async function runWithConcurrency<T>(
 
 export function useStepGenerator() {
   const { startStep, updateStepContent, completeStep, setStepError, cancelStep, forceResetGeneration } = useWorkflowStore();
-  
-  const abortControllerRef = useRef<AbortController | null>(null);
-  // ✅ Removed local isGeneratingRef - now using global state from Zustand
 
   const generate = useCallback(async (stepId: WorkflowStepId, userNotes?: string) => {
     // ✅ Use global Zustand state for mutex lock
@@ -82,10 +80,11 @@ export function useStepGenerator() {
     useWorkflowStore.getState().setIsGenerating(true);
 
     // 1. Setup
-    if (abortControllerRef.current) {
-      abortControllerRef.current.abort();
+    if (activeAbortController) {
+      activeAbortController.abort();
     }
-    abortControllerRef.current = new AbortController();
+    const controller = new AbortController();
+    activeAbortController = controller;
     
     startStep(stepId);
     let content = '';
@@ -273,7 +272,7 @@ export function useStepGenerator() {
                     console.log(`[Compression:${task.id}] Retrying request ${retryAttempt}/${maxRetries} after ${delay}ms`);
                   }
                 },
-                abortControllerRef.current?.signal
+                controller.signal
               );
 
               for await (const chunk of stream) {
@@ -459,7 +458,7 @@ export function useStepGenerator() {
             console.log(`[Generator] Retrying request ${attempt}/${maxRetries} after ${delay}ms`);
           }
         }, 
-        abortControllerRef.current.signal
+        controller.signal
       );
 
       let chunkCount = 0;
@@ -570,16 +569,26 @@ export function useStepGenerator() {
       // Release lock on error
       forceResetGeneration();
     } finally {
-      abortControllerRef.current = null;
+      if (activeAbortController === controller) {
+        activeAbortController = null;
+      }
     }
   }, [startStep, updateStepContent, completeStep, setStepError, cancelStep, forceResetGeneration]);
 
   const stop = useCallback(() => {
-    console.log('[Generator] Stop requested. AbortController exists:', !!abortControllerRef.current);
-    if (abortControllerRef.current) {
-      abortControllerRef.current.abort();
-      abortControllerRef.current = null;
+    console.log('[Generator] Stop requested. AbortController exists:', !!activeAbortController);
+    const workflowState = useWorkflowStore.getState();
+    const streamingStepIds = Object.entries(workflowState.steps)
+      .filter(([, step]) => step.status === 'streaming')
+      .map(([stepId]) => stepId as WorkflowStepId);
+
+    if (activeAbortController) {
+      activeAbortController.abort();
+      activeAbortController = null;
       forceResetGeneration();
+      for (const stepId of streamingStepIds) {
+        cancelStep(stepId);
+      }
       console.log('[Generator] Generation stopped and lock released.');
     } else {
       // Even if no abort controller, try to release the lock in case of stuck state
@@ -588,8 +597,11 @@ export function useStepGenerator() {
         console.log('[Generator] No abort controller but isGenerating=true. Forcing lock release.');
         forceResetGeneration();
       }
+      for (const stepId of streamingStepIds) {
+        cancelStep(stepId);
+      }
     }
-  }, [forceResetGeneration]);
+  }, [forceResetGeneration, cancelStep]);
 
   return { generate, stop };
 }

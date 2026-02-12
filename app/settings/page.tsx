@@ -10,6 +10,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Separator } from '@/components/ui/separator';
+import { Switch } from '@/components/ui/switch';
 import { DEFAULT_PROMPTS } from '@/lib/prompts';
 import type { GenerationParams, LLMProvider, PhaseConfigMap, ProviderScopedSettings } from '@/lib/llm-types';
 import type { WorkflowStepId } from '@/store/useWorkflowStore';
@@ -608,6 +609,49 @@ export default function SettingsPage() {
                     )}
                   </div>
                 </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <div className="rounded border border-border p-3 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor={`${provider}-default-thinking`}>thinking_enabled</Label>
+                      <Switch
+                        id={`${provider}-default-thinking`}
+                        checked={Boolean(draftDefaults[provider].thinkingEnabled)}
+                        onCheckedChange={(checked) =>
+                          setDraftDefaults((prev) => ({
+                            ...prev,
+                            [provider]: {
+                              ...prev[provider],
+                              thinkingEnabled: checked,
+                            },
+                          }))
+                        }
+                      />
+                    </div>
+                    <p className="text-[11px] text-muted-foreground">
+                      Enable model reasoning mode by default for this provider.
+                    </p>
+                  </div>
+                  <div className="space-y-1">
+                    <Label htmlFor={`${provider}-default-thinkingBudget`}>thinking_budget (optional)</Label>
+                    <Input
+                      id={`${provider}-default-thinkingBudget`}
+                      name={`${provider}-default-thinkingBudget`}
+                      type="number"
+                      min={0}
+                      step={128}
+                      value={draftDefaults[provider].thinkingBudget ?? ''}
+                      onChange={(e) =>
+                        setDraftDefaults((prev) => ({
+                          ...prev,
+                          [provider]: {
+                            ...prev[provider],
+                            thinkingBudget: e.target.value ? parseRequiredIntInput(e.target.value, prev[provider].thinkingBudget ?? 0) : undefined,
+                          },
+                        }))
+                      }
+                    />
+                  </div>
+                </div>
               </div>
             ))}
 
@@ -702,6 +746,46 @@ export default function SettingsPage() {
                     )}
                   </div>
                 </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div className="rounded border border-border p-3 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor="override-thinkingEnabled">thinking_enabled</Label>
+                    <Switch
+                      id="override-thinkingEnabled"
+                      checked={Boolean(selectedOverrideValue.thinkingEnabled)}
+                      disabled={!hasSelectedOverrideModel}
+                      onCheckedChange={(checked) =>
+                        setDraftOverrides((prev) => ({
+                          ...prev,
+                          [overrideProvider]: {
+                            ...prev[overrideProvider],
+                            [selectedOverrideModel]: {
+                              ...(prev[overrideProvider]?.[selectedOverrideModel] || {}),
+                              thinkingEnabled: checked,
+                            },
+                          },
+                        }))
+                      }
+                    />
+                  </div>
+                  <p className="text-[11px] text-muted-foreground">
+                    Override thinking mode for this exact model id.
+                  </p>
+                </div>
+                <div className="space-y-1">
+                  <Label htmlFor="override-thinkingBudget">thinking_budget (optional)</Label>
+                  <Input
+                    id="override-thinkingBudget"
+                    name="override-thinkingBudget"
+                    type="number"
+                    min={0}
+                    step={128}
+                    disabled={!hasSelectedOverrideModel}
+                    value={selectedOverrideValue.thinkingBudget ?? ''}
+                    onChange={(e) => setDraftOverrides((prev) => ({ ...prev, [overrideProvider]: { ...prev[overrideProvider], [selectedOverrideModel]: { ...(prev[overrideProvider]?.[selectedOverrideModel] || {}), thinkingBudget: e.target.value ? parseInt(e.target.value, 10) : undefined } } }))}
+                  />
+                </div>
+              </div>
               <p className="text-xs text-muted-foreground">
                 {hasSelectedOverrideModel ? 'Override applies only to this model.' : 'Select a model before editing override parameters.'}
               </p>
@@ -725,6 +809,7 @@ export default function SettingsPage() {
                     <p>
                       max_tokens={resolved.params.maxTokens} temperature={resolved.params.temperature} top_p={resolved.params.topP} top_k={resolved.params.topK ?? 'n/a'}
                     </p>
+                    <p>thinking_enabled={resolved.params.thinkingEnabled ? 'true' : 'false'} thinking_budget={resolved.params.thinkingBudget ?? 'n/a'}</p>
                   </div>
                 );
               })}
