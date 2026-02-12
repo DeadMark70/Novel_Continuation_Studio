@@ -75,6 +75,7 @@
   - `npm test`
   - `npm run e2e` (smoke)
 - Smoke baseline currently validates home/settings/history critical navigation and dirty-save behavior.
+- **Resilience Standard**: Critical user flows (Phase 0 -> Phase 1) must survive simulated API 504/401 errors with clear status feedback.
 
 ## Prompt Sources
 - Canonical prompt templates live in `lib/prompts.ts`.

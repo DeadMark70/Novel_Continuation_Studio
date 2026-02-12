@@ -20,6 +20,7 @@
 - IndexedDB via Dexie (`lib/db.ts`)
   - Current schema version: v7
   - Persists provider-scoped settings, phase config, model overrides, prompts, context settings, and per-session phase outputs (Phase 0-4).
+  - **Audit Note**: For long novels, consider decoupling large content fields from the metadata record to minimize save latency.
 
 ## AI & Integration
 - Providers:
