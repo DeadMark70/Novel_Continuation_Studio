@@ -3,6 +3,7 @@
 import React from 'react';
 import { useWorkflowStore } from '@/store/useWorkflowStore';
 import { useNovelStore } from '@/store/useNovelStore';
+import { useShallow } from 'zustand/react/shallow';
 import { useSettingsStore } from '@/store/useSettingsStore';
 import { useStepGenerator } from '@/hooks/useStepGenerator';
 import { Button } from '@/components/ui/button';
@@ -14,8 +15,18 @@ import { resolveWorkflowMode } from '@/lib/workflow-mode';
 
 export const StepCompression: React.FC = () => {
   const { steps } = useWorkflowStore();
-  const { wordCount, compressedContext } = useNovelStore();
-  const { compressionMode, compressionAutoThreshold } = useSettingsStore();
+  const { wordCount, compressedContext } = useNovelStore(
+    useShallow((state) => ({
+      wordCount: state.wordCount,
+      compressedContext: state.compressedContext,
+    }))
+  );
+  const { compressionMode, compressionAutoThreshold } = useSettingsStore(
+    useShallow((state) => ({
+      compressionMode: state.compressionMode,
+      compressionAutoThreshold: state.compressionAutoThreshold,
+    }))
+  );
   const { generate, stop } = useStepGenerator();
 
   const step = steps.compression;

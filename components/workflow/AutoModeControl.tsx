@@ -3,6 +3,7 @@
 import React from 'react';
 import { useWorkflowStore } from '@/store/useWorkflowStore';
 import { useNovelStore } from '@/store/useNovelStore';
+import { useShallow } from 'zustand/react/shallow';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -21,7 +22,11 @@ export function AutoModeControl({ onStart }: AutoModeControlProps) {
     setAutoRange,
     setMaxAutoChapter
   } = useWorkflowStore();
-  const { targetChapterCount } = useNovelStore();
+  const { targetChapterCount } = useNovelStore(
+    useShallow((state) => ({
+      targetChapterCount: state.targetChapterCount,
+    }))
+  );
 
   const maxChapter = Math.max(2, targetChapterCount ?? 5);
   const chapterOptions = Array.from({ length: Math.max(1, maxChapter - 1) }, (_, index) => index + 2);

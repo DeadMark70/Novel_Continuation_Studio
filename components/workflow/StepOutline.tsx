@@ -3,6 +3,7 @@
 import React, { useEffect, useRef } from 'react';
 import { useWorkflowStore } from '@/store/useWorkflowStore';
 import { useNovelStore } from '@/store/useNovelStore';
+import { useShallow } from 'zustand/react/shallow';
 import { useSettingsStore } from '@/store/useSettingsStore';
 import { useStepGenerator } from '@/hooks/useStepGenerator';
 import { Button } from '@/components/ui/button';
@@ -28,7 +29,12 @@ function clampChapterCount(value: number): number {
 
 export const StepOutline: React.FC = () => {
   const { steps, currentStepId } = useWorkflowStore();
-  const { compressionMode, compressionAutoThreshold } = useSettingsStore();
+  const { compressionMode, compressionAutoThreshold } = useSettingsStore(
+    useShallow((state) => ({
+      compressionMode: state.compressionMode,
+      compressionAutoThreshold: state.compressionAutoThreshold,
+    }))
+  );
   const {
     outlineDirection,
     setOutlineDirection,
@@ -44,7 +50,24 @@ export const StepOutline: React.FC = () => {
     setPacingSettings,
     wordCount,
     compressedContext,
-  } = useNovelStore();
+  } = useNovelStore(
+    useShallow((state) => ({
+      outlineDirection: state.outlineDirection,
+      setOutlineDirection: state.setOutlineDirection,
+      targetStoryWordCount: state.targetStoryWordCount,
+      setTargetStoryWordCount: state.setTargetStoryWordCount,
+      targetChapterCount: state.targetChapterCount,
+      setTargetChapterCount: state.setTargetChapterCount,
+      pacingMode: state.pacingMode,
+      plotPercent: state.plotPercent,
+      curvePlotPercentStart: state.curvePlotPercentStart,
+      curvePlotPercentEnd: state.curvePlotPercentEnd,
+      eroticSceneLimitPerChapter: state.eroticSceneLimitPerChapter,
+      setPacingSettings: state.setPacingSettings,
+      wordCount: state.wordCount,
+      compressedContext: state.compressedContext,
+    }))
+  );
   const { generate, stop } = useStepGenerator();
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const [storyWordCountInput, setStoryWordCountInput] = React.useState(targetStoryWordCount.toString());

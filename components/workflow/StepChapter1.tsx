@@ -4,6 +4,7 @@ import React from 'react';
 import { useWorkflowStore } from '@/store/useWorkflowStore';
 import { useSettingsStore } from '@/store/useSettingsStore';
 import { useNovelStore } from '@/store/useNovelStore';
+import { useShallow } from 'zustand/react/shallow';
 import { useStepGenerator } from '@/hooks/useStepGenerator';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -13,8 +14,18 @@ import { resolveWorkflowMode } from '@/lib/workflow-mode';
 
 export const StepChapter1: React.FC = () => {
   const { steps, startStep } = useWorkflowStore();
-  const { compressionMode, compressionAutoThreshold } = useSettingsStore();
-  const { wordCount, compressedContext } = useNovelStore();
+  const { compressionMode, compressionAutoThreshold } = useSettingsStore(
+    useShallow((state) => ({
+      compressionMode: state.compressionMode,
+      compressionAutoThreshold: state.compressionAutoThreshold,
+    }))
+  );
+  const { wordCount, compressedContext } = useNovelStore(
+    useShallow((state) => ({
+      wordCount: state.wordCount,
+      compressedContext: state.compressedContext,
+    }))
+  );
   const { generate, stop } = useStepGenerator();
   
   const step = steps.chapter1;

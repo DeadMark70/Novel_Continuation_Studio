@@ -2,10 +2,16 @@
 
 import React from 'react';
 import { useNovelStore } from '@/store/useNovelStore';
+import { useShallow } from 'zustand/react/shallow';
 import { Separator } from '@/components/ui/separator';
 
 export const ReadingRoom: React.FC = () => {
-  const { originalNovel, chapters } = useNovelStore();
+  const { originalNovel, chapters } = useNovelStore(
+    useShallow((state) => ({
+      originalNovel: state.originalNovel,
+      chapters: state.chapters,
+    }))
+  );
 
   return (
     <div className="flex h-full gap-4 overflow-hidden">

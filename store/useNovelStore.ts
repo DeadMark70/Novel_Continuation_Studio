@@ -1,9 +1,19 @@
 import { create } from 'zustand';
-import { saveNovel, getLatestNovel, getAllSessions, getSession, deleteSession, generateSessionId, type NovelEntry } from '@/lib/db';
+import {
+  saveNovel,
+  getLatestNovel,
+  getAllSessions,
+  getSession,
+  deleteSession,
+  generateSessionId,
+  patchSessionRunMeta,
+  type NovelEntry,
+} from '@/lib/db';
 import { useWorkflowStore } from './useWorkflowStore';
 import { normalizeNovelText } from '@/lib/utils';
 import type { CompressionMeta } from '@/lib/compression';
 import type { WorkflowStepId } from '@/store/useWorkflowStore';
+import type { PersistedRunMeta, RunStatus, RunStepId } from '@/lib/run-types';
 import type {
   CharacterTimelineEntry,
   ConsistencyCheckResult,
@@ -45,6 +55,11 @@ interface NovelState {
   characterTimeline: CharacterTimelineEntry[];
   foreshadowLedger: ForeshadowEntry[];
   latestConsistencySummary?: ConsistencySummary;
+  runStatus: RunStatus;
+  recoverableStepId?: RunStepId;
+  lastRunAt?: number;
+  lastRunError?: string;
+  lastRunId?: string;
   
   // State flags
   isInitialized: boolean;
@@ -56,6 +71,7 @@ interface NovelState {
   setNovel: (content: string) => Promise<void>;
   setStep: (step: number) => Promise<void>;
   applyStepResult: (stepId: WorkflowStepId, content: string) => Promise<void>;
+  applyStepResultBySession: (sessionId: string, stepId: WorkflowStepId, content: string) => Promise<void>;
   updateWorkflow: (data: Partial<Pick<
     NovelState,
     | 'analysis'
@@ -75,6 +91,30 @@ interface NovelState {
     | 'foreshadowLedger'
     | 'latestConsistencySummary'
   >>) => Promise<void>;
+  updateWorkflowBySession: (
+    sessionId: string,
+    data: Partial<Pick<
+      NovelState,
+      | 'analysis'
+      | 'outline'
+      | 'outlineDirection'
+      | 'breakdown'
+      | 'chapters'
+      | 'characterCards'
+      | 'styleGuide'
+      | 'compressionOutline'
+      | 'evidencePack'
+      | 'eroticPack'
+      | 'compressedContext'
+      | 'compressionMeta'
+      | 'consistencyReports'
+      | 'characterTimeline'
+      | 'foreshadowLedger'
+      | 'latestConsistencySummary'
+    >>
+  ) => Promise<void>;
+  setSessionRunMeta: (sessionId: string, meta: PersistedRunMeta) => Promise<void>;
+  getSessionSnapshot: (sessionId: string) => Promise<NovelEntry | undefined>;
   setOutlineDirection: (value: string) => Promise<void>;
   setTargetStoryWordCount: (value: number) => Promise<void>;
   setTargetChapterCount: (value: number) => Promise<void>;
@@ -132,6 +172,11 @@ export const useNovelStore = create<NovelState>((set, get) => ({
   characterTimeline: [],
   foreshadowLedger: [],
   latestConsistencySummary: undefined,
+  runStatus: 'idle',
+  recoverableStepId: undefined,
+  lastRunAt: undefined,
+  lastRunError: undefined,
+  lastRunId: undefined,
   isInitialized: false,
   sessions: [],
 
@@ -148,33 +193,221 @@ export const useNovelStore = create<NovelState>((set, get) => ({
   },
 
   applyStepResult: async (stepId, content) => {
-    set((state) => {
-      if (stepId === 'compression') {
-        return { ...state, compressedContext: content };
-      }
-      if (stepId === 'analysis') {
-        return { ...state, analysis: content };
-      }
-      if (stepId === 'outline') {
-        return { ...state, outline: content };
-      }
-      if (stepId === 'breakdown') {
-        return { ...state, breakdown: content };
-      }
-      if (stepId === 'chapter1') {
-        return { ...state, chapters: [content] };
-      }
-      if (!content.trim()) {
-        return state;
-      }
-      return { ...state, chapters: [...state.chapters, content] };
-    });
-    await get().persist();
+    await get().applyStepResultBySession(get().currentSessionId, stepId, content);
   },
 
   updateWorkflow: async (data) => {
-    set((state) => ({ ...state, ...data }));
-    await get().persist();
+    await get().updateWorkflowBySession(get().currentSessionId, data);
+  },
+
+  applyStepResultBySession: async (sessionId, stepId, content) => {
+    if (!sessionId) {
+      return;
+    }
+
+    const patchResult = (entry: Pick<NovelState, 'analysis' | 'outline' | 'breakdown' | 'chapters' | 'compressedContext'>) => {
+      if (stepId === 'compression') {
+        return { compressedContext: content };
+      }
+      if (stepId === 'analysis') {
+        return { analysis: content };
+      }
+      if (stepId === 'outline') {
+        return { outline: content };
+      }
+      if (stepId === 'breakdown') {
+        return { breakdown: content };
+      }
+      if (stepId === 'chapter1') {
+        return { chapters: [content] };
+      }
+      if (!content.trim()) {
+        return {};
+      }
+      return { chapters: [...entry.chapters, content] };
+    };
+
+    if (sessionId === get().currentSessionId) {
+      set((state) => ({ ...state, ...patchResult(state) }));
+      await get().persist();
+      return;
+    }
+
+    const session = await getSession(sessionId);
+    if (!session) {
+      return;
+    }
+
+    const merged = { ...session, ...patchResult({
+      analysis: session.analysis,
+      outline: session.outline,
+      breakdown: session.breakdown,
+      chapters: session.chapters,
+      compressedContext: session.compressedContext ?? '',
+    }) };
+    const { id, updatedAt, createdAt, ...payload } = merged;
+    await saveNovel(payload);
+    set((state) => ({
+      sessions: state.sessions.map((entry) => (
+        entry.sessionId === sessionId
+          ? { ...entry, ...merged, updatedAt: Date.now() }
+          : entry
+      )),
+    }));
+  },
+
+  updateWorkflowBySession: async (sessionId, data) => {
+    if (!sessionId) {
+      return;
+    }
+    if (sessionId === get().currentSessionId) {
+      set((state) => ({ ...state, ...data }));
+      await get().persist();
+      return;
+    }
+
+    const session = await getSession(sessionId);
+    if (!session) {
+      return;
+    }
+    const merged = { ...session, ...data };
+    const { id, updatedAt, createdAt, ...payload } = merged;
+    await saveNovel(payload);
+    set((state) => ({
+      sessions: state.sessions.map((entry) => (
+        entry.sessionId === sessionId
+          ? { ...entry, ...merged, updatedAt: Date.now() }
+          : entry
+      )),
+    }));
+  },
+
+  setSessionRunMeta: async (sessionId, meta) => {
+    if (!sessionId) {
+      return;
+    }
+
+    const runPatch = {
+      runStatus: meta.runStatus,
+      recoverableStepId: meta.recoverableStepId,
+      lastRunAt: meta.lastRunAt,
+      lastRunError: meta.lastRunError,
+      lastRunId: meta.lastRunId,
+    };
+
+    const state = get();
+    const cachedSession = state.sessions.find((entry) => entry.sessionId === sessionId);
+    const currentBase = sessionId === state.currentSessionId
+      ? {
+          runStatus: state.runStatus,
+          recoverableStepId: state.recoverableStepId,
+          lastRunAt: state.lastRunAt,
+          lastRunError: state.lastRunError,
+          lastRunId: state.lastRunId,
+        }
+      : {
+          runStatus: cachedSession?.runStatus ?? 'idle',
+          recoverableStepId: cachedSession?.recoverableStepId,
+          lastRunAt: cachedSession?.lastRunAt,
+          lastRunError: cachedSession?.lastRunError,
+          lastRunId: cachedSession?.lastRunId,
+        };
+
+    const resolvedRunMeta = {
+      runStatus: runPatch.runStatus ?? currentBase.runStatus,
+      recoverableStepId: runPatch.recoverableStepId,
+      lastRunAt: runPatch.lastRunAt ?? currentBase.lastRunAt,
+      lastRunError: runPatch.lastRunError ?? currentBase.lastRunError,
+      lastRunId: runPatch.lastRunId ?? currentBase.lastRunId,
+    };
+
+    if (sessionId === get().currentSessionId) {
+      set((state) => ({
+        ...state,
+        runStatus: resolvedRunMeta.runStatus,
+        recoverableStepId: resolvedRunMeta.recoverableStepId,
+        lastRunAt: resolvedRunMeta.lastRunAt,
+        lastRunError: resolvedRunMeta.lastRunError,
+        lastRunId: resolvedRunMeta.lastRunId,
+        sessions: state.sessions.map((entry) => (
+          entry.sessionId === sessionId
+            ? {
+                ...entry,
+                runStatus: resolvedRunMeta.runStatus,
+                recoverableStepId: resolvedRunMeta.recoverableStepId,
+                lastRunAt: resolvedRunMeta.lastRunAt,
+                lastRunError: resolvedRunMeta.lastRunError,
+                lastRunId: resolvedRunMeta.lastRunId,
+              }
+            : entry
+        )),
+      }));
+      await patchSessionRunMeta(sessionId, resolvedRunMeta);
+      return;
+    }
+
+    await patchSessionRunMeta(sessionId, resolvedRunMeta);
+    set((state) => ({
+      sessions: state.sessions.map((entry) => (
+        entry.sessionId === sessionId
+          ? {
+              ...entry,
+              runStatus: resolvedRunMeta.runStatus,
+              recoverableStepId: resolvedRunMeta.recoverableStepId,
+              lastRunAt: resolvedRunMeta.lastRunAt,
+              lastRunError: resolvedRunMeta.lastRunError,
+              lastRunId: resolvedRunMeta.lastRunId,
+            }
+          : entry
+      )),
+    }));
+  },
+
+  getSessionSnapshot: async (sessionId) => {
+    if (!sessionId) {
+      return undefined;
+    }
+    if (sessionId === get().currentSessionId) {
+      const state = get();
+      return {
+        sessionId: state.currentSessionId,
+        sessionName: state.originalNovel.trim().substring(0, 30) || '未命名小說',
+        content: state.originalNovel,
+        wordCount: state.wordCount,
+        currentStep: state.currentStep,
+        analysis: state.analysis,
+        outline: state.outline,
+        outlineDirection: state.outlineDirection,
+        breakdown: state.breakdown,
+        chapters: state.chapters,
+        targetStoryWordCount: state.targetStoryWordCount,
+        targetChapterCount: state.targetChapterCount,
+        pacingMode: state.pacingMode,
+        plotPercent: state.plotPercent,
+        curvePlotPercentStart: state.curvePlotPercentStart,
+        curvePlotPercentEnd: state.curvePlotPercentEnd,
+        eroticSceneLimitPerChapter: state.eroticSceneLimitPerChapter,
+        characterCards: state.characterCards,
+        styleGuide: state.styleGuide,
+        compressionOutline: state.compressionOutline,
+        evidencePack: state.evidencePack,
+        eroticPack: state.eroticPack,
+        compressedContext: state.compressedContext,
+        compressionMeta: state.compressionMeta,
+        consistencyReports: state.consistencyReports,
+        characterTimeline: state.characterTimeline,
+        foreshadowLedger: state.foreshadowLedger,
+        latestConsistencySummary: state.latestConsistencySummary,
+        runStatus: state.runStatus,
+        recoverableStepId: state.recoverableStepId,
+        lastRunAt: state.lastRunAt,
+        lastRunError: state.lastRunError,
+        lastRunId: state.lastRunId,
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      };
+    }
+    return getSession(sessionId);
   },
 
   setOutlineDirection: async (value: string) => {
@@ -271,8 +504,63 @@ export const useNovelStore = create<NovelState>((set, get) => ({
       characterTimeline: state.characterTimeline,
       foreshadowLedger: state.foreshadowLedger,
       latestConsistencySummary: state.latestConsistencySummary,
+      runStatus: state.runStatus,
+      recoverableStepId: state.recoverableStepId,
+      lastRunAt: state.lastRunAt,
+      lastRunError: state.lastRunError,
+      lastRunId: state.lastRunId,
     });
-    await get().loadSessions();
+    set((current) => {
+      const nextEntry = {
+        sessionId: state.currentSessionId,
+        sessionName: sessionName + (sessionName.length >= 30 ? '...' : ''),
+        content: state.originalNovel,
+        wordCount: state.wordCount,
+        currentStep: state.currentStep,
+        analysis: state.analysis,
+        outline: state.outline,
+        outlineDirection: state.outlineDirection,
+        breakdown: state.breakdown,
+        chapters: state.chapters,
+        targetStoryWordCount: state.targetStoryWordCount,
+        targetChapterCount: state.targetChapterCount,
+        pacingMode: state.pacingMode,
+        plotPercent: state.plotPercent,
+        curvePlotPercentStart: state.curvePlotPercentStart,
+        curvePlotPercentEnd: state.curvePlotPercentEnd,
+        eroticSceneLimitPerChapter: state.eroticSceneLimitPerChapter,
+        characterCards: state.characterCards,
+        styleGuide: state.styleGuide,
+        compressionOutline: state.compressionOutline,
+        evidencePack: state.evidencePack,
+        eroticPack: state.eroticPack,
+        compressedContext: state.compressedContext,
+        compressionMeta: state.compressionMeta,
+        consistencyReports: state.consistencyReports,
+        characterTimeline: state.characterTimeline,
+        foreshadowLedger: state.foreshadowLedger,
+        latestConsistencySummary: state.latestConsistencySummary,
+        runStatus: state.runStatus,
+        recoverableStepId: state.recoverableStepId,
+        lastRunAt: state.lastRunAt,
+        lastRunError: state.lastRunError,
+        lastRunId: state.lastRunId,
+        updatedAt: Date.now(),
+        createdAt: Date.now(),
+      };
+
+      const exists = current.sessions.some((entry) => entry.sessionId === state.currentSessionId);
+      if (!exists) {
+        return { sessions: [nextEntry, ...current.sessions] };
+      }
+      return {
+        sessions: current.sessions.map((entry) => (
+          entry.sessionId === state.currentSessionId
+            ? { ...entry, ...nextEntry, createdAt: entry.createdAt ?? nextEntry.createdAt }
+            : entry
+        )),
+      };
+    });
   },
 
   loadSessions: async () => {
@@ -311,6 +599,11 @@ export const useNovelStore = create<NovelState>((set, get) => ({
         characterTimeline: session.characterTimeline ?? [],
         foreshadowLedger: session.foreshadowLedger ?? [],
         latestConsistencySummary: session.latestConsistencySummary,
+        runStatus: session.runStatus ?? 'idle',
+        recoverableStepId: session.recoverableStepId,
+        lastRunAt: session.lastRunAt,
+        lastRunError: session.lastRunError,
+        lastRunId: session.lastRunId,
       });
       useWorkflowStore.getState().hydrateFromNovelSession({
         currentStep: session.currentStep,
@@ -354,6 +647,11 @@ export const useNovelStore = create<NovelState>((set, get) => ({
       characterTimeline: [],
       foreshadowLedger: [],
       latestConsistencySummary: undefined,
+      runStatus: 'idle',
+      recoverableStepId: undefined,
+      lastRunAt: undefined,
+      lastRunError: undefined,
+      lastRunId: undefined,
       isInitialized: true,
     });
     useWorkflowStore.getState().resetAllSteps();
@@ -377,7 +675,23 @@ export const useNovelStore = create<NovelState>((set, get) => ({
   initialize: async () => {
     if (get().isInitialized) return;
 
-    const latest = await getLatestNovel();
+    const latestBeforeRecovery = await getLatestNovel();
+    const allSessions = await getAllSessions();
+    for (const session of allSessions) {
+      if (session.runStatus === 'queued' || session.runStatus === 'running') {
+        await patchSessionRunMeta(session.sessionId, {
+          runStatus: 'interrupted' as RunStatus,
+          recoverableStepId: session.recoverableStepId,
+          lastRunError: 'Interrupted by page reload or app restart.',
+          lastRunAt: Date.now(),
+          lastRunId: session.lastRunId,
+        });
+      }
+    }
+
+    const latest = latestBeforeRecovery?.sessionId
+      ? await getSession(latestBeforeRecovery.sessionId)
+      : await getLatestNovel();
     if (latest) {
       set({
         currentSessionId: latest.sessionId,
@@ -407,6 +721,11 @@ export const useNovelStore = create<NovelState>((set, get) => ({
         characterTimeline: latest.characterTimeline ?? [],
         foreshadowLedger: latest.foreshadowLedger ?? [],
         latestConsistencySummary: latest.latestConsistencySummary,
+        runStatus: latest.runStatus ?? 'idle',
+        recoverableStepId: latest.recoverableStepId,
+        lastRunAt: latest.lastRunAt,
+        lastRunError: latest.lastRunError,
+        lastRunId: latest.lastRunId,
       });
 
       // Hydrate workflow store

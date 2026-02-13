@@ -5,6 +5,7 @@ import type {
   ConsistencySummary,
   ForeshadowEntry,
 } from './consistency-types';
+import type { RunStatus, RunStepId } from './run-types';
 import type {
   GenerationParams,
   LLMProvider,
@@ -76,6 +77,11 @@ export interface NovelEntry {
   characterTimeline?: CharacterTimelineEntry[];
   foreshadowLedger?: ForeshadowEntry[];
   latestConsistencySummary?: ConsistencySummary;
+  runStatus?: RunStatus;
+  recoverableStepId?: RunStepId;
+  lastRunAt?: number;
+  lastRunError?: string;
+  lastRunId?: string;
   createdAt: number;
   updatedAt: number;
 }
@@ -463,6 +469,11 @@ function mergeNovelRecord(meta: NovelMetaRecord, blob?: NovelBlobEntry): NovelEn
     characterTimeline: source.characterTimeline ?? [],
     foreshadowLedger: source.foreshadowLedger ?? [],
     latestConsistencySummary: meta.latestConsistencySummary,
+    runStatus: meta.runStatus,
+    recoverableStepId: meta.recoverableStepId,
+    lastRunAt: meta.lastRunAt,
+    lastRunError: meta.lastRunError,
+    lastRunId: meta.lastRunId,
   } as NovelEntry;
 }
 
@@ -492,6 +503,11 @@ export async function saveNovel(entry: Omit<NovelEntry, 'id' | 'updatedAt' | 'cr
     characterTimeline: entry.characterTimeline ?? [],
     foreshadowLedger: entry.foreshadowLedger ?? [],
     latestConsistencySummary: entry.latestConsistencySummary,
+    runStatus: entry.runStatus ?? 'idle',
+    recoverableStepId: entry.recoverableStepId,
+    lastRunAt: entry.lastRunAt,
+    lastRunError: entry.lastRunError,
+    lastRunId: entry.lastRunId,
   };
 
   const blobFields = extractBlobFields(normalizedEntry);
@@ -575,6 +591,29 @@ export async function getSession(sessionId: string): Promise<NovelEntry | undefi
   }
   const blob = await db.novelBlobs.get(sessionId);
   return mergeNovelRecord(meta, blob);
+}
+
+export async function patchSessionRunMeta(
+  sessionId: string,
+  patch: {
+    runStatus?: RunStatus;
+    recoverableStepId?: RunStepId;
+    lastRunAt?: number;
+    lastRunError?: string;
+    lastRunId?: string;
+  }
+): Promise<void> {
+  if (!sessionId) {
+    return;
+  }
+
+  await db.novels.where('sessionId').equals(sessionId).modify({
+    runStatus: patch.runStatus,
+    recoverableStepId: patch.recoverableStepId,
+    lastRunAt: patch.lastRunAt,
+    lastRunError: patch.lastRunError,
+    lastRunId: patch.lastRunId,
+  } as Partial<NovelMetaRecord>);
 }
 
 /**

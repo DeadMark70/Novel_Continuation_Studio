@@ -2,6 +2,7 @@
 
 import React, { useRef } from 'react';
 import { useNovelStore } from '@/store/useNovelStore';
+import { useShallow } from 'zustand/react/shallow';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -9,7 +10,13 @@ import { Label } from '@/components/ui/label';
 import { Upload, FileText, Eraser } from 'lucide-react';
 
 export const StoryUpload: React.FC = () => {
-  const { originalNovel, setNovel, reset } = useNovelStore();
+  const { originalNovel, setNovel, reset } = useNovelStore(
+    useShallow((state) => ({
+      originalNovel: state.originalNovel,
+      setNovel: state.setNovel,
+      reset: state.reset,
+    }))
+  );
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleTextChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {

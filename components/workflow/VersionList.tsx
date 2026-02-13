@@ -2,17 +2,48 @@
 
 import React from 'react';
 import { useNovelStore } from '@/store/useNovelStore';
+import { useShallow } from 'zustand/react/shallow';
+import { useRunSchedulerStore } from '@/store/useRunSchedulerStore';
 import { Button } from '@/components/ui/button';
-import { Clock, FileText, Trash2, CheckCircle, Plus } from 'lucide-react';
+import { useStepGenerator } from '@/hooks/useStepGenerator';
+import { Clock, FileText, Trash2, CheckCircle, Plus, StopCircle, RotateCcw, Loader2 } from 'lucide-react';
+import type { RunStatus } from '@/lib/run-types';
+import type { WorkflowStepId } from '@/store/useWorkflowStore';
 
 interface VersionListProps {
   onCreateNew?: () => void | Promise<void>;
 }
 
 export const VersionList: React.FC<VersionListProps> = ({ onCreateNew }) => {
-  const { sessions, currentSessionId, loadSession, deleteSessionById, startNewSession } = useNovelStore();
+  const { sessions, currentSessionId, loadSession, deleteSessionById, startNewSession } = useNovelStore(
+    useShallow((state) => ({
+      sessions: state.sessions,
+      currentSessionId: state.currentSessionId,
+      loadSession: state.loadSession,
+      deleteSessionById: state.deleteSessionById,
+      startNewSession: state.startNewSession,
+    }))
+  );
+  const sessionStates = useRunSchedulerStore((state) => state.sessionStates);
+  const { generate, stopSession } = useStepGenerator();
   const handleCreateNew = () => {
     void Promise.resolve(onCreateNew ? onCreateNew() : startNewSession());
+  };
+
+  const getStatusLabel = (status: RunStatus, stepId?: string) => {
+    if (status === 'running') return `Running ${stepId ?? ''}`.trim();
+    if (status === 'queued') return `Queued ${stepId ?? ''}`.trim();
+    if (status === 'error') return `Error ${stepId ?? ''}`.trim();
+    if (status === 'interrupted') return `Interrupted ${stepId ?? ''}`.trim();
+    return 'Idle';
+  };
+
+  const getStatusClass = (status: RunStatus) => {
+    if (status === 'running') return 'bg-sky-600/20 text-sky-300 border-sky-400/40';
+    if (status === 'queued') return 'bg-amber-500/20 text-amber-300 border-amber-400/40';
+    if (status === 'error') return 'bg-red-500/20 text-red-300 border-red-400/40';
+    if (status === 'interrupted') return 'bg-zinc-700/30 text-zinc-300 border-zinc-500/40';
+    return 'bg-zinc-800/20 text-zinc-400 border-zinc-600/30';
   };
 
   const formatDate = (timestamp: number) => {
@@ -67,6 +98,10 @@ export const VersionList: React.FC<VersionListProps> = ({ onCreateNew }) => {
       <div className="space-y-1 overflow-y-auto pr-2 flex-1">
       {sessions.map((session, index) => {
         const isActive = session.sessionId === currentSessionId;
+        const runtime = sessionStates[session.sessionId];
+        const status = runtime?.status ?? session.runStatus ?? 'idle';
+        const stepId = runtime?.activeStepId ?? session.recoverableStepId;
+        const canResume = (status === 'interrupted' || status === 'error') && Boolean(stepId);
         
         return (
           <div
@@ -93,6 +128,12 @@ export const VersionList: React.FC<VersionListProps> = ({ onCreateNew }) => {
               <p className={`text-sm font-medium truncate ${isActive ? 'text-primary' : ''}`}>
                 {session.sessionName || '未命名小說'}
               </p>
+              <div className="mt-1">
+                <span className={`inline-flex rounded-full border px-2 py-0.5 text-[10px] font-mono ${getStatusClass(status)}`}>
+                  {status === 'running' ? <Loader2 className="size-3 mr-1 animate-spin" /> : null}
+                  {getStatusLabel(status, stepId)}
+                </span>
+              </div>
               <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
                 <span className="flex items-center gap-1">
                   <Clock className="size-3" />
@@ -104,6 +145,36 @@ export const VersionList: React.FC<VersionListProps> = ({ onCreateNew }) => {
                 <span>{session.wordCount?.toLocaleString() || 0} 字</span>
               </div>
             </div>
+
+            {status === 'running' || status === 'queued' ? (
+              <Button
+                variant="outline"
+                size="sm"
+                className="shrink-0 gap-1 text-xs"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  stopSession(session.sessionId);
+                }}
+              >
+                <StopCircle className="size-3.5" />
+                Stop
+              </Button>
+            ) : null}
+
+            {canResume ? (
+              <Button
+                variant="outline"
+                size="sm"
+                className="shrink-0 gap-1 text-xs"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  generate(stepId as WorkflowStepId, undefined, session.sessionId);
+                }}
+              >
+                <RotateCcw className="size-3.5" />
+                Resume
+              </Button>
+            ) : null}
             
             {/* Delete button */}
             <Button

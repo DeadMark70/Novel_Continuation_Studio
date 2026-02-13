@@ -1,6 +1,7 @@
 import type { GenerateOptions, LLMModel, LLMProvider, ModelCapability } from '@/lib/llm-types';
 import { assertOpenRouterNetworkEnabled } from '@/lib/openrouter-guard';
 import { estimateTokenCount, estimateTokenCountHeuristic } from '@/lib/token-estimator';
+import { yieldToMain } from '@/lib/yield-to-main';
 
 function modelRejectsChatTemplateKwargs(model: string): boolean {
   const normalized = model.toLowerCase();
@@ -16,6 +17,80 @@ class ProviderHttpError extends Error {
     this.name = 'ProviderHttpError';
   }
 }
+
+const MAX_CONCURRENT_GENERATE_REQUESTS = 3;
+
+interface GenerateRequestWaiter {
+  resolve: (release: () => void) => void;
+  reject: (error: Error) => void;
+  signal?: AbortSignal;
+  onAbort?: () => void;
+}
+
+class GenerateRequestLimiter {
+  private active = 0;
+  private queue: GenerateRequestWaiter[] = [];
+
+  constructor(private readonly maxConcurrent: number) {}
+
+  async acquire(signal?: AbortSignal): Promise<() => void> {
+    if (signal?.aborted) {
+      throw createAbortError();
+    }
+
+    if (this.active < this.maxConcurrent) {
+      this.active += 1;
+      return this.createRelease();
+    }
+
+    return new Promise((resolve, reject) => {
+      const waiter: GenerateRequestWaiter = { resolve, reject, signal };
+
+      if (signal) {
+        const onAbort = () => {
+          this.queue = this.queue.filter((entry) => entry !== waiter);
+          reject(createAbortError());
+        };
+        waiter.onAbort = onAbort;
+        signal.addEventListener('abort', onAbort, { once: true });
+      }
+
+      this.queue.push(waiter);
+    });
+  }
+
+  private createRelease(): () => void {
+    let released = false;
+    return () => {
+      if (released) {
+        return;
+      }
+      released = true;
+      this.active = Math.max(0, this.active - 1);
+      this.drain();
+    };
+  }
+
+  private drain(): void {
+    while (this.active < this.maxConcurrent && this.queue.length > 0) {
+      const waiter = this.queue.shift();
+      if (!waiter) {
+        break;
+      }
+      if (waiter.signal?.aborted) {
+        waiter.reject(createAbortError());
+        continue;
+      }
+      if (waiter.signal && waiter.onAbort) {
+        waiter.signal.removeEventListener('abort', waiter.onAbort);
+      }
+      this.active += 1;
+      waiter.resolve(this.createRelease());
+    }
+  }
+}
+
+const generateRequestLimiter = new GenerateRequestLimiter(MAX_CONCURRENT_GENERATE_REQUESTS);
 
 function clampMaxTokensToModelLimits(
   requestedMaxTokens: number,
@@ -379,6 +454,7 @@ export async function* generateStream(
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
     const controller = new AbortController();
     const onExternalAbort = () => controller.abort();
+    let releaseGenerateSlot: (() => void) | null = null;
     let timeoutId: ReturnType<typeof setTimeout> | null = null;
 
     const resetTimeout = () => {
@@ -405,6 +481,7 @@ export async function* generateStream(
     }
 
     try {
+      releaseGenerateSlot = await generateRequestLimiter.acquire(signal);
       resetTimeout();
 
       const headers: HeadersInit = {
@@ -488,6 +565,8 @@ export async function* generateStream(
             onError?.(parseError, trimmed);
           }
         }
+
+        await yieldToMain();
       }
 
       if (buffer.trim()) {
@@ -576,6 +655,9 @@ export async function* generateStream(
 
       throw normalizedError;
     } finally {
+      if (releaseGenerateSlot) {
+        releaseGenerateSlot();
+      }
       clearTimeoutGuard();
       if (signal) signal.removeEventListener('abort', onExternalAbort);
     }

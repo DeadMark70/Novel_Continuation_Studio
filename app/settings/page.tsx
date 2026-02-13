@@ -3,6 +3,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useSettingsStore } from '@/store/useSettingsStore';
+import { useShallow } from 'zustand/react/shallow';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -145,7 +146,29 @@ function parseRequiredFloatInput(raw: string, current: number): number {
 }
 
 export default function SettingsPage() {
-  const settings = useSettingsStore();
+  const settings = useSettingsStore(
+    useShallow((state) => ({
+      activeProvider: state.activeProvider,
+      providers: state.providers,
+      phaseConfig: state.phaseConfig,
+      providerDefaults: state.providerDefaults,
+      modelOverrides: state.modelOverrides,
+      customPrompts: state.customPrompts,
+      truncationThreshold: state.truncationThreshold,
+      dualEndBuffer: state.dualEndBuffer,
+      compressionMode: state.compressionMode,
+      compressionAutoThreshold: state.compressionAutoThreshold,
+      compressionChunkSize: state.compressionChunkSize,
+      compressionChunkOverlap: state.compressionChunkOverlap,
+      compressionEvidenceSegments: state.compressionEvidenceSegments,
+      persistCount: state.persistCount,
+      lastPersistDurationMs: state.lastPersistDurationMs,
+      lastPersistAt: state.lastPersistAt,
+      fetchProviderModels: state.fetchProviderModels,
+      applySettingsSnapshot: state.applySettingsSnapshot,
+      getResolvedGenerationConfig: state.getResolvedGenerationConfig,
+    }))
+  );
   const [isInitialized, setIsInitialized] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [saveMessage, setSaveMessage] = useState('');

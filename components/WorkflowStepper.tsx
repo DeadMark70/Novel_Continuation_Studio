@@ -4,6 +4,7 @@ import React, { useEffect } from 'react';
 import { useWorkflowStore, WorkflowStepId } from '@/store/useWorkflowStore';
 import { useSettingsStore } from '@/store/useSettingsStore';
 import { useNovelStore } from '@/store/useNovelStore';
+import { useShallow } from 'zustand/react/shallow';
 import { useStepGenerator } from '@/hooks/useStepGenerator';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { StepCompression } from './workflow/StepCompression';
@@ -18,8 +19,18 @@ import { resolveWorkflowMode } from '@/lib/workflow-mode';
 
 export const WorkflowStepper: React.FC = () => {
   const { steps, currentStepId, autoTriggerStepId, clearAutoTrigger, setCurrentStep } = useWorkflowStore();
-  const { compressionMode, compressionAutoThreshold } = useSettingsStore();
-  const { wordCount, compressedContext } = useNovelStore();
+  const { compressionMode, compressionAutoThreshold } = useSettingsStore(
+    useShallow((state) => ({
+      compressionMode: state.compressionMode,
+      compressionAutoThreshold: state.compressionAutoThreshold,
+    }))
+  );
+  const { wordCount, compressedContext } = useNovelStore(
+    useShallow((state) => ({
+      wordCount: state.wordCount,
+      compressedContext: state.compressedContext,
+    }))
+  );
   const { generate } = useStepGenerator();
 
   // Automation Effect

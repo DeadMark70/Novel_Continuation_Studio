@@ -4,7 +4,7 @@
 - Build a local-first novel continuation studio with a structured Phase 0-5 workflow.
 - Support provider/model routing per phase while keeping generation deterministic and debuggable.
 
-## 2. Current Status (2026-02-11)
+## 2. Current Status (2026-02-13)
 - Dual-provider support is implemented: NVIDIA NIM + OpenRouter.
 - Full pages are active:
   - `/settings` for provider config, phase routing, model params, prompt editing, and context controls.
@@ -13,6 +13,12 @@
 - Prompt editor issues around empty custom prompts were fixed (defaults render correctly; custom prompt is optional overlay).
 - OpenRouter paid-network guard is implemented for test/offline environments.
 - Phase 0-4 outputs and Phase 2 manual guidance (plotDirection) are now correctly persisted and hydrated on refresh (2026-02-12).
+- Multi-session generation is enabled across novels. Single-session concurrent multi-phase is intentionally blocked.
+- Rendering freeze during concurrent Phase 0 runs was mitigated by:
+  - reducing broad Zustand subscriptions to selector-based subscriptions (`useShallow`)
+  - adding a global LLM streaming concurrency limiter
+  - yielding control back to main thread during SSE streaming loops
+  - removing redundant large writes during compression completion
 
 ## 3. Runtime Stack
 - Framework: Next.js App Router (`next@16.1.6`)
@@ -53,11 +59,31 @@ Resolution order:
 3. Model overrides (`modelOverrides`)
 
 ## 6. Reliability Rules
-- Global generation mutex remains: only one active generation at a time.
+- Cross-novel parallel generation is supported.
+- Same novel session is single-run at a time (no concurrent multi-phase within one session).
 - NIM streaming client keeps inactivity-timeout and retry behavior.
 - OpenRouter requests are blocked when either is true:
   - `E2E_MODE=offline`
   - `OPENROUTER_DISABLE_NETWORK=1`
+
+## 6.1 Rendering Freeze Prevention (2026-02 Incident)
+- Symptom:
+  - Navigating to `/settings` showed persistent `rendering` while Phase 0 was running in one or more sessions.
+  - Stopping Phase 0 immediately restored normal navigation.
+- Root causes:
+  - Event-loop starvation from concurrent SSE stream processing loops.
+  - Excessive client re-render from broad store subscriptions (`useStore()` full state reads).
+  - Redundant large IndexedDB writes at Phase 0 completion.
+- Guardrails:
+  - Keep streaming loops cooperative: periodically `await yieldToMain()` in long-running async loops.
+  - Limit concurrent provider streaming requests globally (keep free network/main-thread capacity for route transitions).
+  - Use selector subscriptions (`useShallow`) for Zustand consumers, especially large pages (`/settings`, `/history`).
+  - Avoid duplicate writes of large payloads; phase completion should persist once per artifact set.
+- Common coding patterns that can reintroduce this issue:
+  - `for await` loops with heavy per-chunk synchronous parsing and no cooperative yield.
+  - Multiple concurrent SSE streams to the same origin without a client-side limiter.
+  - React pages subscribing to full stores and performing expensive `JSON.stringify`/derived computations each update.
+  - Streaming progress updates written to global stores at high frequency without strict need.
 
 ## 7. Cost-Safety / Environment Notes
 - User preference: avoid paid OpenRouter calls unless explicitly needed.

@@ -2,11 +2,16 @@
 
 import React from 'react';
 import { useNovelStore } from '@/store/useNovelStore';
+import { useShallow } from 'zustand/react/shallow';
 import { Card, CardContent } from '@/components/ui/card';
 import { Hash, Zap, Clock } from 'lucide-react';
 
 export const NovelStats: React.FC = () => {
-  const { wordCount } = useNovelStore();
+  const { wordCount } = useNovelStore(
+    useShallow((state) => ({
+      wordCount: state.wordCount,
+    }))
+  );
 
   const getEstimatedReadingTime = () => {
     // Approx 400-500 words/min for Chinese reading

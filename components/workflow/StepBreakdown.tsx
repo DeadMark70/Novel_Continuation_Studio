@@ -3,6 +3,7 @@
 import React from 'react';
 import { useWorkflowStore } from '@/store/useWorkflowStore';
 import { useNovelStore } from '@/store/useNovelStore';
+import { useShallow } from 'zustand/react/shallow';
 import { useSettingsStore } from '@/store/useSettingsStore';
 import { useStepGenerator } from '@/hooks/useStepGenerator';
 import { Button } from '@/components/ui/button';
@@ -14,8 +15,19 @@ import { resolveWorkflowMode } from '@/lib/workflow-mode';
 
 export const StepBreakdown: React.FC = () => {
   const { steps } = useWorkflowStore();
-  const { compressionMode, compressionAutoThreshold } = useSettingsStore();
-  const { targetChapterCount, wordCount, compressedContext } = useNovelStore();
+  const { compressionMode, compressionAutoThreshold } = useSettingsStore(
+    useShallow((state) => ({
+      compressionMode: state.compressionMode,
+      compressionAutoThreshold: state.compressionAutoThreshold,
+    }))
+  );
+  const { targetChapterCount, wordCount, compressedContext } = useNovelStore(
+    useShallow((state) => ({
+      targetChapterCount: state.targetChapterCount,
+      wordCount: state.wordCount,
+      compressedContext: state.compressedContext,
+    }))
+  );
   const { generate, stop } = useStepGenerator();
   
   const step = steps.breakdown;

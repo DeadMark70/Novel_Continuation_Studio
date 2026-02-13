@@ -3,6 +3,7 @@
 import React from 'react';
 import { useWorkflowStore } from '@/store/useWorkflowStore';
 import { useNovelStore } from '@/store/useNovelStore';
+import { useShallow } from 'zustand/react/shallow';
 import { useSettingsStore } from '@/store/useSettingsStore';
 import { useStepGenerator } from '@/hooks/useStepGenerator';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -15,8 +16,20 @@ import { resolveWorkflowMode } from '@/lib/workflow-mode';
 
 export const StepContinuation: React.FC = () => {
   const { steps, isGenerating } = useWorkflowStore();
-  const { compressionMode, compressionAutoThreshold } = useSettingsStore();
-  const { chapters, targetChapterCount, wordCount, compressedContext } = useNovelStore();
+  const { compressionMode, compressionAutoThreshold } = useSettingsStore(
+    useShallow((state) => ({
+      compressionMode: state.compressionMode,
+      compressionAutoThreshold: state.compressionAutoThreshold,
+    }))
+  );
+  const { chapters, targetChapterCount, wordCount, compressedContext } = useNovelStore(
+    useShallow((state) => ({
+      chapters: state.chapters,
+      targetChapterCount: state.targetChapterCount,
+      wordCount: state.wordCount,
+      compressedContext: state.compressedContext,
+    }))
+  );
   const { generate, stop } = useStepGenerator();
   
   const step = steps.continuation;

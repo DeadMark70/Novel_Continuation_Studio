@@ -4,6 +4,7 @@ import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useNovelStore } from '@/store/useNovelStore';
+import { useShallow } from 'zustand/react/shallow';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ReadingRoom } from '@/components/workflow/ReadingRoom';
@@ -14,7 +15,16 @@ import { Label } from '@/components/ui/label';
 
 export default function HistoryPage() {
   const router = useRouter();
-  const { sessions, currentSessionId, originalNovel, chapters, loadSessions, reset } = useNovelStore();
+  const { sessions, currentSessionId, originalNovel, chapters, loadSessions, reset } = useNovelStore(
+    useShallow((state) => ({
+      sessions: state.sessions,
+      currentSessionId: state.currentSessionId,
+      originalNovel: state.originalNovel,
+      chapters: state.chapters,
+      loadSessions: state.loadSessions,
+      reset: state.reset,
+    }))
+  );
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState('reading');
 

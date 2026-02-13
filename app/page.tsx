@@ -3,6 +3,7 @@
 import React, { useEffect } from 'react';
 import Link from 'next/link';
 import { useNovelStore } from '@/store/useNovelStore';
+import { useShallow } from 'zustand/react/shallow';
 import { useSettingsStore } from '@/store/useSettingsStore';
 import { NovelStats } from '@/components/NovelStats';
 import { StoryUpload } from '@/components/StoryUpload';
@@ -12,8 +13,18 @@ import { Button } from '@/components/ui/button';
 import { Terminal, ShieldAlert, History, Settings, Plus } from 'lucide-react';
 
 export default function Home() {
-  const { initialize: initializeNovel, reset: resetNovel } = useNovelStore();
-  const { initialize: initializeSettings, activeProvider } = useSettingsStore();
+  const { initializeNovel, resetNovel } = useNovelStore(
+    useShallow((state) => ({
+      initializeNovel: state.initialize,
+      resetNovel: state.reset,
+    }))
+  );
+  const { initializeSettings, activeProvider } = useSettingsStore(
+    useShallow((state) => ({
+      initializeSettings: state.initialize,
+      activeProvider: state.activeProvider,
+    }))
+  );
 
   useEffect(() => {
     initializeNovel();

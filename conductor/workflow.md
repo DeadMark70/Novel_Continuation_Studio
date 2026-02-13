@@ -233,10 +233,21 @@ Before requesting review:
    - Interactions feel native
 
 7. **Automated Workflows**
-   - Global mutex (`isGenerating`) used for all generation steps
+   - Session safety model is explicit:
+     - cross-session parallel runs allowed
+     - same-session concurrent multi-phase disallowed
    - SSE error objects handled explicitly
    - Token limits checks implemented
    - Timeout safety guards (180s) in place
+   - Streaming loops are cooperative (periodically yield to main thread)
+   - Provider streaming concurrency is capped to preserve UI navigation responsiveness
+   - Avoid high-frequency global-store writes unless user-visible and necessary
+
+8. **Rendering Freeze Guardrails (Required for stream-heavy features)**
+   - Do not subscribe to entire Zustand stores in large route components; use selectors (`useShallow`) for minimal slices.
+   - In long-running async stream processing (`for await` / `while (reader.read)`), add cooperative yielding (`setTimeout(0)`-style utility) to prevent event-loop starvation.
+   - For same-origin SSE fan-out workloads, enforce a client-side concurrency limiter so route data requests are not starved.
+   - Avoid duplicate persistence of large blobs at phase completion.
 
 ## Commit Guidelines
 

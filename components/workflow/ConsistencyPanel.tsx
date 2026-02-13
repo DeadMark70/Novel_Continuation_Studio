@@ -2,6 +2,7 @@
 
 import React, { useMemo, useState } from 'react';
 import { useNovelStore } from '@/store/useNovelStore';
+import { useShallow } from 'zustand/react/shallow';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
@@ -30,7 +31,14 @@ export const ConsistencyPanel: React.FC = () => {
     characterTimeline,
     foreshadowLedger,
     latestConsistencySummary,
-  } = useNovelStore();
+  } = useNovelStore(
+    useShallow((state) => ({
+      consistencyReports: state.consistencyReports,
+      characterTimeline: state.characterTimeline,
+      foreshadowLedger: state.foreshadowLedger,
+      latestConsistencySummary: state.latestConsistencySummary,
+    }))
+  );
 
   const [copyState, setCopyState] = useState<'idle' | 'done' | 'failed'>('idle');
 
