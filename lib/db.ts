@@ -61,6 +61,7 @@ export interface NovelEntry {
   styleGuide?: string;
   compressionOutline?: string;
   evidencePack?: string;
+  eroticPack?: string;
   compressedContext?: string;
   compressionMeta?: {
     sourceChars: number;
@@ -90,6 +91,7 @@ type NovelBlobFields = Pick<
   | 'styleGuide'
   | 'compressionOutline'
   | 'evidencePack'
+  | 'eroticPack'
   | 'compressedContext'
   | 'consistencyReports'
   | 'characterTimeline'
@@ -336,6 +338,7 @@ export class NovelDatabase extends Dexie {
             styleGuide: entry.styleGuide ?? '',
             compressionOutline: entry.compressionOutline ?? '',
             evidencePack: entry.evidencePack ?? '',
+            eroticPack: entry.eroticPack ?? '',
             compressedContext: entry.compressedContext ?? '',
             consistencyReports: entry.consistencyReports ?? [],
             characterTimeline: entry.characterTimeline ?? [],
@@ -354,6 +357,7 @@ export class NovelDatabase extends Dexie {
             styleGuide: '',
             compressionOutline: '',
             evidencePack: '',
+            eroticPack: '',
             compressedContext: '',
             consistencyReports: [],
             characterTimeline: [],
@@ -361,6 +365,22 @@ export class NovelDatabase extends Dexie {
           });
         }
       }
+    });
+    this.version(10).stores({
+      novels: '++id, sessionId, updatedAt, createdAt',
+      settings: 'id, updatedAt',
+      novelBlobs: 'sessionId, updatedAt'
+    }).upgrade(async (tx) => {
+      await tx.table('novels').toCollection().modify((entry: NovelMetaRecord) => {
+        if (entry.eroticPack === undefined) {
+          entry.eroticPack = '';
+        }
+      });
+      await tx.table('novelBlobs').toCollection().modify((entry: NovelBlobEntry) => {
+        if (entry.eroticPack === undefined) {
+          entry.eroticPack = '';
+        }
+      });
     });
   }
 }
@@ -378,6 +398,7 @@ function createEmptyBlobFields(): NovelBlobFields {
     styleGuide: '',
     compressionOutline: '',
     evidencePack: '',
+    eroticPack: '',
     compressedContext: '',
     consistencyReports: [],
     characterTimeline: [],
@@ -396,6 +417,7 @@ function extractBlobFields(entry: Omit<NovelEntry, 'id' | 'updatedAt' | 'created
     styleGuide: entry.styleGuide ?? '',
     compressionOutline: entry.compressionOutline ?? '',
     evidencePack: entry.evidencePack ?? '',
+    eroticPack: entry.eroticPack ?? '',
     compressedContext: entry.compressedContext ?? '',
     consistencyReports: entry.consistencyReports ?? [],
     characterTimeline: entry.characterTimeline ?? [],
@@ -415,6 +437,7 @@ function mergeNovelRecord(meta: NovelMetaRecord, blob?: NovelBlobEntry): NovelEn
     styleGuide: meta.styleGuide ?? '',
     compressionOutline: meta.compressionOutline ?? '',
     evidencePack: meta.evidencePack ?? '',
+    eroticPack: meta.eroticPack ?? '',
     compressedContext: meta.compressedContext ?? '',
     consistencyReports: meta.consistencyReports ?? [],
     characterTimeline: meta.characterTimeline ?? [],
@@ -434,6 +457,7 @@ function mergeNovelRecord(meta: NovelMetaRecord, blob?: NovelBlobEntry): NovelEn
     styleGuide: source.styleGuide ?? '',
     compressionOutline: source.compressionOutline ?? '',
     evidencePack: source.evidencePack ?? '',
+    eroticPack: source.eroticPack ?? '',
     compressedContext: source.compressedContext ?? '',
     consistencyReports: source.consistencyReports ?? [],
     characterTimeline: source.characterTimeline ?? [],
@@ -461,6 +485,7 @@ export async function saveNovel(entry: Omit<NovelEntry, 'id' | 'updatedAt' | 'cr
     styleGuide: entry.styleGuide ?? '',
     compressionOutline: entry.compressionOutline ?? '',
     evidencePack: entry.evidencePack ?? '',
+    eroticPack: entry.eroticPack ?? '',
     compressedContext: entry.compressedContext ?? '',
     compressionMeta: entry.compressionMeta,
     consistencyReports: entry.consistencyReports ?? [],

@@ -5,6 +5,7 @@ export interface CompressionArtifacts {
   styleGuide: string;
   compressionOutline: string;
   evidencePack: string;
+  eroticPack: string;
   compressedContext: string;
 }
 
@@ -33,6 +34,7 @@ export type CompressionTaskId =
   | 'styleGuide'
   | 'plotLedger'
   | 'evidencePack'
+  | 'eroticPack'
   | 'synthesis';
 
 export const DEFAULT_COMPRESSION_MODE: CompressionMode = 'auto';
@@ -42,8 +44,33 @@ export const DEFAULT_COMPRESSION_CHUNK_OVERLAP = 400;
 export const DEFAULT_COMPRESSION_EVIDENCE_SEGMENTS = 10;
 export const DEFAULT_COMPRESSION_PIPELINE_PARALLELISM = 4;
 export const DEFAULT_COMPRESSION_ENABLE_SYNTHESIS = true;
+export const DEFAULT_COMPRESSION_EROTIC_SEGMENTS = 6;
 
 const SECTION_MARKER = /【[^】]+】/g;
+const EROTIC_KEYWORDS = [
+  '親密',
+  '情慾',
+  '慾望',
+  '挑逗',
+  '喘息',
+  '呻吟',
+  '吻',
+  '擁抱',
+  '撫摸',
+  '觸碰',
+  '服從',
+  '支配',
+  '束縛',
+  '調教',
+  '羞恥',
+  '快感',
+  '高潮',
+  '濕熱',
+  '床',
+  '身體',
+  '肉體',
+  '性',
+];
 
 function clampPositive(value: number, fallback: number): number {
   if (!Number.isFinite(value) || value <= 0) {
@@ -55,6 +82,26 @@ function clampPositive(value: number, fallback: number): number {
 function clampSegmentCount(value: number): number {
   const safe = clampPositive(value, DEFAULT_COMPRESSION_EVIDENCE_SEGMENTS);
   return Math.max(4, Math.min(16, safe));
+}
+
+function selectRepresentativeIndices(length: number, max: number): number[] {
+  if (length <= 0) {
+    return [];
+  }
+  if (max <= 1 || length === 1) {
+    return [0];
+  }
+  if (length <= max) {
+    return Array.from({ length }, (_, index) => index);
+  }
+
+  const indices: number[] = [];
+  const lastIndex = length - 1;
+  const step = lastIndex / (max - 1);
+  for (let i = 0; i < max; i += 1) {
+    indices.push(Math.round(i * step));
+  }
+  return Array.from(new Set(indices));
 }
 
 function extractByMarkers(output: string, labels: string[]): string {
@@ -126,17 +173,66 @@ export function selectRepresentativeChunks(chunks: string[], maxSegments: number
     return chunks;
   }
 
-  const selected: string[] = [];
   const max = clampSegmentCount(maxSegments);
-  const lastIndex = chunks.length - 1;
-  const step = lastIndex / (max - 1);
+  return selectRepresentativeIndices(chunks.length, max).map((index) => chunks[index]);
+}
 
-  for (let i = 0; i < max; i += 1) {
-    const pick = Math.round(i * step);
-    selected.push(chunks[pick]);
+function scoreEroticDensity(chunk: string): number {
+  if (!chunk.trim()) {
+    return 0;
+  }
+  const normalized = chunk.toLowerCase();
+  let score = 0;
+
+  for (const keyword of EROTIC_KEYWORDS) {
+    const matches = normalized.match(new RegExp(keyword, 'gi'));
+    if (matches) {
+      score += matches.length;
+    }
   }
 
-  return selected;
+  // Lightweight style hints: dialogue-heavy intimate scenes and body-focused narration.
+  const quoteCount = (chunk.match(/[「」『』“”"']/g) || []).length;
+  const sentenceCount = Math.max(1, (chunk.match(/[。！？!?]/g) || []).length);
+  const quoteDensity = quoteCount / sentenceCount;
+  if (quoteDensity >= 1.5) {
+    score += 1;
+  }
+
+  return score;
+}
+
+export function selectEroticBiasedChunks(chunks: string[], maxSegments: number): string[] {
+  const max = Math.max(1, Math.floor(maxSegments));
+  if (chunks.length <= max) {
+    return chunks;
+  }
+
+  const scored = chunks
+    .map((chunk, index) => ({ index, score: scoreEroticDensity(chunk) }))
+    .filter((entry) => entry.score > 0)
+    .sort((a, b) => {
+      if (b.score !== a.score) {
+        return b.score - a.score;
+      }
+      return a.index - b.index;
+    });
+
+  const selectedIndices = new Set<number>(scored.slice(0, max).map((entry) => entry.index));
+  if (selectedIndices.size < max) {
+    const representativeIndices = selectRepresentativeIndices(chunks.length, max);
+    for (const index of representativeIndices) {
+      selectedIndices.add(index);
+      if (selectedIndices.size >= max) {
+        break;
+      }
+    }
+  }
+
+  return Array.from(selectedIndices)
+    .sort((a, b) => a - b)
+    .slice(0, max)
+    .map((index) => chunks[index]);
 }
 
 export function buildCompressionSource(
@@ -157,12 +253,41 @@ export function buildCompressionSource(
   };
 }
 
+export function buildEroticCompressionSource(
+  text: string,
+  config: CompressionSourceConfig,
+  eroticSegments: number = DEFAULT_COMPRESSION_EROTIC_SEGMENTS
+): { sourceText: string; chunkCount: number; sampledChunkCount: number; representativeCount: number; eroticCount: number } {
+  const chunks = splitIntoChunks(text, config.chunkSize, config.overlap);
+  const totalSegments = clampSegmentCount(config.maxSegments);
+  const eroticTarget = Math.max(2, Math.min(totalSegments - 1, clampSegmentCount(eroticSegments)));
+  const representativeTarget = Math.max(1, totalSegments - eroticTarget);
+
+  const representative = selectRepresentativeChunks(chunks, representativeTarget);
+  const eroticFocused = selectEroticBiasedChunks(chunks, eroticTarget);
+  const merged = Array.from(new Set([...representative, ...eroticFocused])).slice(0, totalSegments);
+
+  const sampled = merged.length > 0 ? merged : selectRepresentativeChunks(chunks, totalSegments);
+  const sourceText = sampled
+    .map((chunk, index) => `【片段 ${index + 1}/${sampled.length}】\n${chunk}`)
+    .join('\n\n---\n\n');
+
+  return {
+    sourceText,
+    chunkCount: chunks.length,
+    sampledChunkCount: sampled.length,
+    representativeCount: representative.length,
+    eroticCount: eroticFocused.length,
+  };
+}
+
 export function buildCompressedContext(artifacts: Omit<CompressionArtifacts, 'compressedContext'>): string {
   const sections = [
     artifacts.characterCards.trim() ? `【角色卡】\n${artifacts.characterCards.trim()}` : '',
     artifacts.styleGuide.trim() ? `【風格指南】\n${artifacts.styleGuide.trim()}` : '',
     artifacts.compressionOutline.trim() ? `【壓縮大綱】\n${artifacts.compressionOutline.trim()}` : '',
     artifacts.evidencePack.trim() ? `【證據包】\n${artifacts.evidencePack.trim()}` : '',
+    artifacts.eroticPack.trim() ? `【成人元素包】\n${artifacts.eroticPack.trim()}` : '',
   ].filter(Boolean);
 
   return sections.join('\n\n');
@@ -190,6 +315,7 @@ export function parseCompressionArtifacts(output: string): CompressionArtifacts 
   const styleGuide = extractByMarkers(output, ['風格指南', 'Style Guide']);
   const compressionOutline = extractByMarkers(output, ['壓縮大綱', 'Compression Outline']);
   const evidencePack = extractByMarkers(output, ['證據包', 'Evidence Pack']);
+  const eroticPack = extractByMarkers(output, ['成人元素包', 'Erotic Pack', '情色元素包']);
   const directCompressedContext = extractByMarkers(output, ['最終壓縮上下文', 'Compressed Context', '壓縮上下文']);
 
   const synthesized = buildCompressedContext({
@@ -197,6 +323,7 @@ export function parseCompressionArtifacts(output: string): CompressionArtifacts 
     styleGuide,
     compressionOutline,
     evidencePack,
+    eroticPack,
   });
 
   const compressedContext = directCompressedContext || synthesized || output.trim();
@@ -206,6 +333,7 @@ export function parseCompressionArtifacts(output: string): CompressionArtifacts 
     styleGuide,
     compressionOutline,
     evidencePack,
+    eroticPack,
     compressedContext,
   };
 }

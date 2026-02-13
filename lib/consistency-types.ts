@@ -1,6 +1,15 @@
 export type ConsistencySeverity = 'low' | 'medium' | 'high';
 
-export type ConsistencyCategory = 'character' | 'timeline' | 'naming' | 'foreshadow';
+export type ConsistencyCategory =
+  | 'character'
+  | 'timeline'
+  | 'naming'
+  | 'foreshadow'
+  | 'style_drift'
+  | 'repetition'
+  | 'erotic_drift'
+  | 'erotic_repetition'
+  | 'boundary_mismatch';
 
 export type ForeshadowStatus = 'open' | 'resolved' | 'contradicted';
 
@@ -57,6 +66,7 @@ export interface ConsistencyCheckInput {
   styleGuide: string;
   compressionOutline: string;
   evidencePack: string;
+  eroticPack: string;
   compressedContext: string;
   previousForeshadowLedger?: ForeshadowEntry[];
   llmCheck?: (prompt: string) => Promise<string>;

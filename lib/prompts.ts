@@ -25,6 +25,9 @@ const OUTLINE_COMPRESSED_PROMPT = `基於以下資訊，為這部成人小說生
 **風格指南：**
 {{STYLE_GUIDE}}
 
+**成人元素包：**
+{{EROTIC_PACK}}
+
 **故事分析：**
 {{ANALYSIS_RESULT}}
 
@@ -124,6 +127,9 @@ const CHAPTER1_COMPRESSED_PROMPT = `基於所有前置資訊，撰寫續寫的�
 **證據包：**
 {{EVIDENCE_PACK}}
 
+**成人元素包：**
+{{EROTIC_PACK}}
+
 **故事分析：**
 {{ANALYSIS_RESULT}}
 
@@ -190,6 +196,9 @@ const CONTINUATION_COMPRESSED_PROMPT = `基於所有資訊和已生成章節，�
 
 **證據包：**
 {{EVIDENCE_PACK}}
+
+**成人元素包：**
+{{EROTIC_PACK}}
 
 **故事分析：**
 {{ANALYSIS_RESULT}}
@@ -289,6 +298,9 @@ const ANALYSIS_COMPRESSED_PROMPT = `你是一位成人向長篇續寫分析師�
 【證據包】
 {{EVIDENCE_PACK}}
 
+【成人元素包】
+{{EROTIC_PACK}}
+
 請輸出六個段落：
 【角色動機地圖】
 【權力與張力機制】
@@ -365,7 +377,25 @@ const COMPRESSION_EVIDENCE_PACK_PROMPT = `你是長篇成人小說壓縮流程�
 - 片段需分散於全書，不可集中在結尾
 - 每段補一行「續寫可沿用元素」`;
 
-const COMPRESSION_SYNTHESIS_PROMPT = `你是壓縮流程的最終彙整器。請將以下四份子結果整編成可直接給續寫模型使用的最終上下文。
+const COMPRESSION_EROTIC_PACK_PROMPT = `你是長篇成人小說壓縮流程中的「成人元素包抽取器」。
+
+**來源片段（共 {{COMPRESSION_CHUNK_COUNT}} 段，抽樣 {{COMPRESSION_SAMPLED_CHUNK_COUNT}} 段）：**
+{{NOVEL_TEXT}}
+
+---
+
+請只輸出以下單一段落（不得新增其他段）：
+
+【成人元素包】
+- 成人主題/類型標籤（最多 8 個）
+- 權力互動與張力機制（控制/反控制、延宕/釋放、邊界試探）
+- 角色成人側面索引（每角色情慾觸發點、禁忌、可升級路徑）
+- 場景模板（升溫 -> 釋放 -> 餘波）與常見轉場信號
+- 語感錨點（高頻詞、句法節奏、視角偏好）與禁用句型
+- 成人證據片段 6-10 筆（每筆包含：摘錄 + 為何有效 + 可沿用元素）
+- 所有角色皆為成年虛構人物，不得引入未成年要素`;
+
+const COMPRESSION_SYNTHESIS_PROMPT = `你是壓縮流程的最終彙整器。請將以下五份子結果整編成可直接給續寫模型使用的最終上下文。
 
 【角色卡】
 {{CHARACTER_CARDS}}
@@ -379,10 +409,13 @@ const COMPRESSION_SYNTHESIS_PROMPT = `你是壓縮流程的最終彙整器。請
 【證據包】
 {{EVIDENCE_PACK}}
 
+【成人元素包】
+{{EROTIC_PACK}}
+
 ---
 
 輸出要求：
-- 請輸出完整四段：` + '`【角色卡】`' + `、` + '`【風格指南】`' + `、` + '`【壓縮大綱】`' + `、` + '`【證據包】`' + `
+- 請輸出完整五段：` + '`【角色卡】`' + `、` + '`【風格指南】`' + `、` + '`【壓縮大綱】`' + `、` + '`【證據包】`' + `、` + '`【成人元素包】`' + `
 - 最後再輸出：` + '`【最終壓縮上下文】`' + `（整合版本，保留小說語感，非教科書）
 - 不得新增原文不存在的重大事件或人設
 - 在最終段落中，明確列出「後續章節不可遺失的 10 個事實錨點」`;
@@ -416,8 +449,15 @@ export const DEFAULT_PROMPTS = {
   3) 為何關鍵（1-2句）
   4) 續寫可沿用元素（1句）
 
+【成人元素包】
+- 成人主題/類型標籤（最多 8 個）
+- 權力互動與張力機制（控制/反控制、延宕/釋放、邊界試探）
+- 角色成人側面索引（每角色情慾觸發點、禁忌、可升級路徑）
+- 場景模板（升溫 -> 釋放 -> 餘波）與常見轉場信號
+- 成人證據片段 6-10 筆（每筆包含：摘錄 + 為何有效 + 可沿用元素）
+
 【最終壓縮上下文】
-- 將角色卡 + 風格指南 + 壓縮大綱 + 證據包合併為可直接給續寫模型的上下文（保留小說語感，不要寫成教科書）。
+- 將角色卡 + 風格指南 + 壓縮大綱 + 證據包 + 成人元素包合併為可直接給續寫模型的上下文（保留小說語感，不要寫成教科書）。
 - 最後加上「不可遺失事實錨點」10 條。`,
 
   compressionRoleCards: COMPRESSION_ROLE_CARDS_PROMPT,
@@ -427,6 +467,8 @@ export const DEFAULT_PROMPTS = {
   compressionPlotLedger: COMPRESSION_PLOT_LEDGER_PROMPT,
 
   compressionEvidencePack: COMPRESSION_EVIDENCE_PACK_PROMPT,
+
+  compressionEroticPack: COMPRESSION_EROTIC_PACK_PROMPT,
 
   compressionSynthesis: COMPRESSION_SYNTHESIS_PROMPT,
 
@@ -493,6 +535,9 @@ export const DEFAULT_PROMPTS = {
 【證據包】
 {{EVIDENCE_PACK}}
 
+【成人元素包】
+{{EROTIC_PACK}}
+
 【壓縮上下文】
 {{COMPRESSED_CONTEXT}}
 
@@ -510,7 +555,7 @@ export const DEFAULT_PROMPTS = {
   "summary": "一句總結",
   "issues": [
     {
-      "category": "character|timeline|naming|foreshadow|style_drift|repetition",
+      "category": "character|timeline|naming|foreshadow|style_drift|repetition|erotic_drift|erotic_repetition|boundary_mismatch",
       "severity": "low|medium|high",
       "title": "問題標題",
       "evidence": "原文證據",

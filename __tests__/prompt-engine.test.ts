@@ -25,6 +25,12 @@ describe('Prompt Engine', () => {
     expect(result).toBe('Breakdown: Chapter 1...');
   });
 
+  it('injects erotic pack placeholder', () => {
+    const template = 'Erotic: {{EROTIC_PACK}}';
+    const result = injectPrompt(template, { eroticPack: 'TagA, TagB' });
+    expect(result).toBe('Erotic: TagA, TagB');
+  });
+
   it('injects previous chapters', () => {
     const template = 'Prev: [插入前面所有已生成的章節]';
     const result = injectPrompt(template, { previousChapters: ['Ch1', 'Ch2'] });

@@ -155,6 +155,7 @@ describe('useNovelStore Integration', () => {
     expect(novel.curvePlotPercentStart).toBe(80);
     expect(novel.curvePlotPercentEnd).toBe(40);
     expect(novel.eroticSceneLimitPerChapter).toBe(2);
+    expect(novel.eroticPack).toBe('');
     expect(novel.consistencyReports).toEqual([]);
     expect(novel.characterTimeline).toEqual([]);
     expect(novel.foreshadowLedger).toEqual([]);

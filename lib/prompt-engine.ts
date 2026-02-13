@@ -5,6 +5,7 @@ export interface PromptContext {
   styleGuide?: string;
   compressionOutline?: string;
   evidencePack?: string;
+  eroticPack?: string;
   analysis?: string;
   outline?: string;
   breakdown?: string;
@@ -88,6 +89,7 @@ export function injectPrompt(template: string, context: PromptContext): string {
   result = result.replace(/{{STYLE_GUIDE}}/g, context.styleGuide || '');
   result = result.replace(/{{COMPRESSION_OUTLINE}}/g, context.compressionOutline || '');
   result = result.replace(/{{EVIDENCE_PACK}}/g, context.evidencePack || '');
+  result = result.replace(/{{EROTIC_PACK}}/g, context.eroticPack || '');
   result = result.replace(
     /{{COMPRESSION_OUTLINE_TARGET_RANGE}}/g,
     context.compressionOutlineTargetRange || '5000-10000'

@@ -38,6 +38,7 @@ interface NovelState {
   styleGuide: string;
   compressionOutline: string;
   evidencePack: string;
+  eroticPack: string;
   compressedContext: string;
   compressionMeta?: CompressionMeta;
   consistencyReports: ConsistencyReport[];
@@ -66,6 +67,7 @@ interface NovelState {
     | 'styleGuide'
     | 'compressionOutline'
     | 'evidencePack'
+    | 'eroticPack'
     | 'compressedContext'
     | 'compressionMeta'
     | 'consistencyReports'
@@ -123,6 +125,7 @@ export const useNovelStore = create<NovelState>((set, get) => ({
   styleGuide: '',
   compressionOutline: '',
   evidencePack: '',
+  eroticPack: '',
   compressedContext: '',
   compressionMeta: undefined,
   consistencyReports: [],
@@ -261,6 +264,7 @@ export const useNovelStore = create<NovelState>((set, get) => ({
       styleGuide: state.styleGuide,
       compressionOutline: state.compressionOutline,
       evidencePack: state.evidencePack,
+      eroticPack: state.eroticPack,
       compressedContext: state.compressedContext,
       compressionMeta: state.compressionMeta,
       consistencyReports: state.consistencyReports,
@@ -300,6 +304,7 @@ export const useNovelStore = create<NovelState>((set, get) => ({
         styleGuide: session.styleGuide ?? '',
         compressionOutline: session.compressionOutline ?? '',
         evidencePack: session.evidencePack ?? '',
+        eroticPack: session.eroticPack ?? '',
         compressedContext: session.compressedContext ?? '',
         compressionMeta: session.compressionMeta,
         consistencyReports: session.consistencyReports ?? [],
@@ -342,6 +347,7 @@ export const useNovelStore = create<NovelState>((set, get) => ({
       styleGuide: '',
       compressionOutline: '',
       evidencePack: '',
+      eroticPack: '',
       compressedContext: '',
       compressionMeta: undefined,
       consistencyReports: [],
@@ -394,6 +400,7 @@ export const useNovelStore = create<NovelState>((set, get) => ({
         styleGuide: latest.styleGuide ?? '',
         compressionOutline: latest.compressionOutline ?? '',
         evidencePack: latest.evidencePack ?? '',
+        eroticPack: latest.eroticPack ?? '',
         compressedContext: latest.compressedContext ?? '',
         compressionMeta: latest.compressionMeta,
         consistencyReports: latest.consistencyReports ?? [],

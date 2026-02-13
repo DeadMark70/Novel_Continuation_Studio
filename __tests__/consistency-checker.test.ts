@@ -15,6 +15,7 @@ describe('consistency-checker', () => {
       styleGuide: '',
       compressionOutline: '',
       evidencePack: '',
+      eroticPack: '',
       compressedContext: '',
       previousForeshadowLedger: [],
     });
@@ -68,6 +69,7 @@ describe('consistency-checker', () => {
       styleGuide: '',
       compressionOutline: '',
       evidencePack: '',
+      eroticPack: '',
       compressedContext: '',
       previousForeshadowLedger: [],
       llmCheck,

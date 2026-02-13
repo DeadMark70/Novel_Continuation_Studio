@@ -493,7 +493,17 @@ function normalizeCategory(value: unknown): ConsistencyCategory | null {
   if (typeof value !== 'string') {
     return null;
   }
-  if (value === 'character' || value === 'timeline' || value === 'naming' || value === 'foreshadow') {
+  if (
+    value === 'character' ||
+    value === 'timeline' ||
+    value === 'naming' ||
+    value === 'foreshadow' ||
+    value === 'style_drift' ||
+    value === 'repetition' ||
+    value === 'erotic_drift' ||
+    value === 'erotic_repetition' ||
+    value === 'boundary_mismatch'
+  ) {
     return value;
   }
   return null;
@@ -639,6 +649,7 @@ function injectConsistencyPrompt(template: string, input: ConsistencyCheckInput)
     '{{STYLE_GUIDE}}': input.styleGuide || '',
     '{{COMPRESSION_OUTLINE}}': input.compressionOutline || '',
     '{{EVIDENCE_PACK}}': input.evidencePack || '',
+    '{{EROTIC_PACK}}': input.eroticPack || '',
     '{{COMPRESSED_CONTEXT}}': input.compressedContext || '',
     '{{LATEST_CHAPTER}}': input.latestChapterText || '',
     '{{ALL_CHAPTERS}}': formatChapters(input.allChapters || []),

@@ -9,6 +9,7 @@ import { canAttemptThinking } from '@/lib/thinking-mode';
 import {
   buildCompressionSource,
   buildCompressedContext,
+  buildEroticCompressionSource,
   extractCompressionSection,
   DEFAULT_COMPRESSION_PIPELINE_PARALLELISM,
   type CompressionTaskId,
@@ -123,6 +124,7 @@ export function useStepGenerator() {
         styleGuide,
         compressionOutline,
         evidencePack,
+        eroticPack,
         compressedContext,
       } = useNovelStore.getState();
 
@@ -203,6 +205,7 @@ export function useStepGenerator() {
             styleGuide: '',
             compressionOutline: '',
             evidencePack: '',
+            eroticPack: '',
             compressedContext: '',
             compressionMeta: {
               sourceChars,
@@ -225,9 +228,19 @@ export function useStepGenerator() {
           overlap: compressionChunkOverlap,
           maxSegments: compressionEvidenceSegments,
         });
+        const builtEroticSource = buildEroticCompressionSource(
+          originalNovel,
+          {
+            chunkSize: compressionChunkSize,
+            overlap: compressionChunkOverlap,
+            maxSegments: compressionEvidenceSegments,
+          }
+        );
         const compressionChunkCount = builtSource.chunkCount;
         const compressionSampledChunkCount = builtSource.sampledChunkCount;
         const resolvedOriginalNovel = builtSource.sourceText;
+        const eroticFocusedNovel = builtEroticSource.sourceText;
+        const eroticSampledChunkCount = builtEroticSource.sampledChunkCount;
         let compressionOutlineTargetRange = '';
         if (sourceChars <= 70000) {
           compressionOutlineTargetRange = '5000-7000';
@@ -261,10 +274,14 @@ export function useStepGenerator() {
               );
 
               const prompt = injectPrompt(template, {
-                originalNovel: resolvedOriginalNovel,
+                originalNovel: task.id === 'eroticPack'
+                  ? eroticFocusedNovel
+                  : resolvedOriginalNovel,
                 compressionOutlineTargetRange,
                 compressionChunkCount,
-                compressionSampledChunkCount,
+                compressionSampledChunkCount: task.id === 'eroticPack'
+                  ? eroticSampledChunkCount
+                  : compressionSampledChunkCount,
               });
 
               let output = '';
@@ -362,6 +379,12 @@ export function useStepGenerator() {
             promptKey: 'compressionEvidencePack',
             labels: ['證據包', 'Evidence Pack'],
           },
+          {
+            id: 'eroticPack',
+            statusLabel: 'E Erotic Pack',
+            promptKey: 'compressionEroticPack',
+            labels: ['成人元素包', 'Erotic Pack', '情色元素包'],
+          },
         ];
 
         const taskRunners = tasks.map((task) => async () => ({
@@ -383,11 +406,12 @@ export function useStepGenerator() {
           styleGuide: artifactMap.styleGuide ?? '',
           compressionOutline: artifactMap.plotLedger ?? '',
           evidencePack: artifactMap.evidencePack ?? '',
+          eroticPack: artifactMap.eroticPack ?? '',
         });
 
         taskStatuses.synthesis = 'ok';
         taskDurationsMs.synthesis = 0;
-        progressRows.push('E Programmatic Merge: done (0ms)');
+        progressRows.push('F Programmatic Merge: done (0ms)');
         renderProgress();
 
         const artifacts = {
@@ -395,6 +419,7 @@ export function useStepGenerator() {
           styleGuide: artifactMap.styleGuide ?? '',
           compressionOutline: artifactMap.plotLedger ?? '',
           evidencePack: artifactMap.evidencePack ?? '',
+          eroticPack: artifactMap.eroticPack ?? '',
           compressedContext: deterministicCompressedContext,
         };
         const compressedChars = artifacts.compressedContext.length;
@@ -457,6 +482,7 @@ export function useStepGenerator() {
         styleGuide,
         compressionOutline,
         evidencePack,
+        eroticPack,
       });
 
       // 3. Stream
@@ -585,6 +611,7 @@ export function useStepGenerator() {
               styleGuide: novelSnapshot.styleGuide,
               compressionOutline: novelSnapshot.compressionOutline,
               evidencePack: novelSnapshot.evidencePack,
+              eroticPack: novelSnapshot.eroticPack,
               compressedContext: novelSnapshot.compressedContext,
               previousForeshadowLedger: novelSnapshot.foreshadowLedger,
               llmCheck,

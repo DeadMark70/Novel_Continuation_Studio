@@ -141,6 +141,7 @@ describe('NovelDatabase', () => {
     expect(latest?.curvePlotPercentStart).toBe(80);
     expect(latest?.curvePlotPercentEnd).toBe(40);
     expect(latest?.eroticSceneLimitPerChapter).toBe(2);
+    expect(latest?.eroticPack).toBe('');
     expect(latest?.consistencyReports).toEqual([]);
     expect(latest?.characterTimeline).toEqual([]);
     expect(latest?.foreshadowLedger).toEqual([]);

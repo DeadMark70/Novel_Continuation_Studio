@@ -31,7 +31,7 @@ const PHASE_LABELS: Record<WorkflowStepId, string> = {
 const PROMPT_KEYS = Object.keys(DEFAULT_PROMPTS) as PromptKey[];
 const PROMPT_GROUPS: Array<{ title: string; keys: PromptKey[] }> = [
   { title: 'Workflow Core', keys: ['analysisCompressed', 'analysisRaw', 'outlineCompressed', 'outlineRaw', 'breakdown', 'chapter1Compressed', 'chapter1Raw', 'continuationCompressed', 'continuationRaw'] },
-  { title: 'Compression Pipeline', keys: ['compression', 'compressionRoleCards', 'compressionStyleGuide', 'compressionPlotLedger', 'compressionEvidencePack'] },
+  { title: 'Compression Pipeline', keys: ['compression', 'compressionRoleCards', 'compressionStyleGuide', 'compressionPlotLedger', 'compressionEvidencePack', 'compressionEroticPack'] },
   { title: 'Consistency', keys: ['consistency'] },
 ];
 const PROMPT_LABELS: Partial<Record<PromptKey, string>> = {
@@ -42,6 +42,7 @@ const PROMPT_LABELS: Partial<Record<PromptKey, string>> = {
   compressionStyleGuide: 'Compression Style Guide',
   compressionPlotLedger: 'Compression Plot Ledger',
   compressionEvidencePack: 'Compression Evidence Pack',
+  compressionEroticPack: 'Compression Erotic Pack',
   outlineCompressed: 'Outline (Compressed)',
   outlineRaw: 'Outline (Raw)',
   breakdown: 'Chapter Breakdown',
@@ -59,6 +60,7 @@ const PROMPT_DESCRIPTIONS: Partial<Record<PromptKey, string>> = {
   compressionStyleGuide: 'Extract style profile for writing consistency.',
   compressionPlotLedger: 'Extract plot ledger summary for continuity.',
   compressionEvidencePack: 'Extract factual evidence pack for grounding.',
+  compressionEroticPack: 'Extract adult-theme style, dynamics, and reusable erotic evidence.',
   outlineCompressed: 'Generate outline with compressed context.',
   outlineRaw: 'Generate outline with full raw context.',
   breakdown: 'Convert outline into chapter-level framework.',
