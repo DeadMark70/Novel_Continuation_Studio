@@ -32,6 +32,7 @@ const DEFAULT_PHASE_IDS: WorkflowPhaseId[] = [
 
 const DEFAULT_MODEL_PARAMS: GenerationParams = {
   maxTokens: 4096,
+  autoMaxTokens: false,
   temperature: 0.7,
   topP: 1,
   thinkingEnabled: false,

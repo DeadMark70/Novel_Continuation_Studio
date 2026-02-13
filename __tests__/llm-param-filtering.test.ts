@@ -86,6 +86,8 @@ describe('llm-client parameter filtering', () => {
       'key',
       undefined,
       {
+        enableThinking: true,
+        thinkingSupported: true,
         thinkingBudget: 512,
         supportedParameters: ['reasoning', 'temperature', 'top_p', 'max_tokens'],
       }
@@ -94,6 +96,43 @@ describe('llm-client parameter filtering', () => {
     const call = (global.fetch as unknown as ReturnType<typeof vi.fn>).mock.calls[0];
     const payload = JSON.parse(call[1].body);
     expect(payload.reasoning).toEqual({ max_tokens: 512 });
+  });
+
+  it('uses auto max_tokens and fills reasoning budget when thinking budget is empty', async () => {
+    const body = new ReadableStream({
+      start(controller) {
+        const encoder = new TextEncoder();
+        controller.enqueue(encoder.encode('data: {"choices":[{"delta":{"content":"ok"}}]}\n\n'));
+        controller.enqueue(encoder.encode('data: [DONE]\n\n'));
+        controller.close();
+      },
+    });
+
+    (global.fetch as unknown as ReturnType<typeof vi.fn>).mockResolvedValue({
+      ok: true,
+      body,
+    });
+
+    await collect(generateStream(
+      'openrouter',
+      'hello',
+      'openai/gpt-4o-mini',
+      'key',
+      undefined,
+      {
+        autoMaxTokens: true,
+        maxContextTokens: 2000,
+        maxCompletionTokens: 300,
+        enableThinking: true,
+        thinkingSupported: true,
+        supportedParameters: ['reasoning', 'temperature', 'top_p', 'max_tokens'],
+      }
+    ));
+
+    const call = (global.fetch as unknown as ReturnType<typeof vi.fn>).mock.calls[0];
+    const payload = JSON.parse(call[1].body);
+    expect(payload.max_tokens).toBe(300);
+    expect(payload.reasoning).toEqual({ max_tokens: 300 });
   });
 
   it('clamps openrouter max_tokens using model limits when provided', async () => {
@@ -165,5 +204,44 @@ describe('llm-client parameter filtering', () => {
     const secondPayload = JSON.parse((global.fetch as unknown as ReturnType<typeof vi.fn>).mock.calls[1][1].body);
     expect(firstPayload.max_tokens).toBe(150000);
     expect(secondPayload.max_tokens).toBe(133841);
+  });
+
+  it('retries with reduced max_tokens on nim context overflow', async () => {
+    const successBody = new ReadableStream({
+      start(controller) {
+        const encoder = new TextEncoder();
+        controller.enqueue(encoder.encode('data: {"choices":[{"delta":{"content":"ok"}}]}\n\n'));
+        controller.enqueue(encoder.encode('data: [DONE]\n\n'));
+        controller.close();
+      },
+    });
+
+    (global.fetch as unknown as ReturnType<typeof vi.fn>)
+      .mockResolvedValueOnce({
+        ok: false,
+        status: 400,
+        text: async () =>
+          '{"error":"NIM API Error: {\\"error\\":{\\"message\\":\\"\'max_tokens\' or \'max_completion_tokens\' is too large: 256000. This model\'s maximum context length is 262144 tokens and your request has 20354 input tokens.\\"}}"}',
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        body: successBody,
+      });
+
+    await collect(generateStream(
+      'nim',
+      'hello',
+      'meta/llama-3.1-405b-instruct',
+      'key',
+      undefined,
+      {
+        maxTokens: 256000,
+      }
+    ));
+
+    const firstPayload = JSON.parse((global.fetch as unknown as ReturnType<typeof vi.fn>).mock.calls[0][1].body);
+    const secondPayload = JSON.parse((global.fetch as unknown as ReturnType<typeof vi.fn>).mock.calls[1][1].body);
+    expect(firstPayload.max_tokens).toBe(256000);
+    expect(secondPayload.max_tokens).toBe(241534);
   });
 });

@@ -275,7 +275,8 @@ export function useStepGenerator() {
                 apiKey,
                 undefined,
                 {
-                  maxTokens: modelParams.maxTokens,
+                  maxTokens: modelParams.autoMaxTokens ? undefined : modelParams.maxTokens,
+                  autoMaxTokens: modelParams.autoMaxTokens,
                   temperature: modelParams.temperature,
                   topP: modelParams.topP,
                   topK: modelParams.topK,
@@ -466,7 +467,8 @@ export function useStepGenerator() {
         apiKey, 
         undefined, 
         {
-          maxTokens: modelParams.maxTokens,
+          maxTokens: modelParams.autoMaxTokens ? undefined : modelParams.maxTokens,
+          autoMaxTokens: modelParams.autoMaxTokens,
           temperature: modelParams.temperature,
           topP: modelParams.topP,
           topK: modelParams.topK,
@@ -475,6 +477,7 @@ export function useStepGenerator() {
           seed: modelParams.seed,
           enableThinking: canUseThinking,
           thinkingSupported: canUseThinking,
+          thinkingBudget: modelParams.thinkingBudget,
           supportedParameters,
           maxContextTokens,
           maxCompletionTokens,
@@ -549,7 +552,10 @@ export function useStepGenerator() {
                   consistencyConfig.apiKey,
                   undefined,
                   {
-                    maxTokens: consistencyConfig.params.maxTokens,
+                    maxTokens: consistencyConfig.params.autoMaxTokens
+                      ? undefined
+                      : consistencyConfig.params.maxTokens,
+                    autoMaxTokens: consistencyConfig.params.autoMaxTokens,
                     temperature: consistencyConfig.params.temperature,
                     topP: consistencyConfig.params.topP,
                     topK: consistencyConfig.params.topK,

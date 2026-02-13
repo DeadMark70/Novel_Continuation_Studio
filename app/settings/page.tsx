@@ -90,6 +90,7 @@ function getPromptDescription(key: PromptKey): string {
 function normalizeParams(params: GenerationParams): GenerationParams {
   return {
     maxTokens: Math.max(1, Math.floor(params.maxTokens || 4096)),
+    autoMaxTokens: Boolean(params.autoMaxTokens),
     temperature: Number.isFinite(params.temperature) ? params.temperature : 0.7,
     topP: Number.isFinite(params.topP) ? params.topP : 1,
     topK: params.topK,
@@ -101,9 +102,16 @@ function normalizeParams(params: GenerationParams): GenerationParams {
   };
 }
 
-function getParamValidationMessage(param: 'maxTokens' | 'temperature' | 'topP' | 'topK', value: number | undefined): string {
+function getParamValidationMessage(
+  param: 'maxTokens' | 'temperature' | 'topP' | 'topK',
+  value: number | undefined,
+  options?: { autoMaxTokens?: boolean }
+): string {
   if (value === undefined || Number.isNaN(value)) return '';
   if (param === 'maxTokens') {
+    if (options?.autoMaxTokens) {
+      return '';
+    }
     return value < 1 ? 'Must be >= 1.' : '';
   }
   if (param === 'temperature') {
@@ -540,6 +548,7 @@ export default function SettingsPage() {
                       type="number"
                       min={1}
                       step={1}
+                      disabled={Boolean(draftDefaults[provider].autoMaxTokens)}
                       value={draftDefaults[provider].maxTokens}
                       onChange={(e) =>
                         setDraftDefaults((prev) => ({
@@ -551,9 +560,29 @@ export default function SettingsPage() {
                         }))
                       }
                     />
-                    {getParamValidationMessage('maxTokens', draftDefaults[provider].maxTokens) && (
-                      <p className="text-[11px] text-destructive">{getParamValidationMessage('maxTokens', draftDefaults[provider].maxTokens)}</p>
+                    {getParamValidationMessage('maxTokens', draftDefaults[provider].maxTokens, {
+                      autoMaxTokens: draftDefaults[provider].autoMaxTokens,
+                    }) && (
+                      <p className="text-[11px] text-destructive">{getParamValidationMessage('maxTokens', draftDefaults[provider].maxTokens, {
+                        autoMaxTokens: draftDefaults[provider].autoMaxTokens,
+                      })}</p>
                     )}
+                    <div className="flex items-center justify-between rounded border border-border px-2 py-1">
+                      <Label htmlFor={`${provider}-default-autoMaxTokens`} className="text-xs">auto_max_tokens</Label>
+                      <Switch
+                        id={`${provider}-default-autoMaxTokens`}
+                        checked={Boolean(draftDefaults[provider].autoMaxTokens)}
+                        onCheckedChange={(checked) =>
+                          setDraftDefaults((prev) => ({
+                            ...prev,
+                            [provider]: {
+                              ...prev[provider],
+                              autoMaxTokens: checked,
+                            },
+                          }))
+                        }
+                      />
+                    </div>
                   </div>
                   <div className="space-y-1">
                     <Label htmlFor={`${provider}-default-temperature`}>temperature</Label>
@@ -660,6 +689,11 @@ export default function SettingsPage() {
                         }))
                       }
                     />
+                    <p className="text-[11px] text-muted-foreground">
+                      {draftDefaults[provider].autoMaxTokens
+                        ? 'Leave empty to use effective max_tokens automatically (OpenRouter reasoning).'
+                        : 'Leave empty to omit reasoning budget override.'}
+                    </p>
                   </div>
                 </div>
               </div>
@@ -697,13 +731,37 @@ export default function SettingsPage() {
                       type="number"
                       min={1}
                       step={1}
-                      disabled={!hasSelectedOverrideModel}
+                      disabled={!hasSelectedOverrideModel || Boolean(selectedOverrideValue.autoMaxTokens)}
                       value={selectedOverrideValue.maxTokens ?? ''}
                       onChange={(e) => setDraftOverrides((prev) => ({ ...prev, [overrideProvider]: { ...prev[overrideProvider], [selectedOverrideModel]: { ...(prev[overrideProvider]?.[selectedOverrideModel] || {}), maxTokens: e.target.value ? parseInt(e.target.value, 10) : undefined } } }))}
                     />
-                    {getParamValidationMessage('maxTokens', selectedOverrideValue.maxTokens) && (
-                      <p className="text-[11px] text-destructive">{getParamValidationMessage('maxTokens', selectedOverrideValue.maxTokens)}</p>
+                    {getParamValidationMessage('maxTokens', selectedOverrideValue.maxTokens, {
+                      autoMaxTokens: selectedOverrideValue.autoMaxTokens,
+                    }) && (
+                      <p className="text-[11px] text-destructive">{getParamValidationMessage('maxTokens', selectedOverrideValue.maxTokens, {
+                        autoMaxTokens: selectedOverrideValue.autoMaxTokens,
+                      })}</p>
                     )}
+                    <div className="flex items-center justify-between rounded border border-border px-2 py-1">
+                      <Label htmlFor="override-autoMaxTokens" className="text-xs">auto_max_tokens</Label>
+                      <Switch
+                        id="override-autoMaxTokens"
+                        checked={Boolean(selectedOverrideValue.autoMaxTokens)}
+                        disabled={!hasSelectedOverrideModel}
+                        onCheckedChange={(checked) =>
+                          setDraftOverrides((prev) => ({
+                            ...prev,
+                            [overrideProvider]: {
+                              ...prev[overrideProvider],
+                              [selectedOverrideModel]: {
+                                ...(prev[overrideProvider]?.[selectedOverrideModel] || {}),
+                                autoMaxTokens: checked,
+                              },
+                            },
+                          }))
+                        }
+                      />
+                    </div>
                   </div>
                   <div className="space-y-1">
                     <Label htmlFor="override-temperature">temperature</Label>
@@ -794,6 +852,11 @@ export default function SettingsPage() {
                     value={selectedOverrideValue.thinkingBudget ?? ''}
                     onChange={(e) => setDraftOverrides((prev) => ({ ...prev, [overrideProvider]: { ...prev[overrideProvider], [selectedOverrideModel]: { ...(prev[overrideProvider]?.[selectedOverrideModel] || {}), thinkingBudget: e.target.value ? parseInt(e.target.value, 10) : undefined } } }))}
                   />
+                  <p className="text-[11px] text-muted-foreground">
+                    {selectedOverrideValue.autoMaxTokens
+                      ? 'Leave empty to use effective max_tokens automatically (OpenRouter reasoning).'
+                      : 'Leave empty to omit reasoning budget override.'}
+                  </p>
                 </div>
               </div>
               <p className="text-xs text-muted-foreground">
@@ -817,7 +880,7 @@ export default function SettingsPage() {
                     <p className="font-semibold">{PHASE_LABELS[phase]}</p>
                     <p className="break-all">provider={resolved.provider} model={resolved.model}</p>
                     <p>
-                      max_tokens={resolved.params.maxTokens} temperature={resolved.params.temperature} top_p={resolved.params.topP} top_k={resolved.params.topK ?? 'n/a'}
+                      max_tokens={resolved.params.autoMaxTokens ? 'auto' : resolved.params.maxTokens} temperature={resolved.params.temperature} top_p={resolved.params.topP} top_k={resolved.params.topK ?? 'n/a'}
                     </p>
                     <p>thinking_enabled={resolved.params.thinkingEnabled ? 'true' : 'false'} thinking_budget={resolved.params.thinkingBudget ?? 'n/a'}</p>
                   </div>

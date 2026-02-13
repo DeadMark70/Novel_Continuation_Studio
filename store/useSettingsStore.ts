@@ -95,12 +95,14 @@ function createDefaultProviderDefaults(): Record<LLMProvider, GenerationParams> 
   return {
     nim: {
       maxTokens: 4096,
+      autoMaxTokens: false,
       temperature: 0.7,
       topP: 1,
       thinkingEnabled: false,
     },
     openrouter: {
       maxTokens: 4096,
+      autoMaxTokens: false,
       temperature: 0.7,
       topP: 1,
       thinkingEnabled: false,
@@ -116,6 +118,20 @@ function createDefaultPhaseConfig(): PhaseConfigMap {
     breakdown: { provider: 'nim', model: DEFAULT_NIM_MODEL },
     chapter1: { provider: 'nim', model: DEFAULT_NIM_MODEL },
     continuation: { provider: 'nim', model: DEFAULT_NIM_MODEL },
+  };
+}
+
+function normalizeGenerationParams(
+  params: Partial<GenerationParams> | undefined,
+  fallback: GenerationParams
+): GenerationParams {
+  return {
+    ...fallback,
+    ...params,
+    maxTokens: sanitizePositiveInt(params?.maxTokens ?? fallback.maxTokens, fallback.maxTokens),
+    autoMaxTokens: Boolean(params?.autoMaxTokens),
+    temperature: Number.isFinite(params?.temperature) ? Number(params?.temperature) : fallback.temperature,
+    topP: Number.isFinite(params?.topP) ? Number(params?.topP) : fallback.topP,
   };
 }
 
@@ -257,6 +273,11 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
 
   applySettingsSnapshot: async (snapshot) => {
     set((state) => {
+      const defaultProviderDefaults = createDefaultProviderDefaults();
+      const normalizedProviderDefaults: Record<LLMProvider, GenerationParams> = {
+        nim: normalizeGenerationParams(snapshot.providerDefaults.nim, defaultProviderDefaults.nim),
+        openrouter: normalizeGenerationParams(snapshot.providerDefaults.openrouter, defaultProviderDefaults.openrouter),
+      };
       const normalizedProviders: Record<LLMProvider, ProviderScopedSettings> = {
         nim: {
           ...ensureProviderSelectedModel('nim', snapshot.providers.nim),
@@ -283,7 +304,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
         activeProvider: snapshot.activeProvider,
         providers: normalizedProviders,
         phaseConfig: snapshot.phaseConfig,
-        providerDefaults: snapshot.providerDefaults,
+        providerDefaults: normalizedProviderDefaults,
         modelOverrides: snapshot.modelOverrides,
         customPrompts: snapshot.customPrompts,
         truncationThreshold: sanitizePositiveInt(snapshot.context.truncationThreshold, state.truncationThreshold),
@@ -354,10 +375,13 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     set((state) => ({
       providerDefaults: {
         ...state.providerDefaults,
-        [provider]: {
-          ...state.providerDefaults[provider],
-          ...params,
-        },
+        [provider]: normalizeGenerationParams(
+          {
+            ...state.providerDefaults[provider],
+            ...params,
+          },
+          createDefaultProviderDefaults()[provider]
+        ),
       },
       ...(provider === state.activeProvider
         ? { thinkingEnabled: params.thinkingEnabled ?? state.thinkingEnabled }
@@ -601,7 +625,12 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       openrouter: ensureProviderSelectedModel('openrouter', providersRaw.openrouter),
     };
     const activeProvider = settings.activeProvider ?? 'nim';
-    const providerDefaults = settings.providerDefaults ?? createDefaultProviderDefaults();
+    const defaultProviderDefaults = createDefaultProviderDefaults();
+    const providerDefaultsRaw = settings.providerDefaults ?? defaultProviderDefaults;
+    const providerDefaults: Record<LLMProvider, GenerationParams> = {
+      nim: normalizeGenerationParams(providerDefaultsRaw.nim, defaultProviderDefaults.nim),
+      openrouter: normalizeGenerationParams(providerDefaultsRaw.openrouter, defaultProviderDefaults.openrouter),
+    };
     const modelOverrides = settings.modelOverrides ?? { nim: {}, openrouter: {} };
     const phaseConfig = { ...createDefaultPhaseConfig(), ...(settings.phaseConfig || {}) };
 

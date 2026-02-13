@@ -17,7 +17,7 @@ class ProviderHttpError extends Error {
   }
 }
 
-function clampOpenRouterMaxTokens(
+function clampMaxTokensToModelLimits(
   requestedMaxTokens: number,
   estimatedPromptTokens: number,
   maxContextTokens?: number,
@@ -38,7 +38,32 @@ function clampOpenRouterMaxTokens(
   return Math.max(1, upperBound);
 }
 
-function parseOpenRouterContextError(message: string): {
+function resolveRequestedMaxTokens(options: GenerateOptions | undefined): number {
+  if (!options?.autoMaxTokens) {
+    return Math.max(1, Math.floor(options?.maxTokens ?? 4096));
+  }
+
+  const explicitCap = typeof options.maxTokens === 'number' && Number.isFinite(options.maxTokens) && options.maxTokens > 0
+    ? Math.floor(options.maxTokens)
+    : undefined;
+
+  const completionLimit = options.maxCompletionTokens;
+  if (typeof completionLimit === 'number' && Number.isFinite(completionLimit) && completionLimit > 0) {
+    const derived = Math.floor(completionLimit);
+    return explicitCap ? Math.min(explicitCap, derived) : derived;
+  }
+
+  const contextLimit = options.maxContextTokens;
+  if (typeof contextLimit === 'number' && Number.isFinite(contextLimit) && contextLimit > 0) {
+    const derived = Math.floor(contextLimit);
+    return explicitCap ? Math.min(explicitCap, derived) : derived;
+  }
+
+  // Fallback when provider metadata is unavailable.
+  return explicitCap ?? 4096;
+}
+
+function parseContextOverflowError(message: string): {
   maxContextTokens: number;
   inputTokens?: number;
   requestedOutputTokens?: number;
@@ -53,9 +78,26 @@ function parseOpenRouterContextError(message: string): {
     return null;
   }
 
+  // OpenRouter shape:
+  // "(29743 of text input, 150000 in the output)"
   const ioMatch = message.match(/\(([\d,]+)\s*of text input,\s*([\d,]+)\s*in the output/i);
-  const inputTokens = ioMatch ? Number.parseInt(ioMatch[1].replace(/,/g, ''), 10) : undefined;
-  const requestedOutputTokens = ioMatch ? Number.parseInt(ioMatch[2].replace(/,/g, ''), 10) : undefined;
+  let inputTokens = ioMatch ? Number.parseInt(ioMatch[1].replace(/,/g, ''), 10) : undefined;
+  let requestedOutputTokens = ioMatch ? Number.parseInt(ioMatch[2].replace(/,/g, ''), 10) : undefined;
+
+  // NIM shape:
+  // "'max_tokens' or 'max_completion_tokens' is too large: 256000.
+  //  This model's maximum context length is 262144 tokens and your request has 20354 input ..."
+  if (!Number.isFinite(inputTokens)) {
+    const nimInputMatch = message.match(/request has\s*([\d,]+)\s*input/i);
+    inputTokens = nimInputMatch ? Number.parseInt(nimInputMatch[1].replace(/,/g, ''), 10) : undefined;
+  }
+
+  if (!Number.isFinite(requestedOutputTokens)) {
+    const tooLargeMatch = message.match(/too large:\s*([\d,]+)/i);
+    requestedOutputTokens = tooLargeMatch
+      ? Number.parseInt(tooLargeMatch[1].replace(/,/g, ''), 10)
+      : undefined;
+  }
 
   return {
     maxContextTokens,
@@ -219,7 +261,6 @@ function buildGeneratePayload(
   estimatedPromptTokens: number
 ) {
   const {
-    maxTokens = 4096,
     temperature = 0.7,
     topP = 1,
     topK,
@@ -235,14 +276,13 @@ function buildGeneratePayload(
     { role: 'user', content: prompt },
   ];
 
-  const effectiveMaxTokens = provider === 'openrouter'
-    ? clampOpenRouterMaxTokens(
-      maxTokens,
-      estimatedPromptTokens,
-      options?.maxContextTokens,
-      options?.maxCompletionTokens
-    )
-    : Math.max(1, Math.floor(maxTokens));
+  const requestedMaxTokens = resolveRequestedMaxTokens(options);
+  const effectiveMaxTokens = clampMaxTokensToModelLimits(
+    requestedMaxTokens,
+    estimatedPromptTokens,
+    options?.maxContextTokens,
+    options?.maxCompletionTokens
+  );
 
   const payload: Record<string, unknown> = {
     model,
@@ -274,8 +314,15 @@ function buildGeneratePayload(
   maybeDelete('seed', 'seed');
 
   const thinkingBudget = options?.thinkingBudget;
-  if (typeof thinkingBudget === 'number' && keep('reasoning') && provider === 'openrouter') {
-    payload.reasoning = { max_tokens: Math.max(0, Math.min(Math.floor(thinkingBudget), effectiveMaxTokens)) };
+  if (provider === 'openrouter' && enableThinking && keep('reasoning')) {
+    const effectiveReasoningBudget = typeof thinkingBudget === 'number'
+      ? Math.floor(thinkingBudget)
+      : options?.autoMaxTokens
+        ? effectiveMaxTokens
+        : undefined;
+    if (typeof effectiveReasoningBudget === 'number' && Number.isFinite(effectiveReasoningBudget)) {
+      payload.reasoning = { max_tokens: Math.max(0, Math.min(effectiveReasoningBudget, effectiveMaxTokens)) };
+    }
   }
 
   if (
@@ -468,16 +515,17 @@ export async function* generateStream(
       lastError = normalizedError;
 
       if (
-        provider === 'openrouter' &&
         normalizedError instanceof ProviderHttpError &&
         normalizedError.status === 400 &&
         attempt < maxRetries
       ) {
-        const hint = parseOpenRouterContextError(normalizedError.message);
+        const hint = parseContextOverflowError(normalizedError.message);
         if (hint) {
-          const currentMaxTokens = Math.max(
-            1,
-            Math.floor(attemptOptions?.maxTokens ?? options?.maxTokens ?? 4096)
+          const currentMaxTokens = clampMaxTokensToModelLimits(
+            resolveRequestedMaxTokens(attemptOptions ?? options),
+            estimatedPromptTokens,
+            attemptOptions?.maxContextTokens ?? options?.maxContextTokens,
+            attemptOptions?.maxCompletionTokens ?? options?.maxCompletionTokens
           );
           const estimatedInput = hint.inputTokens ?? estimatedPromptTokens;
           const safeByContext = Math.max(1, hint.maxContextTokens - estimatedInput - 256);
@@ -499,7 +547,9 @@ export async function* generateStream(
               attempt + 1,
               maxRetries,
               0,
-              new Error(`OpenRouter context overflow; reducing max_tokens ${currentMaxTokens} -> ${nextMaxTokens}`)
+              new Error(
+                `${provider.toUpperCase()} context overflow; reducing max_tokens ${currentMaxTokens} -> ${nextMaxTokens}`
+              )
             );
             continue;
           }

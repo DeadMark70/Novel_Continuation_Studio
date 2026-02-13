@@ -23,6 +23,7 @@ export interface ModelCapability {
 
 export interface GenerationParams {
   maxTokens: number;
+  autoMaxTokens?: boolean;
   temperature: number;
   topP: number;
   topK?: number;
