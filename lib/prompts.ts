@@ -31,11 +31,12 @@ const OUTLINE_COMPRESSED_PROMPT = `基於以下資訊，為這部成人小說生
 **故事分析：**
 {{ANALYSIS_RESULT}}
 
+**使用者要求**
 {{USER_DIRECTION_SECTION}}
 
 ---
 
-請生成一份 5000-8000 字的續寫大綱，要求：
+請生成一份 8000~11000 字的續寫大綱，要求續寫小說總字數（{{TARGET_STORY_WORD_COUNT}} 字：
 
 - 成人內容深化（核心要求）：
   - 以心理拉扯與權力動態作為推進引擎，不是單次事件堆疊
@@ -45,8 +46,6 @@ const OUTLINE_COMPRESSED_PROMPT = `基於以下資訊，為這部成人小說生
 - 保持原有的敘事風格 and 主題元素
 - 讓角色的行為和心理有邏輯演變
 - 在核心主題（如限制、被動、權力動態）上深化發展
-{{USER_DIRECTION_REQUIREMENT}}
-
 **節奏配比（硬性）**
 {{PACING_RATIO_SECTION}}
 
@@ -55,6 +54,7 @@ ${ADULT_FICTION_GUARDRAILS}
 
 **創作原則：**
 相信你的故事直覺，讓故事自然流動。不要刻意規劃「3 幕結構」或強制插入特定元素。
+盡量滿足使用者的要求。
 
 **輸出格式：**
 分成 3-4 個清晰的情節段落，每段必含：
