@@ -6,6 +6,24 @@ import { useRunSchedulerStore } from '@/store/useRunSchedulerStore';
 import { generateStreamByProvider } from '@/lib/nim-client';
 import { injectPrompt } from '@/lib/prompt-engine';
 import { DEFAULT_PROMPTS } from '@/lib/prompts';
+import {
+  applyPromptSectionContract,
+  appendMissingSectionsRetryInstruction,
+  validatePromptSections,
+} from '@/lib/prompt-section-contracts';
+import { generateWithSectionRetry } from '@/lib/section-retry';
+import {
+  parseOutlinePhase2Content,
+  parseOutlineTaskDirective,
+  serializeOutlinePhase2Content,
+  type OutlinePhase2Task,
+} from '@/lib/outline-phase2';
+import {
+  buildBreakdownRanges,
+  composeBreakdownContent,
+  extractBreakdownMetaSections,
+  normalizeBreakdownChunkContent,
+} from '@/lib/breakdown-phase3';
 import { canAttemptThinking } from '@/lib/thinking-mode';
 import {
   buildCompressionSource,
@@ -18,7 +36,7 @@ import {
 } from '@/lib/compression';
 import { runConsistencyCheck } from '@/lib/consistency-checker';
 import { createThrottledUpdater } from '@/lib/streaming-throttle';
-import type { RunStepId } from '@/lib/run-types';
+import type { AutoContinuationPolicy, RunStepId } from '@/lib/run-types';
 import type { NovelEntry } from '@/lib/db';
 
 type PromptTemplateKey = keyof typeof DEFAULT_PROMPTS;
@@ -31,7 +49,7 @@ const STEP_TRANSITIONS: Record<
 > = {
   compression: { nextStep: 'analysis', autoTrigger: 'analysis', delayMs: 1000 },
   analysis: { nextStep: 'outline', autoTrigger: null, delayMs: 1500 },
-  outline: { nextStep: 'breakdown', autoTrigger: 'breakdown', delayMs: 3500 },
+  outline: { nextStep: 'breakdown', autoTrigger: null, delayMs: 3500 },
   breakdown: { nextStep: 'chapter1', autoTrigger: 'chapter1', delayMs: 3500 },
   chapter1: { nextStep: 'continuation', autoTrigger: null, delayMs: 2000 },
 };
@@ -114,11 +132,27 @@ function isActiveSession(sessionId: string): boolean {
   return getCurrentSessionId() === sessionId;
 }
 
+function resolveActiveContinuationPolicy(sessionId: string): AutoContinuationPolicy | null {
+  if (!isActiveSession(sessionId)) {
+    return null;
+  }
+  const workflowState = useWorkflowStore.getState();
+  return {
+    mode: workflowState.autoMode,
+    autoRangeEnd: workflowState.autoRangeEnd,
+    isPaused: workflowState.isPaused,
+  };
+}
+
 async function onStepCompleted(
   sessionId: string,
   stepId: WorkflowStepId,
-  content: string
+  content: string,
+  options?: {
+    continuationPolicy?: AutoContinuationPolicy;
+  }
 ): Promise<void> {
+  const { continuationPolicy } = options ?? {};
   const novelStore = useNovelStore.getState();
   const runScheduler = useRunSchedulerStore.getState();
   // Compression writes all artifacts via updateWorkflowBySession already.
@@ -134,7 +168,7 @@ async function onStepCompleted(
     const transition = STEP_TRANSITIONS[stepId];
     if (!trimmedContent) {
       if (isActiveSession(sessionId)) {
-        workflow.setCurrentStep(transition.nextStep);
+        workflow.setCurrentStep(stepId === 'outline' ? 'outline' : transition.nextStep);
         workflow.setAutoTriggerStep(null);
       }
       return;
@@ -158,7 +192,7 @@ async function onStepCompleted(
     }
 
     if (isActiveSession(sessionId)) {
-      workflow.setCurrentStep(transition.nextStep);
+      workflow.setCurrentStep(stepId === 'outline' ? 'outline' : transition.nextStep);
       workflow.setAutoTriggerStep(null);
     }
     return;
@@ -166,23 +200,24 @@ async function onStepCompleted(
 
   await wait(1000);
 
-  if (!isActiveSession(sessionId)) {
-    return;
-  }
-
-  const latestNovelState = useNovelStore.getState();
-  const latestWorkflowState = useWorkflowStore.getState();
-  const currentChapterCount = latestNovelState.chapters.length;
-  const safeTargetChapterCount = Math.max(2, latestNovelState.targetChapterCount ?? 5);
+  const latestSessionSnapshot = await getSessionSnapshot(sessionId);
+  const currentChapterCount = latestSessionSnapshot.chapters.length;
+  const safeTargetChapterCount = Math.max(2, latestSessionSnapshot.targetChapterCount ?? 5);
   const nextChapter = currentChapterCount + 1;
+  const activePolicy = resolveActiveContinuationPolicy(sessionId);
+  const effectivePolicy = activePolicy ?? continuationPolicy ?? {
+    mode: 'manual' as const,
+    autoRangeEnd: safeTargetChapterCount,
+    isPaused: false,
+  };
 
   let shouldAutoQueueContinuation = false;
-  if (currentChapterCount < safeTargetChapterCount && !latestWorkflowState.isPaused) {
-    if (latestWorkflowState.autoMode === 'full_auto') {
+  if (currentChapterCount < safeTargetChapterCount && !effectivePolicy.isPaused) {
+    if (effectivePolicy.mode === 'full_auto') {
       shouldAutoQueueContinuation = true;
     } else if (
-      latestWorkflowState.autoMode === 'range' &&
-      nextChapter <= latestWorkflowState.autoRangeEnd
+      effectivePolicy.mode === 'range' &&
+      nextChapter <= effectivePolicy.autoRangeEnd
     ) {
       shouldAutoQueueContinuation = true;
     }
@@ -199,10 +234,13 @@ async function onStepCompleted(
       sessionId,
       stepId: 'continuation',
       source: 'auto',
+      continuationPolicy: effectivePolicy,
       allowWhileRunning: true,
     });
   }
-  workflow.resetContinuationStep(null);
+  if (isActiveSession(sessionId)) {
+    workflow.resetContinuationStep(null);
+  }
 }
 
 export function useStepGenerator() {
@@ -213,6 +251,7 @@ export function useStepGenerator() {
     sessionId,
     stepId,
     userNotes,
+    continuationPolicy,
     signal,
     onProgress,
   }: {
@@ -221,6 +260,7 @@ export function useStepGenerator() {
     stepId: WorkflowStepId;
     userNotes?: string;
     source: 'manual' | 'auto';
+    continuationPolicy?: AutoContinuationPolicy;
     signal: AbortSignal;
     onProgress: (preview: string) => void;
   }) => {
@@ -364,7 +404,7 @@ export function useStepGenerator() {
             await workflow.completeStep(stepId);
           }
           onProgress(toProgressPreview(skippedMessage));
-          await onStepCompleted(sessionId, stepId, skippedMessage);
+          await onStepCompleted(sessionId, stepId, skippedMessage, { continuationPolicy });
           content = skippedMessage;
         } else {
           const builtSource = buildCompressionSource(originalNovel, {
@@ -407,41 +447,42 @@ export function useStepGenerator() {
             onProgress(toProgressPreview(display));
           };
 
-          const runTask = async (
-            task: CompressionPipelineTask
-          ): Promise<string> => {
-            let attempt = 0;
-            while (attempt < 2) {
-              const startedAt = Date.now();
-              attempt += 1;
-              progressRows.push(`${task.statusLabel}: running (attempt ${attempt})`);
-              renderProgress();
-              try {
-                const template = (
-                  customPrompts[task.promptKey] ||
-                  DEFAULT_PROMPTS[task.promptKey] ||
-                  customPrompts.compression ||
-                  DEFAULT_PROMPTS.compression
-                );
+            const runTask = async (
+              task: CompressionPipelineTask
+            ): Promise<string> => {
+              const template = (
+                customPrompts[task.promptKey] ||
+                DEFAULT_PROMPTS[task.promptKey] ||
+                customPrompts.compression ||
+                DEFAULT_PROMPTS.compression
+              );
+              const contractedTemplate = applyPromptSectionContract(template, task.promptKey);
+              const basePrompt = injectPrompt(contractedTemplate, {
+                originalNovel: task.id === 'eroticPack'
+                  ? eroticFocusedNovel
+                  : resolvedOriginalNovel,
+                compressionOutlineTargetRange,
+                compressionChunkCount,
+                compressionSampledChunkCount: task.id === 'eroticPack'
+                  ? eroticSampledChunkCount
+                  : compressionSampledChunkCount,
+              });
 
-                const prompt = injectPrompt(template, {
-                  originalNovel: task.id === 'eroticPack'
-                    ? eroticFocusedNovel
-                    : resolvedOriginalNovel,
-                  compressionOutlineTargetRange,
-                  compressionChunkCount,
-                  compressionSampledChunkCount: task.id === 'eroticPack'
-                    ? eroticSampledChunkCount
-                    : compressionSampledChunkCount,
-                });
-
-                let output = '';
-                const stream = generateStreamByProvider(
-                  selectedProvider,
-                  prompt,
-                  selectedModel,
-                  apiKey,
-                  undefined,
+              let currentPrompt = basePrompt;
+              let attempt = 0;
+              while (attempt < 2) {
+                const startedAt = Date.now();
+                attempt += 1;
+                progressRows.push(`${task.statusLabel}: running (attempt ${attempt})`);
+                renderProgress();
+                try {
+                  let output = '';
+                  const stream = generateStreamByProvider(
+                    selectedProvider,
+                    currentPrompt,
+                    selectedModel,
+                    apiKey,
+                    undefined,
                   {
                     maxTokens: modelParams.autoMaxTokens ? undefined : modelParams.maxTokens,
                     autoMaxTokens: modelParams.autoMaxTokens,
@@ -463,19 +504,51 @@ export function useStepGenerator() {
                   signal
                 );
 
-                for await (const chunk of stream) {
-                  output += chunk;
-                }
+                  for await (const chunk of stream) {
+                    output += chunk;
+                  }
 
-                const section = extractCompressionSection(output, task.labels);
-                if (!section.trim()) {
-                  taskStatuses[task.id] = 'fallback';
-                  progressRows.push(`${task.statusLabel}: marker missing, fallback to raw output`);
-                  renderProgress();
-                  return output.trim();
-                }
+                  const sectionValidation = validatePromptSections(task.promptKey, output);
+                  if (!sectionValidation.ok) {
+                    taskDurationsMs[task.id] = Date.now() - startedAt;
+                    if (attempt >= 2) {
+                      throw new Error(
+                        `Compression task ${task.id} missing sections: ${sectionValidation.missing
+                          .map((label) => `【${label}】`)
+                          .join('、')}`
+                      );
+                    }
+                    currentPrompt = appendMissingSectionsRetryInstruction(
+                      basePrompt,
+                      task.promptKey,
+                      sectionValidation.missing
+                    );
+                    progressRows.push(
+                      `${task.statusLabel}: missing ${sectionValidation.missing
+                        .map((label) => `【${label}】`)
+                        .join('、')}, retrying`
+                    );
+                    renderProgress();
+                    continue;
+                  }
 
-                taskDurationsMs[task.id] = Date.now() - startedAt;
+                  const section = extractCompressionSection(output, task.labels);
+                  if (!section.trim()) {
+                    taskDurationsMs[task.id] = Date.now() - startedAt;
+                    if (attempt >= 2) {
+                      throw new Error(`Compression task ${task.id} output section is empty.`);
+                    }
+                    currentPrompt = appendMissingSectionsRetryInstruction(
+                      basePrompt,
+                      task.promptKey,
+                      [task.labels[0]]
+                    );
+                    progressRows.push(`${task.statusLabel}: empty section content, retrying`);
+                    renderProgress();
+                    continue;
+                  }
+
+                  taskDurationsMs[task.id] = Date.now() - startedAt;
                 taskStatuses[task.id] = attempt > 1 ? 'retry' : 'ok';
                 progressRows.push(`${task.statusLabel}: done (${taskDurationsMs[task.id]}ms)`);
                 renderProgress();
@@ -593,94 +666,378 @@ export function useStepGenerator() {
           if (isActiveSession(sessionId)) {
             await useWorkflowStore.getState().completeStep(stepId);
           }
-          await onStepCompleted(sessionId, stepId, content);
+          await onStepCompleted(sessionId, stepId, content, { continuationPolicy });
         }
       } else {
         const resolvedPromptTemplateKey = resolvePromptTemplateKey(stepId, canUseCompressedContext);
-        const template = (
-          customPrompts[resolvedPromptTemplateKey] ||
-          customPrompts[stepId] ||
-          DEFAULT_PROMPTS[resolvedPromptTemplateKey] ||
-          DEFAULT_PROMPTS[stepId]
-        );
-        if (!template) throw new Error(`No prompt template found for ${stepId}`);
-
         let resolvedOriginalNovel = originalNovel;
         if (canUseCompressedContext) {
           resolvedOriginalNovel = compressedContext;
         }
 
-        const prompt = injectPrompt(template, {
-          originalNovel: resolvedOriginalNovel,
-          analysis,
-          outline,
-          breakdown,
-          previousChapters: chapters,
-          userNotes,
-          nextChapterNumber: chapters.length + 1,
-          truncationThreshold,
-          dualEndBuffer,
-          targetStoryWordCount,
-          targetChapterCount,
-          pacingMode,
-          plotPercent,
-          curvePlotPercentStart,
-          curvePlotPercentEnd,
-          eroticSceneLimitPerChapter,
-          compressedContext: canUseCompressedContext ? compressedContext : '',
-          characterCards,
-          styleGuide,
-          compressionOutline,
-          evidencePack,
-          eroticPack,
-        });
+        const streamPromptAttempt = async (
+          promptToRun: string,
+          onContentUpdate?: (next: string) => void
+        ): Promise<string> => {
+          let attemptContent = '';
+          const stream = generateStreamByProvider(
+            selectedProvider,
+            promptToRun,
+            selectedModel,
+            apiKey,
+            undefined,
+            {
+              maxTokens: modelParams.autoMaxTokens ? undefined : modelParams.maxTokens,
+              autoMaxTokens: modelParams.autoMaxTokens,
+              temperature: modelParams.temperature,
+              topP: modelParams.topP,
+              topK: modelParams.topK,
+              frequencyPenalty: modelParams.frequencyPenalty,
+              presencePenalty: modelParams.presencePenalty,
+              seed: modelParams.seed,
+              enableThinking: canUseThinking,
+              thinkingSupported: canUseThinking,
+              thinkingBudget: modelParams.thinkingBudget,
+              supportedParameters,
+              maxContextTokens,
+              maxCompletionTokens,
+              onRetry: (attempt, maxRetries, delay) => {
+                console.log(`[Generator] Retrying request ${attempt}/${maxRetries} after ${delay}ms`);
+              }
+            },
+            signal
+          );
 
-        const stream = generateStreamByProvider(
-          selectedProvider,
-          prompt,
-          selectedModel,
-          apiKey,
-          undefined,
-          {
-            maxTokens: modelParams.autoMaxTokens ? undefined : modelParams.maxTokens,
-            autoMaxTokens: modelParams.autoMaxTokens,
-            temperature: modelParams.temperature,
-            topP: modelParams.topP,
-            topK: modelParams.topK,
-            frequencyPenalty: modelParams.frequencyPenalty,
-            presencePenalty: modelParams.presencePenalty,
-            seed: modelParams.seed,
-            enableThinking: canUseThinking,
-            thinkingSupported: canUseThinking,
-            thinkingBudget: modelParams.thinkingBudget,
-            supportedParameters,
-            maxContextTokens,
-            maxCompletionTokens,
-            onRetry: (attempt, maxRetries, delay) => {
-              console.log(`[Generator] Retrying request ${attempt}/${maxRetries} after ${delay}ms`);
+          const throttledContentUpdate = createThrottledUpdater({
+            intervalMs: 180,
+            onUpdate: (next) => {
+              if (onContentUpdate) {
+                onContentUpdate(next);
+                return;
+              }
+              if (isActiveSession(sessionId)) {
+                useWorkflowStore.getState().updateStepContent(stepId, next);
+              }
+              onProgress(toProgressPreview(next));
+            },
+          });
+
+          try {
+            for await (const chunk of stream) {
+              attemptContent += chunk;
+              throttledContentUpdate.push(attemptContent);
             }
-          },
-          signal
+          } finally {
+            throttledContentUpdate.flush();
+            throttledContentUpdate.cancel();
+          }
+          return attemptContent;
+        };
+
+        const buildPrompt = (template: string, notes?: string) => injectPrompt(
+          applyPromptSectionContract(template, resolvedPromptTemplateKey),
+          {
+            originalNovel: resolvedOriginalNovel,
+            analysis,
+            outline,
+            breakdown,
+            previousChapters: chapters,
+            userNotes: notes,
+            nextChapterNumber: chapters.length + 1,
+            truncationThreshold,
+            dualEndBuffer,
+            targetStoryWordCount,
+            targetChapterCount,
+            pacingMode,
+            plotPercent,
+            curvePlotPercentStart,
+            curvePlotPercentEnd,
+            eroticSceneLimitPerChapter,
+            compressedContext: canUseCompressedContext ? compressedContext : '',
+            characterCards,
+            styleGuide,
+            compressionOutline,
+            evidencePack,
+            eroticPack,
+          }
         );
 
-        const throttledContentUpdate = createThrottledUpdater({
-          intervalMs: 180,
-          onUpdate: (next) => {
-            if (isActiveSession(sessionId)) {
-              useWorkflowStore.getState().updateStepContent(stepId, next);
-            }
-            onProgress(toProgressPreview(next));
-          },
-        });
+        if (stepId === 'outline') {
+          const outlineDirective = parseOutlineTaskDirective(userNotes);
+          const parsedOutline = parseOutlinePhase2Content(outline);
+          const outlineState: {
+            part2A: string;
+            part2B: string;
+            missing2A: string[];
+            missing2B: string[];
+          } = {
+            part2A: parsedOutline.part2A,
+            part2B: parsedOutline.part2B,
+            missing2A: [...parsedOutline.missing2A],
+            missing2B: [...parsedOutline.missing2B],
+          };
 
-        try {
-          for await (const chunk of stream) {
-            content += chunk;
-            throttledContentUpdate.push(content);
+          if (!parsedOutline.structured && parsedOutline.rawLegacyContent && !outlineState.part2A) {
+            outlineState.part2A = parsedOutline.rawLegacyContent;
           }
-        } finally {
-          throttledContentUpdate.flush();
-          throttledContentUpdate.cancel();
+
+          const tasksToRun: OutlinePhase2Task[] = outlineDirective.target === 'both'
+            ? ['2A', '2B']
+            : [outlineDirective.target];
+
+          const runOutlineTask = async (task: OutlinePhase2Task): Promise<void> => {
+            const promptKey: PromptTemplateKey = task === '2A'
+              ? (canUseCompressedContext ? 'outlinePhase2ACompressed' : 'outlinePhase2ARaw')
+              : (canUseCompressedContext ? 'outlinePhase2BCompressed' : 'outlinePhase2BRaw');
+            const fallbackPromptKey: PromptTemplateKey = canUseCompressedContext
+              ? 'outlineCompressed'
+              : 'outlineRaw';
+            const template = (
+              customPrompts[promptKey] ||
+              customPrompts[fallbackPromptKey] ||
+              DEFAULT_PROMPTS[promptKey] ||
+              DEFAULT_PROMPTS[fallbackPromptKey]
+            );
+            if (!template) {
+              throw new Error(`No prompt template found for outline subtask ${task}`);
+            }
+
+            const prompt = injectPrompt(
+              applyPromptSectionContract(template, promptKey),
+              {
+                originalNovel: resolvedOriginalNovel,
+                analysis,
+                outline,
+                breakdown,
+                previousChapters: chapters,
+                userNotes: outlineDirective.userNotes,
+                nextChapterNumber: chapters.length + 1,
+                truncationThreshold,
+                dualEndBuffer,
+                targetStoryWordCount,
+                targetChapterCount,
+                pacingMode,
+                plotPercent,
+                curvePlotPercentStart,
+                curvePlotPercentEnd,
+                eroticSceneLimitPerChapter,
+                compressedContext: canUseCompressedContext ? compressedContext : '',
+                characterCards,
+                styleGuide,
+                compressionOutline,
+                evidencePack,
+                eroticPack,
+              }
+            );
+
+            const taskOutput = await streamPromptAttempt(
+              prompt,
+              (next) => {
+                const previewState = {
+                  part2A: task === '2A' ? next : outlineState.part2A,
+                  part2B: task === '2B' ? next : outlineState.part2B,
+                  missing2A: task === '2A' ? [] : outlineState.missing2A,
+                  missing2B: task === '2B' ? [] : outlineState.missing2B,
+                };
+                const preview = [
+                  `【Phase 2 子任務 ${task} 生成中】`,
+                  '',
+                  serializeOutlinePhase2Content(previewState),
+                ].join('\n');
+                if (isActiveSession(sessionId)) {
+                  useWorkflowStore.getState().updateStepContent(stepId, preview);
+                }
+                onProgress(toProgressPreview(preview));
+              }
+            );
+
+            const validation = validatePromptSections(promptKey, taskOutput);
+            if (task === '2A') {
+              outlineState.part2A = taskOutput.trim();
+              outlineState.missing2A = validation.missing;
+            } else {
+              outlineState.part2B = taskOutput.trim();
+              outlineState.missing2B = validation.missing;
+            }
+
+            const snapshot = serializeOutlinePhase2Content(outlineState);
+            if (isActiveSession(sessionId)) {
+              useWorkflowStore.getState().updateStepContent(stepId, snapshot);
+            }
+            onProgress(toProgressPreview(snapshot));
+          };
+
+          for (const task of tasksToRun) {
+            await runOutlineTask(task);
+          }
+          content = serializeOutlinePhase2Content(outlineState);
+        } else if (stepId === 'breakdown') {
+          const breakdownRanges = buildBreakdownRanges(targetChapterCount, 5);
+          const chunkOutputs = new Array<string>(breakdownRanges.length).fill('');
+          const chunkStates = new Array<'idle' | 'running' | 'done' | 'error'>(breakdownRanges.length).fill('idle');
+          let metaState: 'idle' | 'running' | 'done' | 'error' = 'idle';
+          let metaRaw = '';
+
+          const buildBreakdownPreview = (): string => {
+            const metaSections = extractBreakdownMetaSections(metaRaw);
+            const synthesized = composeBreakdownContent({
+              overview: metaSections.overview || (metaRaw.trim() || '(章節總覽生成中)'),
+              chapterTable: chunkOutputs.filter((value) => value.trim()).join('\n\n'),
+              rules: metaSections.rules,
+            });
+            const rows = [
+              `- Meta: ${metaState}`,
+              ...breakdownRanges.map((range, index) => (
+                `- Chunk ${index + 1} (${range.start}-${range.end}): ${chunkStates[index]}`
+              )),
+            ];
+            return ['【Phase 3 Breakdown Pipeline】', ...rows, '', synthesized].join('\n');
+          };
+
+          const publishBreakdownPreview = () => {
+            const preview = buildBreakdownPreview();
+            if (isActiveSession(sessionId)) {
+              useWorkflowStore.getState().updateStepContent(stepId, preview);
+            }
+            onProgress(toProgressPreview(preview));
+          };
+
+          const sharedPromptContext = {
+            originalNovel: resolvedOriginalNovel,
+            analysis,
+            outline,
+            breakdown,
+            previousChapters: chapters,
+            userNotes,
+            nextChapterNumber: chapters.length + 1,
+            truncationThreshold,
+            dualEndBuffer,
+            targetStoryWordCount,
+            targetChapterCount,
+            pacingMode,
+            plotPercent,
+            curvePlotPercentStart,
+            curvePlotPercentEnd,
+            eroticSceneLimitPerChapter,
+            compressedContext: canUseCompressedContext ? compressedContext : '',
+            characterCards,
+            styleGuide,
+            compressionOutline,
+            evidencePack,
+            eroticPack,
+          } as const;
+
+          const metaTemplate = (
+            customPrompts.breakdownMeta ||
+            DEFAULT_PROMPTS.breakdownMeta ||
+            customPrompts.breakdown ||
+            DEFAULT_PROMPTS.breakdown
+          );
+          if (!metaTemplate) {
+            throw new Error('No prompt template found for breakdown meta task');
+          }
+          const metaPrompt = injectPrompt(
+            applyPromptSectionContract(metaTemplate, 'breakdownMeta'),
+            sharedPromptContext
+          );
+
+          metaState = 'running';
+          publishBreakdownPreview();
+          try {
+            metaRaw = await streamPromptAttempt(metaPrompt, (next) => {
+              metaRaw = next;
+              publishBreakdownPreview();
+            });
+            metaState = 'done';
+          } catch (metaError) {
+            metaState = 'error';
+            publishBreakdownPreview();
+            throw metaError;
+          }
+
+          for (let index = 0; index < breakdownRanges.length; index += 1) {
+            const range = breakdownRanges[index];
+            const chunkTemplate = (
+              customPrompts.breakdownChunk ||
+              DEFAULT_PROMPTS.breakdownChunk ||
+              customPrompts.breakdown ||
+              DEFAULT_PROMPTS.breakdown
+            );
+            if (!chunkTemplate) {
+              throw new Error('No prompt template found for breakdown chunk task');
+            }
+            const chunkPrompt = injectPrompt(
+              applyPromptSectionContract(chunkTemplate, 'breakdownChunk'),
+              {
+                ...sharedPromptContext,
+                chapterRangeStart: range.start,
+                chapterRangeEnd: range.end,
+              }
+            );
+
+            chunkStates[index] = 'running';
+            publishBreakdownPreview();
+            try {
+              const chunkRaw = await streamPromptAttempt(chunkPrompt, (next) => {
+                chunkOutputs[index] = normalizeBreakdownChunkContent(next);
+                publishBreakdownPreview();
+              });
+              chunkOutputs[index] = normalizeBreakdownChunkContent(chunkRaw);
+              chunkStates[index] = 'done';
+              publishBreakdownPreview();
+            } catch (chunkError) {
+              chunkStates[index] = 'error';
+              publishBreakdownPreview();
+              throw chunkError;
+            }
+          }
+
+          const metaSections = extractBreakdownMetaSections(metaRaw);
+          const mergedChapterTable = chunkOutputs.filter((value) => value.trim()).join('\n\n');
+          content = composeBreakdownContent({
+            overview: metaSections.overview || metaRaw.trim(),
+            chapterTable: mergedChapterTable,
+            rules: metaSections.rules,
+          });
+        } else {
+          const template = (
+            customPrompts[resolvedPromptTemplateKey] ||
+            customPrompts[stepId] ||
+            DEFAULT_PROMPTS[resolvedPromptTemplateKey] ||
+            DEFAULT_PROMPTS[stepId]
+          );
+          if (!template) {
+            throw new Error(`No prompt template found for ${stepId}`);
+          }
+
+          const contractedPrompt = buildPrompt(template, userNotes);
+          const shouldRetryForSections = (
+            resolvedPromptTemplateKey === 'analysisRaw' ||
+            resolvedPromptTemplateKey === 'analysisCompressed'
+          );
+
+          if (shouldRetryForSections) {
+            const retryResult = await generateWithSectionRetry({
+              prompt: contractedPrompt,
+              promptKey: resolvedPromptTemplateKey,
+              maxAttempts: 2,
+              generate: async (promptToRun, attempt, missingSections) => {
+                if (attempt > 1) {
+                  const retryNotice = `【格式修正重試】缺少章節：${missingSections
+                    .map((label) => `【${label}】`)
+                    .join('、')}`;
+                  if (isActiveSession(sessionId)) {
+                    useWorkflowStore.getState().updateStepContent(stepId, retryNotice);
+                  }
+                  onProgress(toProgressPreview(retryNotice));
+                }
+                return streamPromptAttempt(promptToRun);
+              },
+            });
+            content = retryResult.content;
+          } else {
+            content = await streamPromptAttempt(contractedPrompt);
+          }
         }
 
         if (isActiveSession(sessionId)) {
@@ -690,7 +1047,7 @@ export function useStepGenerator() {
           }
           await useWorkflowStore.getState().completeStep(stepId);
         }
-        await onStepCompleted(sessionId, stepId, content);
+        await onStepCompleted(sessionId, stepId, content, { continuationPolicy });
 
         if ((stepId === 'chapter1' || stepId === 'continuation') && isActiveSession(sessionId)) {
           const latestGeneratedChapter = content;
@@ -846,11 +1203,15 @@ export function useStepGenerator() {
 
   const generate = useCallback((stepId: WorkflowStepId, userNotes?: string, sessionId?: string) => {
     const resolvedSessionId = sessionId ?? useNovelStore.getState().currentSessionId;
+    const continuationPolicy = stepId === 'continuation'
+      ? (resolveActiveContinuationPolicy(resolvedSessionId) ?? undefined)
+      : undefined;
     const runId = useRunSchedulerStore.getState().enqueueRun({
       sessionId: resolvedSessionId,
       stepId: stepId as RunStepId,
       userNotes,
       source: 'manual',
+      continuationPolicy,
     });
     if (!runId) {
       console.warn(`[Generator] Ignored ${stepId} for ${resolvedSessionId}: session is already running or queued.`);

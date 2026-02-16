@@ -10,9 +10,13 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Play, StopCircle, RefreshCw, FastForward } from 'lucide-react';
+import { Play, StopCircle, RefreshCw, FastForward, AlertTriangle } from 'lucide-react';
 import { Textarea } from '@/components/ui/textarea';
 import { resolveWorkflowMode } from '@/lib/workflow-mode';
+import {
+  buildOutlineTaskDirective,
+  parseOutlinePhase2Content,
+} from '@/lib/outline-phase2';
 
 const MIN_TARGET_STORY_WORD_COUNT = 5000;
 const MAX_TARGET_STORY_WORD_COUNT = 50000;
@@ -81,6 +85,14 @@ export const StepOutline: React.FC = () => {
   const isStreaming = step.status === 'streaming';
   const isCompleted = step.status === 'completed';
   const isActive = currentStepId === 'outline';
+  const parsedOutline = React.useMemo(() => parseOutlinePhase2Content(step.content), [step.content]);
+  const hasStructuredOutline = parsedOutline.structured;
+  const hasOutlineOutput = Boolean(
+    parsedOutline.part2A.trim() ||
+    parsedOutline.part2B.trim() ||
+    parsedOutline.rawLegacyContent.trim()
+  );
+  const hasMissingSections = parsedOutline.missing2A.length > 0 || parsedOutline.missing2B.length > 0;
   const modeMeta = resolveWorkflowMode({
     stepId: 'outline',
     compressionMode,
@@ -196,13 +208,36 @@ export const StepOutline: React.FC = () => {
               <StopCircle className="size-4 mr-2" /> Stop
             </Button>
           ) : (
-            <Button size="sm" onClick={() => {
-              console.log('[StepOutline] Generate button clicked. plotDirection:', outlineDirection);
-              generate('outline', outlineDirection);
-            }} className={isActive && !isCompleted ? "bg-cyan-600 hover:bg-cyan-700 text-white" : ""}>
-              {isCompleted ? <RefreshCw className="size-4 mr-2" /> : (isActive ? <FastForward className="size-4 mr-2" /> : <Play className="size-4 mr-2" />)}
-              {isCompleted ? 'Regenerate' : (isActive ? 'Generate & Continue' : 'Generate Outline')}
-            </Button>
+            <>
+              <Button size="sm" onClick={() => {
+                console.log('[StepOutline] Generate button clicked. plotDirection:', outlineDirection);
+                generate('outline', outlineDirection);
+              }} className={isActive && !isCompleted ? "bg-cyan-600 hover:bg-cyan-700 text-white" : ""}>
+                {isCompleted ? <RefreshCw className="size-4 mr-2" /> : (isActive ? <FastForward className="size-4 mr-2" /> : <Play className="size-4 mr-2" />)}
+                {isCompleted ? 'Regenerate 2A+2B' : 'Generate 2A+2B'}
+              </Button>
+              {hasOutlineOutput && (
+                <>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => generate('outline', buildOutlineTaskDirective(outlineDirection, '2A'))}
+                  >
+                    Retry 2A
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => generate('outline', buildOutlineTaskDirective(outlineDirection, '2B'))}
+                  >
+                    Retry 2B
+                  </Button>
+                  <Button size="sm" variant="secondary" onClick={() => generate('breakdown')}>
+                    Proceed to Phase 3
+                  </Button>
+                </>
+              )}
+            </>
           )}
         </div>
       </CardHeader>
@@ -231,7 +266,7 @@ export const StepOutline: React.FC = () => {
 
         <div className="space-y-2 rounded-lg border border-cyan-500/20 bg-card/30 p-3">
           <Label htmlFor="target-chapter-count" className="text-xs font-mono text-cyan-500 font-bold">
-            TARGET CHAPTER COUNT (FOR PHASE 3 AUTO-RUN)
+            TARGET CHAPTER COUNT (FOR PHASE 3)
           </Label>
           <div className="flex items-center gap-3">
             <Input
@@ -364,16 +399,54 @@ export const StepOutline: React.FC = () => {
             className="min-h-[90px] bg-card/50 border-cyan-500/30 focus-visible:border-cyan-500 transition-colors resize-y"
           />
           {isActive && !isCompleted && (
-            <p className="text-[10px] text-muted-foreground italic">Provide direction and click &quot;Generate & Continue&quot; to resume automation.</p>
+            <p className="text-[10px] text-muted-foreground italic">Provide direction and click &quot;Generate 2A+2B&quot; to run Phase 2 subtasks.</p>
           )}
         </div>
 
-        <Textarea 
-          readOnly 
-          value={step.content} 
-          placeholder="Outline output will appear here..."
-          className="min-h-[300px] font-mono text-sm bg-card/50 resize-y focus-visible:ring-0"
-        />
+        {hasMissingSections && (
+          <div className="rounded-md border border-amber-400/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-200">
+            <div className="flex items-center gap-2 font-semibold">
+              <AlertTriangle className="size-4" />
+              Outline incomplete. You can retry 2A/2B or proceed manually.
+            </div>
+            {parsedOutline.missing2A.length > 0 && (
+              <p className="mt-1 font-mono">2A missing: {parsedOutline.missing2A.map((label) => `【${label}】`).join('、')}</p>
+            )}
+            {parsedOutline.missing2B.length > 0 && (
+              <p className="mt-1 font-mono">2B missing: {parsedOutline.missing2B.map((label) => `【${label}】`).join('、')}</p>
+            )}
+          </div>
+        )}
+
+        {hasStructuredOutline ? (
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            <div className="space-y-2">
+              <Label className="text-xs font-mono text-cyan-300">Phase 2A Output</Label>
+              <Textarea
+                readOnly
+                value={parsedOutline.part2A}
+                placeholder="Phase 2A output will appear here..."
+                className="min-h-[220px] font-mono text-sm bg-card/50 resize-y focus-visible:ring-0"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label className="text-xs font-mono text-cyan-300">Phase 2B Output</Label>
+              <Textarea
+                readOnly
+                value={parsedOutline.part2B}
+                placeholder="Phase 2B output will appear here..."
+                className="min-h-[220px] font-mono text-sm bg-card/50 resize-y focus-visible:ring-0"
+              />
+            </div>
+          </div>
+        ) : (
+          <Textarea
+            readOnly
+            value={step.content}
+            placeholder="Outline output will appear here..."
+            className="min-h-[300px] font-mono text-sm bg-card/50 resize-y focus-visible:ring-0"
+          />
+        )}
         {step.error && (
           <p className="text-destructive text-xs mt-2 font-mono">ERROR: {step.error}</p>
         )}

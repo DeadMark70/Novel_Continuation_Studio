@@ -8,6 +8,12 @@ export type RunStepId =
   | 'chapter1'
   | 'continuation';
 
+export interface AutoContinuationPolicy {
+  mode: 'manual' | 'full_auto' | 'range';
+  autoRangeEnd: number;
+  isPaused: boolean;
+}
+
 export interface PersistedRunMeta {
   runStatus?: RunStatus;
   recoverableStepId?: RunStepId;

@@ -24,6 +24,8 @@ export interface PromptContext {
   compressionOutlineTargetRange?: string;
   compressionChunkCount?: number;
   compressionSampledChunkCount?: number;
+  chapterRangeStart?: number;
+  chapterRangeEnd?: number;
 }
 
 function clampPercent(value: number | undefined, fallback: number): number {
@@ -177,6 +179,8 @@ export function injectPrompt(template: string, context: PromptContext): string {
 
   const targetChapterCount = context.targetChapterCount ?? 5;
   result = result.replace(/{{TARGET_CHAPTER_COUNT}}/g, targetChapterCount.toString());
+  result = result.replace(/{{CHAPTER_RANGE_START}}/g, (context.chapterRangeStart ?? 1).toString());
+  result = result.replace(/{{CHAPTER_RANGE_END}}/g, (context.chapterRangeEnd ?? targetChapterCount).toString());
   result = result.replace(/{{PACING_RATIO_SECTION}}/g, buildPacingRatioSection(context));
 
   const plotPercent = clampPercent(context.plotPercent, 60);

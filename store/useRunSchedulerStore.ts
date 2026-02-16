@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { RunStatus, RunStepId } from '@/lib/run-types';
+import type { AutoContinuationPolicy, RunStatus, RunStepId } from '@/lib/run-types';
 
 type RunSource = 'manual' | 'auto';
 
@@ -20,6 +20,7 @@ interface RunTask {
   stepId: RunStepId;
   userNotes?: string;
   source: RunSource;
+  continuationPolicy?: AutoContinuationPolicy;
   queuedAt: number;
 }
 
@@ -37,6 +38,7 @@ interface RunExecutorContext {
   stepId: RunStepId;
   userNotes?: string;
   source: RunSource;
+  continuationPolicy?: AutoContinuationPolicy;
   signal: AbortSignal;
   onProgress: (preview: string) => void;
 }
@@ -58,6 +60,7 @@ interface RunSchedulerState {
     stepId: RunStepId;
     userNotes?: string;
     source?: RunSource;
+    continuationPolicy?: AutoContinuationPolicy;
     allowWhileRunning?: boolean;
   }) => string | null;
   cancelSession: (sessionId: string) => void;
@@ -89,7 +92,14 @@ export const useRunSchedulerStore = create<RunSchedulerState>((set, get) => ({
     void get().drainQueue();
   },
 
-  enqueueRun: ({ sessionId, stepId, userNotes, source = 'manual', allowWhileRunning = false }) => {
+  enqueueRun: ({
+    sessionId,
+    stepId,
+    userNotes,
+    source = 'manual',
+    continuationPolicy,
+    allowWhileRunning = false,
+  }) => {
     if (!sessionId) {
       return null;
     }
@@ -107,7 +117,15 @@ export const useRunSchedulerStore = create<RunSchedulerState>((set, get) => ({
 
     const runId = createRunId(sessionId);
     const queuedAt = Date.now();
-    const task: RunTask = { runId, sessionId, stepId, userNotes, source, queuedAt };
+    const task: RunTask = {
+      runId,
+      sessionId,
+      stepId,
+      userNotes,
+      source,
+      continuationPolicy,
+      queuedAt,
+    };
 
     set((prev) => ({
       queue: [...prev.queue, task],
@@ -238,6 +256,7 @@ export const useRunSchedulerStore = create<RunSchedulerState>((set, get) => ({
             stepId: task.stepId,
             userNotes: task.userNotes,
             source: task.source,
+            continuationPolicy: task.continuationPolicy,
             signal: abortController.signal,
             onProgress: (preview) => {
               // High-frequency preview updates are intentionally ignored to

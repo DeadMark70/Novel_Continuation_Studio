@@ -122,6 +122,12 @@ describe('Prompt Engine', () => {
     expect(result).toBe('Chapters: 7');
   });
 
+  it('injects chapter range placeholders for chunked breakdown', () => {
+    const template = 'Range: {{CHAPTER_RANGE_START}}-{{CHAPTER_RANGE_END}}';
+    const result = injectPrompt(template, { chapterRangeStart: 6, chapterRangeEnd: 10 });
+    expect(result).toBe('Range: 6-10');
+  });
+
   it('injects fixed pacing ratio section', () => {
     const template = 'Rules:\n{{PACING_RATIO_SECTION}}';
     const result = injectPrompt(template, {

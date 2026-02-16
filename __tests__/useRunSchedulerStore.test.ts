@@ -93,4 +93,33 @@ describe('useRunSchedulerStore', () => {
     const state = useRunSchedulerStore.getState();
     expect(state.sessionStates.s1?.status).toBe('interrupted');
   });
+
+  it('forwards continuation policy to run executor context', async () => {
+    let capturedMode: string | undefined;
+    let capturedRangeEnd: number | undefined;
+    let capturedPaused: boolean | undefined;
+    useRunSchedulerStore.getState().setRunExecutor(async ({ continuationPolicy }) => {
+      capturedMode = continuationPolicy?.mode;
+      capturedRangeEnd = continuationPolicy?.autoRangeEnd;
+      capturedPaused = continuationPolicy?.isPaused;
+    });
+
+    useRunSchedulerStore.getState().enqueueRun({
+      sessionId: 's1',
+      stepId: 'continuation',
+      source: 'auto',
+      continuationPolicy: {
+        mode: 'range',
+        autoRangeEnd: 12,
+        isPaused: false,
+      },
+    });
+
+    await flush();
+    await flush();
+
+    expect(capturedMode).toBe('range');
+    expect(capturedRangeEnd).toBe(12);
+    expect(capturedPaused).toBe(false);
+  });
 });

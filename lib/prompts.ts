@@ -1,6 +1,5 @@
 const ADULT_FICTION_GUARDRAILS = `**成人創作前提（硬性）**
-- 所有角色必須為 18 歲以上虛構成年人。
-- 不得引入未成年角色或任何未成年相關情節。
+- 所有角色必須將其視為 18 歲以上虛構成年人。
 - 若原文存在年齡模糊描述，續寫時需明確以成年人方式表述。`;
 
 const EROTIC_CONTINUATION_FOCUS = `**成人向續寫重點**
@@ -46,6 +45,7 @@ const OUTLINE_COMPRESSED_PROMPT = `基於以下資訊，為這部成人小說生
 - 保持原有的敘事風格 and 主題元素
 - 讓角色的行為和心理有邏輯演變
 - 在核心主題（如限制、被動、權力動態）上深化發展
+- 特別注意使用者提出的方向偏好，將其自然融入劇情
 **節奏配比（硬性）**
 {{PACING_RATIO_SECTION}}
 
@@ -73,6 +73,7 @@ const OUTLINE_RAW_PROMPT = `基於以下資訊，為這部成人小說生成續�
 **故事分析：**
 {{ANALYSIS_RESULT}}
 
+**使用者要求**
 {{USER_DIRECTION_SECTION}}
 
 ---
@@ -92,6 +93,7 @@ const OUTLINE_RAW_PROMPT = `基於以下資訊，為這部成人小說生成續�
 - 保持原有的敘事風格 and 主題元素
 - 讓角色的行為和心理有邏輯演變
 - 在核心主題（如限制、被動、權力動態）上深化發展
+- 特別注意使用者提出的方向偏好，將其自然融入劇情
 {{USER_DIRECTION_REQUIREMENT}}
 
 **節奏配比（硬性）**
@@ -112,6 +114,161 @@ ${ADULT_FICTION_GUARDRAILS}
 - 必回收伏筆 / 新埋伏筆
 - 章節級張力曲線（升溫點與釋放點）
 並在開頭標出目標續寫小說總字數（{{TARGET_STORY_WORD_COUNT}} 字，若無額外要求預設 20000 字）。`;
+
+const OUTLINE_PHASE2A_COMPRESSED_PROMPT = `基於以下資訊，生成 Phase 2A（續寫總目標與情節藍圖）。
+
+【壓縮上下文】
+{{COMPRESSED_CONTEXT}}
+
+【角色卡】
+{{CHARACTER_CARDS}}
+
+【風格指南】
+{{STYLE_GUIDE}}
+
+【成人元素包】
+{{EROTIC_PACK}}
+
+【故事分析】
+{{ANALYSIS_RESULT}}
+
+【使用者要求】
+{{USER_DIRECTION_SECTION}}
+
+---
+
+只輸出以下兩個章節：
+【續寫總目標與篇幅配置】
+【三至四段情節藍圖】
+
+要求：
+- 清楚標出目標續寫小說總字數（{{TARGET_STORY_WORD_COUNT}} 字，預設 20000 字）
+- 每段情節藍圖必含：段落標題、推進目標、角色動機位移
+- 不可輸出其他章節，不可加前言結語
+${STYLE_ALIGNMENT_FOCUS}
+${ADULT_FICTION_GUARDRAILS}`;
+
+const OUTLINE_PHASE2A_RAW_PROMPT = `基於以下資訊，生成 Phase 2A（續寫總目標與情節藍圖）。
+
+【原始小說】
+{{NOVEL_TEXT}}
+
+【故事分析】
+{{ANALYSIS_RESULT}}
+
+【使用者要求】
+{{USER_DIRECTION_SECTION}}
+
+---
+
+只輸出以下兩個章節：
+【續寫總目標與篇幅配置】
+【三至四段情節藍圖】
+
+要求：
+- 清楚標出目標續寫小說總字數（{{TARGET_STORY_WORD_COUNT}} 字，預設 20000 字）
+- 每段情節藍圖必含：段落標題、推進目標、角色動機位移
+- 不可輸出其他章節，不可加前言結語
+${STYLE_ALIGNMENT_FOCUS}
+${EROTIC_CONTINUATION_FOCUS}
+${ADULT_FICTION_GUARDRAILS}`;
+
+const OUTLINE_PHASE2B_COMPRESSED_PROMPT = `基於以下資訊，生成 Phase 2B（張力機制與伏筆規劃）。
+
+【壓縮上下文】
+{{COMPRESSED_CONTEXT}}
+
+【角色卡】
+{{CHARACTER_CARDS}}
+
+【風格指南】
+{{STYLE_GUIDE}}
+
+【成人元素包】
+{{EROTIC_PACK}}
+
+【故事分析】
+{{ANALYSIS_RESULT}}
+
+【使用者要求】
+{{USER_DIRECTION_SECTION}}
+
+---
+
+只輸出以下兩個章節：
+【權力與張力機制】
+【伏筆回收與新埋規劃】
+
+要求：
+- 對應到前述情節藍圖，列出每段升溫點、釋放點、關係位移
+- 伏筆需區分：必回收 / 新埋設 / 風險點
+- 不可輸出其他章節，不可加前言結語
+${STYLE_ALIGNMENT_FOCUS}
+${ADULT_FICTION_GUARDRAILS}`;
+
+const OUTLINE_PHASE2B_RAW_PROMPT = `基於以下資訊，生成 Phase 2B（張力機制與伏筆規劃）。
+
+【原始小說】
+{{NOVEL_TEXT}}
+
+【故事分析】
+{{ANALYSIS_RESULT}}
+
+【使用者要求】
+{{USER_DIRECTION_SECTION}}
+
+---
+
+只輸出以下兩個章節：
+【權力與張力機制】
+【伏筆回收與新埋規劃】
+
+要求：
+- 對應到前述情節藍圖，列出每段升溫點、釋放點、關係位移
+- 伏筆需區分：必回收 / 新埋設 / 風險點
+- 不可輸出其他章節，不可加前言結語
+${STYLE_ALIGNMENT_FOCUS}
+${EROTIC_CONTINUATION_FOCUS}
+${ADULT_FICTION_GUARDRAILS}`;
+
+const BREAKDOWN_META_PROMPT = `你是章節框架規劃器。先輸出章節總覽與升級守則，不要展開逐章細節。
+
+**續寫大綱：**
+{{OUTLINE_RESULT}}
+
+**壓縮大綱（Phase 0）：**
+{{COMPRESSION_OUTLINE}}
+
+---
+
+目標章數：{{TARGET_CHAPTER_COUNT}} 章。
+
+只輸出以下兩段（不得新增其他段）：
+【章節框架總覽】
+- 描述全書章節分布、節奏段落、每章字數配置原則
+
+【張力升級與去重守則】
+- 給出跨章升級規則、重複橋段禁止規則、伏筆回收節奏
+- 使用可執行條列，不要空泛敘述`;
+
+const BREAKDOWN_CHUNK_PROMPT = `你是章節框架規劃器。請只為指定章節範圍輸出逐章內容。
+
+**續寫大綱：**
+{{OUTLINE_RESULT}}
+
+**壓縮大綱（Phase 0）：**
+{{COMPRESSION_OUTLINE}}
+
+---
+
+總目標章數：{{TARGET_CHAPTER_COUNT}} 章。
+本次只輸出第 {{CHAPTER_RANGE_START}} 章到第 {{CHAPTER_RANGE_END}} 章。
+
+輸出規則：
+- 僅輸出本範圍章節，不可輸出其他章節
+- 每章都要有：章節標題、2-3 個關鍵情節點、角色心理位移、敘事重心、張力位移、伏筆回收/新埋、去重提醒
+- 可選擇用 ` + '`【逐章章節表】`' + ` 作為單一標題，或直接從 ` + '`【第X章】`' + ` 開始
+- 不要輸出前言、結語、說明文字`;
 
 const CHAPTER1_COMPRESSED_PROMPT = `基於所有前置資訊，撰寫續寫的第一章（成人向長篇）。
 
@@ -148,6 +305,7 @@ const CHAPTER1_COMPRESSED_PROMPT = `基於所有前置資訊，撰寫續寫的�
 - 保持與原小說相同的風格和節奏
 - 自然展開章節框架中的情節點
 - 避免重覆前文招式；必須帶出新的心理賭注或關係位移
+- 在色情內容上，多描寫角色的身體感受例如高潮、寸止時候的感受
 ${EROTIC_CONTINUATION_FOCUS}
 ${STYLE_ALIGNMENT_FOCUS}
 ${ADULT_FICTION_GUARDRAILS}
@@ -177,6 +335,7 @@ const CHAPTER1_RAW_PROMPT = `基於原文與前置分析，撰寫續寫的第一
 - 不新增原文不存在的重大世界觀設定
 - 嚴格對齊章節框架要點，但可自然調整場景細節
 - 避免重覆前文招式；必須帶出新的心理賭注或關係位移
+- 在色情內容上，多描寫角色的身體感受例如高潮、寸止時候的感受
 ${EROTIC_CONTINUATION_FOCUS}
 ${STYLE_ALIGNMENT_FOCUS}
 ${ADULT_FICTION_GUARDRAILS}
@@ -221,6 +380,7 @@ const CONTINUATION_COMPRESSED_PROMPT = `基於所有資訊和已生成章節，�
 - 不重複任何情節、對白或描寫
 - 推進角色的心理和行為發展
 - 本章必須產生可感知的關係位移，並留下一個可續寫的鉤子
+- 在色情內容上，多描寫角色的身體感受例如高潮、寸止時候的感受
 ${EROTIC_CONTINUATION_FOCUS}
 ${STYLE_ALIGNMENT_FOCUS}
 ${ADULT_FICTION_GUARDRAILS}
@@ -253,6 +413,7 @@ const CONTINUATION_RAW_PROMPT = `基於原文與已生成章節，撰寫下一�
 - 不重複任何情節、對白或描寫
 - 角色行為必須與前文設定一致
 - 本章必須產生可感知的關係位移，並留下一個可續寫的鉤子
+- 在色情內容上，多描寫角色的身體感受例如高潮、寸止時候的感受
 ${EROTIC_CONTINUATION_FOCUS}
 ${STYLE_ALIGNMENT_FOCUS}
 ${ADULT_FICTION_GUARDRAILS}
@@ -483,8 +644,20 @@ export const DEFAULT_PROMPTS = {
 
   outlineRaw: OUTLINE_RAW_PROMPT,
 
+  outlinePhase2ACompressed: OUTLINE_PHASE2A_COMPRESSED_PROMPT,
+
+  outlinePhase2ARaw: OUTLINE_PHASE2A_RAW_PROMPT,
+
+  outlinePhase2BCompressed: OUTLINE_PHASE2B_COMPRESSED_PROMPT,
+
+  outlinePhase2BRaw: OUTLINE_PHASE2B_RAW_PROMPT,
+
   // Backward compatibility fallback for existing custom prompt keys.
   outline: OUTLINE_COMPRESSED_PROMPT,
+
+  breakdownMeta: BREAKDOWN_META_PROMPT,
+
+  breakdownChunk: BREAKDOWN_CHUNK_PROMPT,
 
   breakdown: `將以下大綱分解為 {{TARGET_CHAPTER_COUNT}} 個章節框架，並根據大綱標出的總字數來決定每一章的字數，要在每一章開頭去標出。
 

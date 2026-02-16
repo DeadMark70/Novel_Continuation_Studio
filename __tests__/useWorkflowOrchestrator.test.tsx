@@ -73,14 +73,14 @@ describe('useWorkflowOrchestrator', () => {
     expect(state.isGenerating).toBe(false);
   });
 
-  it('transitions outline to breakdown with auto-trigger', async () => {
+  it('keeps outline active without auto-trigger to allow manual decision', async () => {
     await act(async () => {
       await runCompletion('outline', 'outline output', 3500);
     });
 
     const state = useWorkflowStore.getState();
-    expect(state.currentStepId).toBe('breakdown');
-    expect(state.autoTriggerStepId).toBe('breakdown');
+    expect(state.currentStepId).toBe('outline');
+    expect(state.autoTriggerStepId).toBeNull();
   });
 
   it('queues next continuation in full-auto mode when target not reached', async () => {

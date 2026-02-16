@@ -76,7 +76,7 @@ export const StepBreakdown: React.FC = () => {
           </Label>
           <p className="text-sm font-mono text-amber-400">{targetChapterCount} chapters</p>
           <p className="text-xs text-muted-foreground">
-            Adjust target chapter count in Phase 2 before generating outline. Phase 3 will auto-run with that value.
+            Step 3 now auto-splits long chapter plans into chunks of 5 chapters per generation pass, based on this target count.
           </p>
         </div>
 

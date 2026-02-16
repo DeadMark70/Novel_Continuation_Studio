@@ -8,7 +8,7 @@ const STEP_TRANSITIONS: Record<
 > = {
   compression: { nextStep: 'analysis', autoTrigger: 'analysis', delayMs: 1000 },
   analysis: { nextStep: 'outline', autoTrigger: null, delayMs: 1500 },
-  outline: { nextStep: 'breakdown', autoTrigger: 'breakdown', delayMs: 3500 },
+  outline: { nextStep: 'breakdown', autoTrigger: null, delayMs: 3500 },
   breakdown: { nextStep: 'chapter1', autoTrigger: 'chapter1', delayMs: 3500 },
   chapter1: { nextStep: 'continuation', autoTrigger: null, delayMs: 2000 },
 };
@@ -39,15 +39,15 @@ export function useWorkflowOrchestrator() {
       const transition = STEP_TRANSITIONS[stepId];
       if (!trimmedContent) {
         releaseLock();
-        workflowStore.setCurrentStep(transition.nextStep);
+        workflowStore.setCurrentStep(stepId === 'outline' ? 'outline' : transition.nextStep);
         workflowStore.setAutoTriggerStep(null);
         return;
       }
 
       await wait(transition.delayMs);
       releaseLock();
-      workflowStore.setCurrentStep(transition.nextStep);
-      workflowStore.setAutoTriggerStep(transition.autoTrigger);
+      workflowStore.setCurrentStep(stepId === 'outline' ? 'outline' : transition.nextStep);
+      workflowStore.setAutoTriggerStep(stepId === 'outline' ? null : transition.autoTrigger);
       return;
     }
 
