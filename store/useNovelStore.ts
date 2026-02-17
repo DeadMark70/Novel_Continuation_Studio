@@ -144,7 +144,53 @@ interface NovelState {
   deleteSessionById: (sessionId: string) => Promise<void>;
 }
 
-export const useNovelStore = create<NovelState>((set, get) => ({
+const NOVEL_PERSIST_DEBOUNCE_MS = 350;
+
+function omitPersistenceMeta<T extends { id?: unknown; updatedAt?: unknown; createdAt?: unknown }>(
+  entry: T
+): Omit<T, 'id' | 'updatedAt' | 'createdAt'> {
+  const payload = { ...entry };
+  delete payload.id;
+  delete payload.updatedAt;
+  delete payload.createdAt;
+  return payload;
+}
+
+export const useNovelStore = create<NovelState>((set, get) => {
+  let pendingPersistTimer: ReturnType<typeof setTimeout> | null = null;
+  let pendingPersistPromise: Promise<void> | null = null;
+  let resolvePendingPersist: (() => void) | null = null;
+
+  const hasPendingPersist = () => pendingPersistTimer !== null;
+
+  const consumePendingPersistResolver = () => {
+    if (pendingPersistTimer) {
+      clearTimeout(pendingPersistTimer);
+      pendingPersistTimer = null;
+    }
+    const resolver = resolvePendingPersist;
+    resolvePendingPersist = null;
+    pendingPersistPromise = null;
+    return resolver;
+  };
+
+  const scheduleDebouncedPersist = (): Promise<void> => {
+    if (!pendingPersistPromise) {
+      pendingPersistPromise = new Promise<void>((resolve) => {
+        resolvePendingPersist = resolve;
+      });
+    }
+    if (pendingPersistTimer) {
+      clearTimeout(pendingPersistTimer);
+    }
+    pendingPersistTimer = setTimeout(() => {
+      pendingPersistTimer = null;
+      void get().persist();
+    }, NOVEL_PERSIST_DEBOUNCE_MS);
+    return pendingPersistPromise;
+  };
+
+  return {
   currentSessionId: generateSessionId(),
   originalNovel: '',
   wordCount: 0,
@@ -184,7 +230,7 @@ export const useNovelStore = create<NovelState>((set, get) => ({
     const normalized = normalizeNovelText(content);
     const count = normalized.length;
     set({ originalNovel: normalized, wordCount: count });
-    await get().persist();
+    await scheduleDebouncedPersist();
   },
 
   setStep: async (step: number) => {
@@ -245,7 +291,7 @@ export const useNovelStore = create<NovelState>((set, get) => ({
       chapters: session.chapters,
       compressedContext: session.compressedContext ?? '',
     }) };
-    const { id, updatedAt, createdAt, ...payload } = merged;
+    const payload = omitPersistenceMeta(merged);
     await saveNovel(payload);
     set((state) => ({
       sessions: state.sessions.map((entry) => (
@@ -271,7 +317,7 @@ export const useNovelStore = create<NovelState>((set, get) => ({
       return;
     }
     const merged = { ...session, ...data };
-    const { id, updatedAt, createdAt, ...payload } = merged;
+    const payload = omitPersistenceMeta(merged);
     await saveNovel(payload);
     set((state) => ({
       sessions: state.sessions.map((entry) => (
@@ -470,48 +516,14 @@ export const useNovelStore = create<NovelState>((set, get) => ({
   },
 
   persist: async () => {
+    const resolveDebouncedPersist = consumePendingPersistResolver();
     const state = get();
     
     // Generate session name from first 20 chars of novel or "Untitled"
     const sessionName = state.originalNovel.trim().substring(0, 30) || '未命名小說';
     
-    await saveNovel({
-      sessionId: state.currentSessionId,
-      sessionName: sessionName + (sessionName.length >= 30 ? '...' : ''),
-      content: state.originalNovel,
-      wordCount: state.wordCount,
-      currentStep: state.currentStep,
-      analysis: state.analysis,
-      outline: state.outline,
-      outlineDirection: state.outlineDirection,
-      breakdown: state.breakdown,
-      chapters: state.chapters,
-      targetStoryWordCount: state.targetStoryWordCount,
-      targetChapterCount: state.targetChapterCount,
-      pacingMode: state.pacingMode,
-      plotPercent: state.plotPercent,
-      curvePlotPercentStart: state.curvePlotPercentStart,
-      curvePlotPercentEnd: state.curvePlotPercentEnd,
-      eroticSceneLimitPerChapter: state.eroticSceneLimitPerChapter,
-      characterCards: state.characterCards,
-      styleGuide: state.styleGuide,
-      compressionOutline: state.compressionOutline,
-      evidencePack: state.evidencePack,
-      eroticPack: state.eroticPack,
-      compressedContext: state.compressedContext,
-      compressionMeta: state.compressionMeta,
-      consistencyReports: state.consistencyReports,
-      characterTimeline: state.characterTimeline,
-      foreshadowLedger: state.foreshadowLedger,
-      latestConsistencySummary: state.latestConsistencySummary,
-      runStatus: state.runStatus,
-      recoverableStepId: state.recoverableStepId,
-      lastRunAt: state.lastRunAt,
-      lastRunError: state.lastRunError,
-      lastRunId: state.lastRunId,
-    });
-    set((current) => {
-      const nextEntry = {
+    try {
+      await saveNovel({
         sessionId: state.currentSessionId,
         sessionName: sessionName + (sessionName.length >= 30 ? '...' : ''),
         content: state.originalNovel,
@@ -545,22 +557,61 @@ export const useNovelStore = create<NovelState>((set, get) => ({
         lastRunAt: state.lastRunAt,
         lastRunError: state.lastRunError,
         lastRunId: state.lastRunId,
-        updatedAt: Date.now(),
-        createdAt: Date.now(),
-      };
+      });
+      set((current) => {
+        const nextEntry = {
+          sessionId: state.currentSessionId,
+          sessionName: sessionName + (sessionName.length >= 30 ? '...' : ''),
+          content: state.originalNovel,
+          wordCount: state.wordCount,
+          currentStep: state.currentStep,
+          analysis: state.analysis,
+          outline: state.outline,
+          outlineDirection: state.outlineDirection,
+          breakdown: state.breakdown,
+          chapters: state.chapters,
+          targetStoryWordCount: state.targetStoryWordCount,
+          targetChapterCount: state.targetChapterCount,
+          pacingMode: state.pacingMode,
+          plotPercent: state.plotPercent,
+          curvePlotPercentStart: state.curvePlotPercentStart,
+          curvePlotPercentEnd: state.curvePlotPercentEnd,
+          eroticSceneLimitPerChapter: state.eroticSceneLimitPerChapter,
+          characterCards: state.characterCards,
+          styleGuide: state.styleGuide,
+          compressionOutline: state.compressionOutline,
+          evidencePack: state.evidencePack,
+          eroticPack: state.eroticPack,
+          compressedContext: state.compressedContext,
+          compressionMeta: state.compressionMeta,
+          consistencyReports: state.consistencyReports,
+          characterTimeline: state.characterTimeline,
+          foreshadowLedger: state.foreshadowLedger,
+          latestConsistencySummary: state.latestConsistencySummary,
+          runStatus: state.runStatus,
+          recoverableStepId: state.recoverableStepId,
+          lastRunAt: state.lastRunAt,
+          lastRunError: state.lastRunError,
+          lastRunId: state.lastRunId,
+          updatedAt: Date.now(),
+          createdAt: Date.now(),
+        };
 
-      const exists = current.sessions.some((entry) => entry.sessionId === state.currentSessionId);
-      if (!exists) {
-        return { sessions: [nextEntry, ...current.sessions] };
-      }
-      return {
-        sessions: current.sessions.map((entry) => (
-          entry.sessionId === state.currentSessionId
-            ? { ...entry, ...nextEntry, createdAt: entry.createdAt ?? nextEntry.createdAt }
-            : entry
-        )),
-      };
-    });
+        const exists = current.sessions.some((entry) => entry.sessionId === state.currentSessionId);
+        if (!exists) {
+          return { sessions: [nextEntry, ...current.sessions] };
+        }
+        return {
+          sessions: current.sessions.map((entry) => (
+            entry.sessionId === state.currentSessionId
+              ? { ...entry, ...nextEntry, createdAt: entry.createdAt ?? nextEntry.createdAt }
+              : entry
+          )),
+        };
+      });
+    } finally {
+      resolveDebouncedPersist?.();
+    }
   },
 
   loadSessions: async () => {
@@ -569,6 +620,9 @@ export const useNovelStore = create<NovelState>((set, get) => ({
   },
 
   loadSession: async (sessionId: string) => {
+    if (hasPendingPersist()) {
+      await get().persist();
+    }
     const session = await getSession(sessionId);
     if (session) {
       set({
@@ -618,6 +672,9 @@ export const useNovelStore = create<NovelState>((set, get) => ({
   },
 
   startNewSession: () => {
+    if (hasPendingPersist()) {
+      void get().persist();
+    }
     const newSessionId = generateSessionId();
     set({
       currentSessionId: newSessionId,
@@ -658,6 +715,9 @@ export const useNovelStore = create<NovelState>((set, get) => ({
   },
 
   deleteSessionById: async (sessionId: string) => {
+    if (hasPendingPersist()) {
+      await get().persist();
+    }
     await deleteSession(sessionId);
     await get().loadSessions();
     
@@ -741,4 +801,5 @@ export const useNovelStore = create<NovelState>((set, get) => ({
     await get().loadSessions();
     set({ isInitialized: true });
   },
-}));
+  };
+});

@@ -4,7 +4,7 @@
 - Build a local-first novel continuation studio with a structured Phase 0-5 workflow.
 - Support provider/model routing per phase while keeping generation deterministic and debuggable.
 
-## 2. Current Status (2026-02-13)
+## 2. Current Status (2026-02-17)
 - Dual-provider support is implemented: NVIDIA NIM + OpenRouter.
 - Full pages are active:
   - `/settings` for provider config, phase routing, model params, prompt editing, and context controls.
@@ -19,12 +19,21 @@
   - adding a global LLM streaming concurrency limiter
   - yielding control back to main thread during SSE streaming loops
   - removing redundant large writes during compression completion
+- 2026-02-17 maintenance hardening was completed:
+  - `e2e/resilience.spec.js` Flow A assertion updated and stabilized (13/13 pass).
+  - `useNovelStore.setNovel` now uses debounced persistence (350ms) with pending-write flush before session switches.
+  - Workflow UI subscriptions were narrowed (`WorkflowStepper`, `StepAnalysis`, `StepOutline`, `StepContinuation`) and `currentStepId` now has runtime guard.
+  - Blocking `alert/confirm` interactions were replaced with Dialog flows in studio/settings critical paths.
+  - `VersionList` row interaction is keyboard-operable (`button` semantics + accessible labels).
+  - `next/font/google` dependency was removed in `app/layout.tsx` for offline-safe builds.
+  - Added `app/error.tsx` and `app/not-found.tsx`.
+  - Added high-risk tests for `useStepGenerator` (error recovery, continuation auto-queue, duplicate enqueue guard), raising statements coverage from ~3.18% to ~34.66%.
 
 ## 3. Runtime Stack
 - Framework: Next.js App Router (`next@16.1.6`)
 - UI: React 19, Tailwind CSS v4, shadcn/ui, Radix primitives
 - State: Zustand (`useWorkflowStore`, `useNovelStore`, `useSettingsStore`)
-- Persistence: Dexie/IndexedDB (`lib/db.ts`, schema v7)
+- Persistence: Dexie/IndexedDB (`lib/db.ts`, schema v11)
 - LLM providers:
   - NIM routes: `app/api/nim/*`
   - OpenRouter routes: `app/api/openrouter/*`
@@ -84,6 +93,19 @@ Resolution order:
   - Multiple concurrent SSE streams to the same origin without a client-side limiter.
   - React pages subscribing to full stores and performing expensive `JSON.stringify`/derived computations each update.
   - Streaming progress updates written to global stores at high frequency without strict need.
+
+## 6.2 Persistence & UX Guardrails (2026-02-17)
+- `setNovel` must stay debounced; avoid restoring per-keystroke full-session `persist` writes.
+- Before switching/deleting sessions, flush pending debounced writes to prevent losing unsaved text.
+- Confirmation flows should use Dialog components; avoid reintroducing blocking browser `alert/confirm`.
+- Keep session list rows as semantic controls (`button`) for keyboard and assistive-tech compatibility.
+
+## 6.3 Remaining Optimization Opportunities
+- Add page lifecycle flush (`visibilitychange` / `pagehide`) for debounced novel persistence to reduce last-keystroke loss risk on abrupt tab close.
+- Continue targeted branch testing for `hooks/useStepGenerator.ts`, especially:
+  - Phase 0 compression pipeline failure/partial-task branches
+  - Phase 3 breakdown meta+chunk orchestration error paths
+- Refactor `components/workflow/StepOutline.tsx` into smaller modules to reduce maintenance risk and improve testability.
 
 ## 7. Cost-Safety / Environment Notes
 - User preference: avoid paid OpenRouter calls unless explicitly needed.

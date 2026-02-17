@@ -70,8 +70,31 @@ describe('StepOutline', () => {
     );
   });
 
+  const mockWorkflowState = (workflowState: {
+    steps: {
+      outline: {
+        id: 'outline';
+        status: 'idle' | 'streaming' | 'completed' | 'error';
+        content: string;
+        error?: string;
+        truncation: {
+          isTruncated: boolean;
+          lastFinishReason: 'length' | 'stop' | 'unknown';
+          autoResumeRoundsUsed: number;
+          lastTruncatedOutlineTask?: '2A' | '2B';
+        };
+      };
+    };
+    currentStepId: 'outline';
+  }) => {
+    useWorkflowStoreMock.mockImplementation(
+      (selector?: (value: typeof workflowState) => unknown) =>
+        selector ? selector(workflowState) : workflowState
+    );
+  };
+
   it('resumes selected subtask immediately when truncation was detected', () => {
-    useWorkflowStoreMock.mockReturnValue({
+    mockWorkflowState({
       steps: {
         outline: {
           id: 'outline',
@@ -88,8 +111,6 @@ describe('StepOutline', () => {
       },
       currentStepId: 'outline',
     });
-
-    const confirmSpy = vi.spyOn(window, 'confirm');
     render(<StepOutline />);
 
     fireEvent.click(screen.getByRole('button', { name: /resume 2b/i }));
@@ -98,11 +119,10 @@ describe('StepOutline', () => {
       'outline',
       'keep pacing\n[[OUTLINE_TASK:2B]]\n[[RESUME_LAST_OUTPUT]]'
     );
-    expect(confirmSpy).not.toHaveBeenCalled();
   });
 
-  it('asks for confirmation when no truncation was detected', () => {
-    useWorkflowStoreMock.mockReturnValue({
+  it('shows dialog confirmation when no truncation was detected', () => {
+    mockWorkflowState({
       steps: {
         outline: {
           id: 'outline',
@@ -119,16 +139,21 @@ describe('StepOutline', () => {
       },
       currentStepId: 'outline',
     });
-
-    vi.spyOn(window, 'confirm').mockReturnValue(false);
     render(<StepOutline />);
 
     fireEvent.click(screen.getByRole('button', { name: /resume 2a/i }));
+    expect(screen.getByText(/continue without truncation/i)).toBeDefined();
     expect(generate).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole('button', { name: /^continue$/i }));
+    expect(generate).toHaveBeenCalledWith(
+      'outline',
+      'keep pacing\n[[OUTLINE_TASK:2A]]\n[[RESUME_LAST_OUTPUT]]'
+    );
   });
 
   it('enables task-specific resume only when that task has output', () => {
-    useWorkflowStoreMock.mockReturnValue({
+    mockWorkflowState({
       steps: {
         outline: {
           id: 'outline',
@@ -154,5 +179,30 @@ describe('StepOutline', () => {
       'outline',
       'keep pacing\n[[OUTLINE_TASK:2A]]\n[[RESUME_LAST_OUTPUT]]'
     );
+  });
+
+  it('does not resume when dialog cancel is clicked', () => {
+    mockWorkflowState({
+      steps: {
+        outline: {
+          id: 'outline',
+          status: 'completed',
+          content: OUTLINE_WITH_2A_2B,
+          error: undefined,
+          truncation: {
+            isTruncated: false,
+            lastFinishReason: 'stop',
+            autoResumeRoundsUsed: 0,
+            lastTruncatedOutlineTask: undefined,
+          },
+        },
+      },
+      currentStepId: 'outline',
+    });
+
+    render(<StepOutline />);
+    fireEvent.click(screen.getByRole('button', { name: /resume 2a/i }));
+    fireEvent.click(screen.getByRole('button', { name: /cancel/i }));
+    expect(generate).not.toHaveBeenCalled();
   });
 });

@@ -15,7 +15,8 @@ import { ConsistencyPanel } from './ConsistencyPanel';
 import { resolveWorkflowMode } from '@/lib/workflow-mode';
 
 export const StepContinuation: React.FC = () => {
-  const { steps, isGenerating } = useWorkflowStore();
+  const step = useWorkflowStore((state) => state.steps.continuation);
+  const isGenerating = useWorkflowStore((state) => state.isGenerating);
   const { compressionMode, compressionAutoThreshold } = useSettingsStore(
     useShallow((state) => ({
       compressionMode: state.compressionMode,
@@ -31,8 +32,6 @@ export const StepContinuation: React.FC = () => {
     }))
   );
   const { generate, stop } = useStepGenerator();
-  
-  const step = steps.continuation;
   
   // Calculate next chapter number (chapters array + 1)
   const nextChapterNumber = chapters.length + 1;

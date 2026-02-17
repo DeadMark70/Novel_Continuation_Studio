@@ -31,6 +31,31 @@
 - `/history` provides reading room, version history, and TXT export.
 - User can return to studio directly from history.
 
+## Recent Hardening (2026-02-17)
+- Stability:
+  - Resilience E2E Flow A was updated to match current outline action copy and section-contract behavior.
+  - `currentStepId` now rejects invalid runtime values before mutating workflow state.
+- Performance:
+  - `setNovel` persistence switched to debounce-based writes to reduce long-text input I/O amplification.
+  - Core workflow panels now use selector subscriptions to avoid broad re-render fan-out during streaming.
+- UX & Accessibility:
+  - Blocking browser dialogs were replaced with in-app Dialog confirmation patterns.
+  - Version history rows are now keyboard-operable controls with explicit labels.
+- Platform:
+  - Removed `next/font/google` runtime dependency; build no longer depends on external font fetch.
+  - Added first-party `error` and `not-found` pages for better failure/404 handling.
+
+## Optimization Backlog (Post-2026-02-17)
+
+- Persistence durability:
+  - Debounced `setNovel` writes are flushed on session switch/delete, but abrupt tab close can still lose the final buffered keystrokes.
+  - Candidate improvement: flush on `visibilitychange`/`pagehide` and document expected last-keystroke guarantees.
+- Test depth:
+  - `useStepGenerator.ts` coverage improved but remains moderate; Phase 0 compression pipeline and Phase 3 breakdown chunk orchestration still need targeted branch tests.
+- Component complexity:
+  - `StepOutline.tsx` remains large and mixed-responsibility (inputs, pacing controls, retry/resume logic, rendering states).
+  - Candidate improvement: split into smaller presentational subcomponents plus a state/controller hook.
+
 ## Model Configuration Semantics
 - Effective config resolution order:
   1. Phase routing (`phaseConfig[phase]`)
@@ -42,7 +67,7 @@
   - `thinkingEnabled`, `thinkingBudget` (provider/model dependent)
 
 ## Persistence
-- IndexedDB (Dexie) schema v7 stores:
+- IndexedDB (Dexie) schema v11 stores:
   - Active provider
   - Provider-scoped settings (apiKey, selectedModel, recentModels, parameter support)
   - Phase config

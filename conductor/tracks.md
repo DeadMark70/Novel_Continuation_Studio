@@ -4,6 +4,15 @@ This file records major project tracks and their documentation anchors.
 
 ## Latest Track
 
+- `maintenance_hardening_review_20260217` (implemented)
+  - Scope:
+    - Fix resilience E2E drift and restore full `npm run e2e` pass.
+    - Reduce streaming-time re-render pressure via selector subscriptions in workflow core components.
+    - Switch novel text persistence to debounced writes with session-switch flush guard.
+    - Replace blocking browser dialogs with in-app Dialog UX and improve `VersionList` accessibility semantics.
+    - Remove Google font runtime dependency for offline-stable build; add `app/error.tsx` and `app/not-found.tsx`.
+    - Sync docs to schema v11 and raise `useStepGenerator` high-risk path coverage.
+
 - `provider_routing_settings_history_upgrade_20260211` (implemented)
   - Scope:
     - Add OpenRouter as second provider alongside NIM.

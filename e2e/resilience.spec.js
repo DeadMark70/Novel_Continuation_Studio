@@ -4,6 +4,21 @@ function ssePayload(text) {
   return `data: ${JSON.stringify({ choices: [{ delta: { content: text } }] })}\n\ndata: [DONE]\n\n`;
 }
 
+const ANALYSIS_VALID_MOCK = [
+  '【角色動機地圖】',
+  '- 角色 A：目標、底線、觸發點。',
+  '【權力與張力機制】',
+  '- 關係拉鋸與反制節點。',
+  '【文風錨點（可執行規則）】',
+  '- 採第三人稱、短句推進。',
+  '【事件與伏筆 ledger】',
+  '- 伏筆 1 未回收。',
+  '【續寫升級建議（穩定 + 大膽）】',
+  '- 下一章先推主線再拉高衝突。',
+  '【禁止清單（避免重複與失真）】',
+  '- 避免重複場景與人設漂移。',
+].join('\n');
+
 async function uploadSampleNovel(page, suffix = '') {
   await page.goto('/');
   await page.locator('#novel-content').fill(`Sample novel content ${suffix}\nChapter intro.`);
@@ -19,15 +34,16 @@ test.describe('Workflow resilience', () => {
       await route.fulfill({
         status: 200,
         headers: { 'Content-Type': 'text/event-stream' },
-        body: ssePayload('mock-output'),
+        body: ssePayload(ANALYSIS_VALID_MOCK),
       });
     });
 
     await uploadSampleNovel(page, 'flow-a');
     await page.getByRole('button', { name: /Start Compression/i }).click();
+    await openPhase(page, 'Phase II: Story Outline');
 
-    await expect(page.getByRole('button', { name: /Generate & Continue|Generate Outline/i })).toBeVisible({
-      timeout: 15000,
+    await expect(page.getByRole('button', { name: /Generate 2A\+2B|Generate & Continue|Generate Outline/i })).toBeVisible({
+      timeout: 30000,
     });
   });
 

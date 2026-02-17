@@ -18,7 +18,31 @@ import { cn } from '@/lib/utils';
 import { resolveWorkflowMode } from '@/lib/workflow-mode';
 
 export const WorkflowStepper: React.FC = () => {
-  const { steps, currentStepId, autoTriggerStepId, clearAutoTrigger, setCurrentStep } = useWorkflowStore();
+  const {
+    currentStepId,
+    autoTriggerStepId,
+    clearAutoTrigger,
+    setCurrentStep,
+    compressionStatus,
+    analysisStatus,
+    outlineStatus,
+    breakdownStatus,
+    chapter1Status,
+    continuationStatus,
+  } = useWorkflowStore(
+    useShallow((state) => ({
+      currentStepId: state.currentStepId,
+      autoTriggerStepId: state.autoTriggerStepId,
+      clearAutoTrigger: state.clearAutoTrigger,
+      setCurrentStep: state.setCurrentStep,
+      compressionStatus: state.steps.compression.status,
+      analysisStatus: state.steps.analysis.status,
+      outlineStatus: state.steps.outline.status,
+      breakdownStatus: state.steps.breakdown.status,
+      chapter1Status: state.steps.chapter1.status,
+      continuationStatus: state.steps.continuation.status,
+    }))
+  );
   const { compressionMode, compressionAutoThreshold } = useSettingsStore(
     useShallow((state) => ({
       compressionMode: state.compressionMode,
@@ -32,6 +56,15 @@ export const WorkflowStepper: React.FC = () => {
     }))
   );
   const { generate } = useStepGenerator();
+  const statusByStep: Record<WorkflowStepId, 'idle' | 'streaming' | 'completed' | 'error'> = {
+    compression: compressionStatus,
+    analysis: analysisStatus,
+    outline: outlineStatus,
+    breakdown: breakdownStatus,
+    chapter1: chapter1Status,
+    continuation: continuationStatus,
+  };
+  const isAnyStepStreaming = Object.values(statusByStep).some((status) => status === 'streaming');
 
   // Automation Effect
   useEffect(() => {
@@ -45,7 +78,6 @@ export const WorkflowStepper: React.FC = () => {
       }
 
       // Also check streaming status as backup
-      const isAnyStepStreaming = Object.values(steps).some(step => step.status === 'streaming');
       if (isAnyStepStreaming) {
         console.warn(`[Automation] Cannot trigger ${autoTriggerStepId}: Another step is still streaming. Clearing autoTrigger.`);
         clearAutoTrigger();
@@ -70,10 +102,10 @@ export const WorkflowStepper: React.FC = () => {
       }, 100);
       return () => clearTimeout(timer);
     }
-  }, [autoTriggerStepId, generate, steps, clearAutoTrigger]);
+  }, [autoTriggerStepId, generate, clearAutoTrigger, isAnyStepStreaming]);
 
   const getStatusIcon = (stepId: WorkflowStepId) => {
-    const status = steps[stepId].status;
+    const status = statusByStep[stepId];
     if (status === 'streaming') return <Loader2 className="size-4 animate-spin text-primary" />;
     if (status === 'completed') return <CheckCircle2 className="size-4 text-green-500" />;
     if (status === 'error') return <AlertCircle className="size-4 text-destructive" />;
@@ -104,14 +136,17 @@ export const WorkflowStepper: React.FC = () => {
         collapsible 
         defaultValue="compression" 
         value={currentStepId} 
-        onValueChange={(val) => setCurrentStep(val as WorkflowStepId)}
+        onValueChange={(val) => {
+          if (!val) return;
+          setCurrentStep(val as WorkflowStepId);
+        }}
         className="w-full space-y-2 border-none"
       >
         <AccordionItem value="compression" className="border rounded-lg bg-card/30 overflow-hidden">
           <AccordionTrigger className="px-4 py-3 hover:no-underline hover:bg-card/50">
             <div className="flex items-center gap-3">
               {getStatusIcon('compression')}
-              <span className={cn("text-sm font-bold uppercase tracking-widest", steps.compression.status === 'idle' && "text-muted-foreground")}>
+              <span className={cn("text-sm font-bold uppercase tracking-widest", compressionStatus === 'idle' && "text-muted-foreground")}>
                 Phase 0: Compression
               </span>
               <span className={cn('rounded-full border px-2 py-0.5 text-[10px] font-mono', getModeBadgeClass('compression'))}>
@@ -128,7 +163,7 @@ export const WorkflowStepper: React.FC = () => {
           <AccordionTrigger className="px-4 py-3 hover:no-underline hover:bg-card/50">
             <div className="flex items-center gap-3">
               {getStatusIcon('analysis')}
-              <span className={cn("text-sm font-bold uppercase tracking-widest", steps.analysis.status === 'idle' && "text-muted-foreground")}>
+              <span className={cn("text-sm font-bold uppercase tracking-widest", analysisStatus === 'idle' && "text-muted-foreground")}>
                 Phase I: Analysis
               </span>
               <span className={cn('rounded-full border px-2 py-0.5 text-[10px] font-mono', getModeBadgeClass('analysis'))}>
@@ -145,7 +180,7 @@ export const WorkflowStepper: React.FC = () => {
           <AccordionTrigger className="px-4 py-3 hover:no-underline hover:bg-card/50">
             <div className="flex items-center gap-3">
               {getStatusIcon('outline')}
-              <span className={cn("text-sm font-bold uppercase tracking-widest", steps.outline.status === 'idle' && "text-muted-foreground")}>
+              <span className={cn("text-sm font-bold uppercase tracking-widest", outlineStatus === 'idle' && "text-muted-foreground")}>
                 Phase II: Story Outline
               </span>
               <span className={cn('rounded-full border px-2 py-0.5 text-[10px] font-mono', getModeBadgeClass('outline'))}>
@@ -162,7 +197,7 @@ export const WorkflowStepper: React.FC = () => {
           <AccordionTrigger className="px-4 py-3 hover:no-underline hover:bg-card/50">
             <div className="flex items-center gap-3">
               {getStatusIcon('breakdown')}
-              <span className={cn("text-sm font-bold uppercase tracking-widest", steps.breakdown.status === 'idle' && "text-muted-foreground")}>
+              <span className={cn("text-sm font-bold uppercase tracking-widest", breakdownStatus === 'idle' && "text-muted-foreground")}>
                 Phase III: Chapter Breakdown
               </span>
               <span className={cn('rounded-full border px-2 py-0.5 text-[10px] font-mono', getModeBadgeClass('breakdown'))}>
@@ -179,7 +214,7 @@ export const WorkflowStepper: React.FC = () => {
           <AccordionTrigger className="px-4 py-3 hover:no-underline hover:bg-card/50">
             <div className="flex items-center gap-3">
               {getStatusIcon('chapter1')}
-              <span className={cn("text-sm font-bold uppercase tracking-widest", steps.chapter1.status === 'idle' && "text-muted-foreground")}>
+              <span className={cn("text-sm font-bold uppercase tracking-widest", chapter1Status === 'idle' && "text-muted-foreground")}>
                 Phase IV: The First Chapter
               </span>
               <span className={cn('rounded-full border px-2 py-0.5 text-[10px] font-mono', getModeBadgeClass('chapter1'))}>
@@ -196,7 +231,7 @@ export const WorkflowStepper: React.FC = () => {
           <AccordionTrigger className="px-4 py-3 hover:no-underline hover:bg-card/50">
             <div className="flex items-center gap-3">
               {getStatusIcon('continuation')}
-              <span className={cn("text-sm font-bold uppercase tracking-widest", steps.continuation.status === 'idle' && "text-muted-foreground")}>
+              <span className={cn("text-sm font-bold uppercase tracking-widest", continuationStatus === 'idle' && "text-muted-foreground")}>
                 Phase V: Perpetual Generation
               </span>
               <span className={cn('rounded-full border px-2 py-0.5 text-[10px] font-mono', getModeBadgeClass('continuation'))}>

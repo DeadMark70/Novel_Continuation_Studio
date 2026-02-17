@@ -10,6 +10,7 @@
 - shadcn/ui + Radix UI primitives
 - Lucide React icons
 - Design direction: Noir Industrial command-center style
+- Font strategy: local CSS fallback stack via `--font-geist-sans` / `--font-geist-mono` (offline-safe build, no Google font fetch dependency)
 
 ## State & Persistence
 - Zustand stores:
@@ -18,9 +19,10 @@
   - `useSettingsStore`: provider settings, phase routing, defaults, model overrides, prompt customizations
   - **Hydration**: `useNovelStore` hydrates `useWorkflowStore` during initialization to maintain phase progress.
 - IndexedDB via Dexie (`lib/db.ts`)
-  - Current schema version: v7
+  - Current schema version: v11
   - Persists provider-scoped settings, phase config, model overrides, prompts, context settings, and per-session phase outputs (Phase 0-4).
-  - **Audit Note**: For long novels, consider decoupling large content fields from the metadata record to minimize save latency.
+  - `useNovelStore.setNovel` uses debounced persistence to reduce write amplification while typing.
+  - Session-switch paths flush pending debounced writes before loading/deleting sessions.
 
 ## AI & Integration
 - Providers:
@@ -41,3 +43,6 @@
 - Unit/integration: Vitest + Testing Library + jsdom
 - E2E smoke: Playwright (`e2e/smoke.spec.js`)
 - Static checks: TypeScript (`npx tsc --noEmit`) + ESLint (`npm run lint`)
+- Resilience baseline:
+  - `npm run e2e`: 13/13 pass (including resilience suite).
+  - `npx vitest run --coverage`: global statements ~66.34%; `hooks/useStepGenerator.ts` statements ~34.66%.

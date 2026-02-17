@@ -4,6 +4,19 @@ import type { OutlinePhase2Task } from '@/lib/outline-phase2';
 
 export type WorkflowStepId = 'compression' | 'analysis' | 'outline' | 'breakdown' | 'chapter1' | 'continuation';
 
+const WORKFLOW_STEP_IDS: WorkflowStepId[] = [
+  'compression',
+  'analysis',
+  'outline',
+  'breakdown',
+  'chapter1',
+  'continuation',
+];
+
+function isWorkflowStepId(value: string): value is WorkflowStepId {
+  return WORKFLOW_STEP_IDS.includes(value as WorkflowStepId);
+}
+
 export interface WorkflowStepState {
   id: WorkflowStepId;
   status: 'idle' | 'streaming' | 'completed' | 'error';
@@ -387,6 +400,9 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
   },
 
   setCurrentStep: (stepId) => {
+    if (!isWorkflowStepId(stepId as string)) {
+      return;
+    }
     set({ currentStepId: stepId });
   },
 

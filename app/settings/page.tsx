@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useSettingsStore } from '@/store/useSettingsStore';
 import { useShallow } from 'zustand/react/shallow';
 import { Button } from '@/components/ui/button';
@@ -12,6 +12,14 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Separator } from '@/components/ui/separator';
 import { Switch } from '@/components/ui/switch';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { DEFAULT_PROMPTS } from '@/lib/prompts';
 import type { GenerationParams, LLMProvider, PhaseConfigMap, ProviderScopedSettings } from '@/lib/llm-types';
 import type { WorkflowStepId } from '@/store/useWorkflowStore';
@@ -146,6 +154,7 @@ function parseRequiredFloatInput(raw: string, current: number): number {
 }
 
 export default function SettingsPage() {
+  const router = useRouter();
   const settings = useSettingsStore(
     useShallow((state) => ({
       activeProvider: state.activeProvider,
@@ -176,6 +185,7 @@ export default function SettingsPage() {
   const [isInitialized, setIsInitialized] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [saveMessage, setSaveMessage] = useState('');
+  const [showLeaveConfirm, setShowLeaveConfirm] = useState(false);
   const [lastSaveDurationMs, setLastSaveDurationMs] = useState<number | null>(null);
   const [showDebug, setShowDebug] = useState(false);
   const [errors, setErrors] = useState<string[]>([]);
@@ -439,6 +449,13 @@ export default function SettingsPage() {
   const hasSelectedOverrideModel = selectedOverrideModel.length > 0;
   const selectedOverrideValue = draftOverrides[overrideProvider]?.[selectedOverrideModel] || {};
   const canInteract = isInitialized && didHydrateRef.current;
+  const handleBackToStudio = () => {
+    if (isDirty) {
+      setShowLeaveConfirm(true);
+      return;
+    }
+    router.push('/');
+  };
 
   return (
     <main className="min-h-screen bg-background text-foreground">
@@ -449,10 +466,8 @@ export default function SettingsPage() {
             <p className="text-sm text-muted-foreground">Provider routing, model defaults/overrides, and prompts</p>
           </div>
           <div className="flex gap-2">
-            <Button asChild variant="outline">
-              <Link href="/" onClick={(e) => { if (isDirty && !window.confirm('You have unsaved changes. Leave page?')) e.preventDefault(); }}>
-                Back to Studio
-              </Link>
+            <Button variant="outline" onClick={handleBackToStudio}>
+              Back to Studio
             </Button>
             <Button variant="outline" disabled={!canInteract || isSaving} onClick={hydrateFromStore}>Reload Saved</Button>
             <Button disabled={!canInteract || isSaving} onClick={save}>{isSaving ? 'Saving...' : 'Save Configuration'}</Button>
@@ -1090,6 +1105,30 @@ export default function SettingsPage() {
           </TabsContent>
         </Tabs>
       </div>
+      <Dialog open={showLeaveConfirm} onOpenChange={setShowLeaveConfirm}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Leave Without Saving?</DialogTitle>
+            <DialogDescription>
+              You have unsaved changes. If you leave this page now, those edits will be lost.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowLeaveConfirm(false)}>
+              Stay
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={() => {
+                setShowLeaveConfirm(false);
+                router.push('/');
+              }}
+            >
+              Leave Page
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </main>
   );
 }

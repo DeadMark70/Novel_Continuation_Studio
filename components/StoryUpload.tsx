@@ -8,6 +8,14 @@ import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Upload, FileText, Eraser } from 'lucide-react';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 
 export const StoryUpload: React.FC = () => {
   const { originalNovel, setNovel, reset } = useNovelStore(
@@ -18,6 +26,8 @@ export const StoryUpload: React.FC = () => {
     }))
   );
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [showInvalidFileDialog, setShowInvalidFileDialog] = React.useState(false);
+  const [showClearConfirm, setShowClearConfirm] = React.useState(false);
 
   const handleTextChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     setNovel(e.target.value);
@@ -28,7 +38,7 @@ export const StoryUpload: React.FC = () => {
     if (!file) return;
 
     if (file.type !== 'text/plain' && !file.name.endsWith('.txt')) {
-      alert('Please upload a .txt file.');
+      setShowInvalidFileDialog(true);
       return;
     }
 
@@ -87,11 +97,7 @@ export const StoryUpload: React.FC = () => {
 
           <Button 
             variant="destructive" 
-            onClick={() => {
-              if (confirm('Are you sure you want to clear the content?')) {
-                reset();
-              }
-            }}
+            onClick={() => setShowClearConfirm(true)}
             className="flex items-center gap-2"
           >
             <Eraser className="size-4" />
@@ -99,6 +105,45 @@ export const StoryUpload: React.FC = () => {
           </Button>
         </div>
       </CardContent>
+      <Dialog open={showInvalidFileDialog} onOpenChange={setShowInvalidFileDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Invalid File Type</DialogTitle>
+            <DialogDescription>
+              Please upload a plain text file (`.txt`) to import novel content.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button onClick={() => setShowInvalidFileDialog(false)}>
+              OK
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      <Dialog open={showClearConfirm} onOpenChange={setShowClearConfirm}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Clear Current Content?</DialogTitle>
+            <DialogDescription>
+              This will clear the current novel text in the editor.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowClearConfirm(false)}>
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={() => {
+                void reset();
+                setShowClearConfirm(false);
+              }}
+            >
+              Clear
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </Card>
   );
 };

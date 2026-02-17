@@ -8,6 +8,7 @@ vi.mock('lucide-react', () => ({
   Upload: () => <div data-testid="upload-icon" />,
   FileText: () => <div data-testid="file-text-icon" />,
   Eraser: () => <div data-testid="eraser-icon" />,
+  XIcon: () => <div data-testid="x-icon" />,
 }));
 
 describe('StoryUpload', () => {
@@ -26,13 +27,22 @@ describe('StoryUpload', () => {
   });
 
   it('triggers reset on clear button click', () => {
-    // Mock window.confirm
-    window.confirm = vi.fn(() => true);
-    
+    useNovelStore.setState({ originalNovel: 'some text' });
     render(<StoryUpload />);
     const clearButton = screen.getByText(/Clear/i);
     fireEvent.click(clearButton);
+    const confirmButton = screen.getByRole('button', { name: /^clear$/i });
+    fireEvent.click(confirmButton);
     
     expect(useNovelStore.getState().originalNovel).toBe('');
+  });
+
+  it('shows invalid file type dialog for non-txt file', () => {
+    render(<StoryUpload />);
+    const input = document.querySelector('input[type="file"]') as HTMLInputElement;
+    const file = new File(['abc'], 'invalid.pdf', { type: 'application/pdf' });
+    fireEvent.change(input, { target: { files: [file] } });
+
+    expect(screen.getByText(/invalid file type/i)).toBeDefined();
   });
 });

@@ -44,7 +44,7 @@ describe('StepAnalysis', () => {
   });
 
   it('resumes immediately when truncation is detected', () => {
-    useWorkflowStoreMock.mockReturnValue({
+    const workflowState = {
       steps: {
         analysis: {
           id: 'analysis',
@@ -58,18 +58,19 @@ describe('StepAnalysis', () => {
           },
         },
       },
-    });
-
-    const confirmSpy = vi.spyOn(window, 'confirm');
+    };
+    useWorkflowStoreMock.mockImplementation(
+      (selector?: (value: typeof workflowState) => unknown) =>
+        selector ? selector(workflowState) : workflowState
+    );
     render(<StepAnalysis />);
 
     fireEvent.click(screen.getByRole('button', { name: /resume missing/i }));
     expect(generate).toHaveBeenCalledWith('analysis', '[[RESUME_LAST_OUTPUT]]');
-    expect(confirmSpy).not.toHaveBeenCalled();
   });
 
-  it('asks for confirmation when truncation was not detected', () => {
-    useWorkflowStoreMock.mockReturnValue({
+  it('shows dialog confirmation when truncation was not detected', () => {
+    const workflowState = {
       steps: {
         analysis: {
           id: 'analysis',
@@ -83,12 +84,45 @@ describe('StepAnalysis', () => {
           },
         },
       },
-    });
-
-    vi.spyOn(window, 'confirm').mockReturnValue(false);
+    };
+    useWorkflowStoreMock.mockImplementation(
+      (selector?: (value: typeof workflowState) => unknown) =>
+        selector ? selector(workflowState) : workflowState
+    );
     render(<StepAnalysis />);
 
     fireEvent.click(screen.getByRole('button', { name: /resume missing/i }));
+    expect(screen.getByText(/continue without truncation/i)).toBeDefined();
+    expect(generate).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole('button', { name: /^continue$/i }));
+    expect(generate).toHaveBeenCalledWith('analysis', '[[RESUME_LAST_OUTPUT]]');
+  });
+
+  it('does not continue when dialog cancel is clicked', () => {
+    const workflowState = {
+      steps: {
+        analysis: {
+          id: 'analysis',
+          status: 'completed',
+          content: 'complete output',
+          truncation: {
+            isTruncated: false,
+            lastFinishReason: 'stop',
+            autoResumeRoundsUsed: 0,
+            lastTruncatedOutlineTask: undefined,
+          },
+        },
+      },
+    };
+    useWorkflowStoreMock.mockImplementation(
+      (selector?: (value: typeof workflowState) => unknown) =>
+        selector ? selector(workflowState) : workflowState
+    );
+    render(<StepAnalysis />);
+
+    fireEvent.click(screen.getByRole('button', { name: /resume missing/i }));
+    fireEvent.click(screen.getByRole('button', { name: /cancel/i }));
     expect(generate).not.toHaveBeenCalled();
   });
 });

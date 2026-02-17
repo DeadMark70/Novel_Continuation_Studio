@@ -12,6 +12,14 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Play, StopCircle, RefreshCw, FastForward, AlertTriangle } from 'lucide-react';
 import { Textarea } from '@/components/ui/textarea';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { resolveWorkflowMode } from '@/lib/workflow-mode';
 import {
   buildOutlineTaskDirective,
@@ -33,7 +41,8 @@ function clampChapterCount(value: number): number {
 }
 
 export const StepOutline: React.FC = () => {
-  const { steps, currentStepId } = useWorkflowStore();
+  const step = useWorkflowStore((state) => state.steps.outline);
+  const currentStepId = useWorkflowStore((state) => state.currentStepId);
   const { compressionMode, compressionAutoThreshold } = useSettingsStore(
     useShallow((state) => ({
       compressionMode: state.compressionMode,
@@ -81,8 +90,8 @@ export const StepOutline: React.FC = () => {
   const [curveStartInput, setCurveStartInput] = React.useState(curvePlotPercentStart.toString());
   const [curveEndInput, setCurveEndInput] = React.useState(curvePlotPercentEnd.toString());
   const [sceneLimitInput, setSceneLimitInput] = React.useState(eroticSceneLimitPerChapter.toString());
+  const [pendingResumeTask, setPendingResumeTask] = React.useState<'2A' | '2B' | null>(null);
   
-  const step = steps.outline;
   const isStreaming = step.status === 'streaming';
   const isCompleted = step.status === 'completed';
   const isActive = currentStepId === 'outline';
@@ -192,22 +201,26 @@ export const StepOutline: React.FC = () => {
     await setPacingSettings({ eroticSceneLimitPerChapter: safeValue });
   };
 
+  const runManualResumeTask = (task: '2A' | '2B') => {
+    const hasTaskOutput = task === '2A' ? hasOutline2AOutput : hasOutline2BOutput;
+    if (!hasTaskOutput) {
+      return;
+    }
+
+    const taskScopedNotes = buildOutlineTaskDirective(outlineDirection, task);
+    generate('outline', appendResumeLastOutputDirective(taskScopedNotes));
+  };
+
   const handleManualResumeTask = (task: '2A' | '2B') => {
     const hasTaskOutput = task === '2A' ? hasOutline2AOutput : hasOutline2BOutput;
     if (!hasTaskOutput) {
       return;
     }
     if (!isTruncated) {
-      const confirmed = window.confirm(
-        'No length truncation was detected in the last run. Continue anyway? This may duplicate content.'
-      );
-      if (!confirmed) {
-        return;
-      }
+      setPendingResumeTask(task);
+      return;
     }
-
-    const taskScopedNotes = buildOutlineTaskDirective(outlineDirection, task);
-    generate('outline', appendResumeLastOutputDirective(taskScopedNotes));
+    runManualResumeTask(task);
   };
 
   return (
@@ -498,6 +511,39 @@ export const StepOutline: React.FC = () => {
           <p className="text-destructive text-xs mt-2 font-mono">ERROR: {step.error}</p>
         )}
       </CardContent>
+      <Dialog
+        open={pendingResumeTask !== null}
+        onOpenChange={(open) => {
+          if (!open) {
+            setPendingResumeTask(null);
+          }
+        }}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Continue Without Truncation?</DialogTitle>
+            <DialogDescription>
+              No length truncation was detected in the last run. Continuing may duplicate content.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setPendingResumeTask(null)}>
+              Cancel
+            </Button>
+            <Button
+              onClick={() => {
+                if (!pendingResumeTask) {
+                  return;
+                }
+                runManualResumeTask(pendingResumeTask);
+                setPendingResumeTask(null);
+              }}
+            >
+              Continue
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </Card>
   );
 };

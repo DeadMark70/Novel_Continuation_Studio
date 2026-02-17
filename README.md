@@ -49,6 +49,8 @@ OPENROUTER_SITE_NAME=
 npx tsc --noEmit
 npm run lint
 npm test
+npm run build
+npm run e2e
 ```
 
 ### 6) E2E smoke checks (Playwright)
@@ -68,9 +70,25 @@ npm run e2e
 Notes:
 - `playwright.config.js` starts `npm run dev` automatically unless `PLAYWRIGHT_BASE_URL` is set.
 - Playwright runs with `E2E_MODE=offline` by default to block paid OpenRouter network calls.
-- Current smoke suite: `e2e/smoke.spec.js`.
+- Current suites: `e2e/smoke.spec.js`, `e2e/resilience.spec.js`.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Maintenance Notes (2026-02-17)
+
+- Stability:
+  - Resilience Flow A selector/mock was updated and `npm run e2e` is back to `13/13` pass.
+  - Runtime guard was added for invalid `currentStepId` writes.
+- Performance:
+  - `useNovelStore.setNovel` now uses debounce persistence (`350ms`) to reduce write amplification while typing.
+  - Workflow core components were moved to selector subscriptions to reduce streaming-time re-render fan-out.
+- UX / Accessibility:
+  - Browser `alert/confirm` flows were replaced with Dialog-based confirmations in key paths.
+  - `VersionList` rows are now keyboard-operable controls with explicit labels.
+- Platform / Build:
+  - Removed `next/font/google` dependency; build no longer depends on Google font fetch.
+  - Added `app/error.tsx` and `app/not-found.tsx` pages.
+- Testing:
+  - Added high-risk tests for `hooks/useStepGenerator.ts` (error recovery, continuation auto-queue, duplicate enqueue guard).
+  - Coverage baseline after changes: global statements ~`66.34%`, `useStepGenerator.ts` statements ~`34.66%`.
 
 ## Learn More
 

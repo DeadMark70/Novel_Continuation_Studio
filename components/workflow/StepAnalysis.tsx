@@ -10,11 +10,19 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Play, StopCircle, RefreshCw } from 'lucide-react';
 import { Textarea } from '@/components/ui/textarea';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { resolveWorkflowMode } from '@/lib/workflow-mode';
 import { appendResumeLastOutputDirective } from '@/lib/resume-directive';
 
 export const StepAnalysis: React.FC = () => {
-  const { steps } = useWorkflowStore();
+  const step = useWorkflowStore((state) => state.steps.analysis);
   const { compressionMode, compressionAutoThreshold } = useSettingsStore(
     useShallow((state) => ({
       compressionMode: state.compressionMode,
@@ -29,7 +37,6 @@ export const StepAnalysis: React.FC = () => {
   );
   const { generate, stop } = useStepGenerator();
   
-  const step = steps.analysis;
   const isStreaming = step.status === 'streaming';
   const isCompleted = step.status === 'completed';
   const hasContent = step.content.trim().length > 0;
@@ -44,20 +51,22 @@ export const StepAnalysis: React.FC = () => {
   const modeClass = modeMeta.isCompressed
     ? 'border-primary/40 bg-primary/20 text-primary-foreground'
     : 'border-zinc-500/30 bg-zinc-700/30 text-zinc-200';
+  const [showResumeConfirm, setShowResumeConfirm] = React.useState(false);
+
+  const runManualResume = () => {
+    generate('analysis', appendResumeLastOutputDirective());
+    setShowResumeConfirm(false);
+  };
 
   const handleManualResume = () => {
     if (!hasContent) {
       return;
     }
     if (!isTruncated) {
-      const confirmed = window.confirm(
-        'No length truncation was detected in the last run. Continue anyway? This may duplicate content.'
-      );
-      if (!confirmed) {
-        return;
-      }
+      setShowResumeConfirm(true);
+      return;
     }
-    generate('analysis', appendResumeLastOutputDirective());
+    runManualResume();
   };
 
   return (
@@ -113,6 +122,24 @@ export const StepAnalysis: React.FC = () => {
           <p className="text-destructive text-xs mt-2 font-mono">ERROR: {step.error}</p>
         )}
       </CardContent>
+      <Dialog open={showResumeConfirm} onOpenChange={setShowResumeConfirm}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Continue Without Truncation?</DialogTitle>
+            <DialogDescription>
+              No length truncation was detected in the last run. Continuing may duplicate content.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowResumeConfirm(false)}>
+              Cancel
+            </Button>
+            <Button onClick={runManualResume}>
+              Continue
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </Card>
   );
 };

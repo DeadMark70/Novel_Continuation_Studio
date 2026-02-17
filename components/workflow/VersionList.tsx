@@ -7,6 +7,14 @@ import { useRunSchedulerStore } from '@/store/useRunSchedulerStore';
 import { Button } from '@/components/ui/button';
 import { useStepGenerator } from '@/hooks/useStepGenerator';
 import { Clock, FileText, Trash2, CheckCircle, Plus, StopCircle, RotateCcw, Loader2 } from 'lucide-react';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import type { RunStatus } from '@/lib/run-types';
 import type { WorkflowStepId } from '@/store/useWorkflowStore';
 
@@ -26,6 +34,7 @@ export const VersionList: React.FC<VersionListProps> = ({ onCreateNew }) => {
   );
   const sessionStates = useRunSchedulerStore((state) => state.sessionStates);
   const { generate, stopSession } = useStepGenerator();
+  const [pendingDeleteSessionId, setPendingDeleteSessionId] = React.useState<string | null>(null);
   const handleCreateNew = () => {
     void Promise.resolve(onCreateNew ? onCreateNew() : startNewSession());
   };
@@ -102,59 +111,62 @@ export const VersionList: React.FC<VersionListProps> = ({ onCreateNew }) => {
         const status = runtime?.status ?? session.runStatus ?? 'idle';
         const stepId = runtime?.activeStepId ?? session.recoverableStepId;
         const canResume = (status === 'interrupted' || status === 'error') && Boolean(stepId);
-        
+        const sessionLabel = session.sessionName || '未命名小說';
+
         return (
           <div
             key={session.sessionId || `session-${index}`}
             className={`
-              group flex items-center gap-3 p-3 rounded-lg cursor-pointer transition-all
-              ${isActive 
-                ? 'bg-primary/10 border border-primary/30' 
-                : 'hover:bg-card/80 border border-transparent hover:border-border'
+              group flex items-center gap-2 rounded-lg border p-2 transition-all
+              ${isActive
+                ? 'border-primary/30 bg-primary/10'
+                : 'border-transparent hover:border-border hover:bg-card/80'
               }
             `}
-            onClick={() => !isActive && loadSession(session.sessionId)}
           >
-            {/* Icon */}
-            <div className={`
-              shrink-0 size-8 rounded-full flex items-center justify-center
-              ${isActive ? 'bg-primary text-primary-foreground' : 'bg-muted'}
-            `}>
-              {isActive ? <CheckCircle className="size-4" /> : <FileText className="size-4" />}
-            </div>
-            
-            {/* Content */}
-            <div className="flex-1 min-w-0">
-              <p className={`text-sm font-medium truncate ${isActive ? 'text-primary' : ''}`}>
-                {session.sessionName || '未命名小說'}
-              </p>
-              <div className="mt-1">
-                <span className={`inline-flex rounded-full border px-2 py-0.5 text-[10px] font-mono ${getStatusClass(status)}`}>
-                  {status === 'running' ? <Loader2 className="size-3 mr-1 animate-spin" /> : null}
-                  {getStatusLabel(status, stepId)}
-                </span>
+            <button
+              type="button"
+              className="flex flex-1 items-center gap-3 rounded-md p-1 text-left min-w-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60"
+              onClick={() => !isActive && loadSession(session.sessionId)}
+              aria-current={isActive ? 'true' : undefined}
+              aria-label={`載入創作：${sessionLabel}`}
+            >
+              <div className={`
+                shrink-0 size-8 rounded-full flex items-center justify-center
+                ${isActive ? 'bg-primary text-primary-foreground' : 'bg-muted'}
+              `}>
+                {isActive ? <CheckCircle className="size-4" /> : <FileText className="size-4" />}
               </div>
-              <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
-                <span className="flex items-center gap-1">
-                  <Clock className="size-3" />
-                  {formatDate(session.updatedAt)}
-                </span>
-                <span>•</span>
-                <span>{session.chapters?.length || 0} 章</span>
-                <span>•</span>
-                <span>{session.wordCount?.toLocaleString() || 0} 字</span>
+
+              <div className="flex-1 min-w-0">
+                <p className={`text-sm font-medium truncate ${isActive ? 'text-primary' : ''}`}>
+                  {sessionLabel}
+                </p>
+                <div className="mt-1">
+                  <span className={`inline-flex rounded-full border px-2 py-0.5 text-[10px] font-mono ${getStatusClass(status)}`}>
+                    {status === 'running' ? <Loader2 className="size-3 mr-1 animate-spin" /> : null}
+                    {getStatusLabel(status, stepId)}
+                  </span>
+                </div>
+                <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
+                  <span className="flex items-center gap-1">
+                    <Clock className="size-3" />
+                    {formatDate(session.updatedAt)}
+                  </span>
+                  <span>•</span>
+                  <span>{session.chapters?.length || 0} 章</span>
+                  <span>•</span>
+                  <span>{session.wordCount?.toLocaleString() || 0} 字</span>
+                </div>
               </div>
-            </div>
+            </button>
 
             {status === 'running' || status === 'queued' ? (
               <Button
                 variant="outline"
                 size="sm"
                 className="shrink-0 gap-1 text-xs"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  stopSession(session.sessionId);
-                }}
+                onClick={() => stopSession(session.sessionId)}
               >
                 <StopCircle className="size-3.5" />
                 Stop
@@ -166,27 +178,19 @@ export const VersionList: React.FC<VersionListProps> = ({ onCreateNew }) => {
                 variant="outline"
                 size="sm"
                 className="shrink-0 gap-1 text-xs"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  generate(stepId as WorkflowStepId, undefined, session.sessionId);
-                }}
+                onClick={() => generate(stepId as WorkflowStepId, undefined, session.sessionId)}
               >
                 <RotateCcw className="size-3.5" />
                 Resume
               </Button>
             ) : null}
-            
-            {/* Delete button */}
+
             <Button
               variant="ghost"
               size="icon"
-              className="shrink-0 size-11 opacity-0 transition-opacity hover:bg-destructive/20 hover:text-destructive md:size-7 group-hover:opacity-100"
-              onClick={(e) => {
-                e.stopPropagation();
-                if (window.confirm('確定要刪除這個創作記錄嗎？此操作無法撤銷。')) {
-                  deleteSessionById(session.sessionId);
-                }
-              }}
+              className="shrink-0 size-11 opacity-100 transition-opacity hover:bg-destructive/20 hover:text-destructive md:size-7 md:opacity-0 md:group-hover:opacity-100"
+              onClick={() => setPendingDeleteSessionId(session.sessionId)}
+              aria-label={`刪除創作：${sessionLabel}`}
             >
               <Trash2 className="size-3.5" />
             </Button>
@@ -194,6 +198,40 @@ export const VersionList: React.FC<VersionListProps> = ({ onCreateNew }) => {
         );
       })}
       </div>
+      <Dialog
+        open={pendingDeleteSessionId !== null}
+        onOpenChange={(open) => {
+          if (!open) {
+            setPendingDeleteSessionId(null);
+          }
+        }}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>刪除創作記錄？</DialogTitle>
+            <DialogDescription>
+              此操作無法撤銷，刪除後將移除該創作的所有紀錄與章節內容。
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setPendingDeleteSessionId(null)}>
+              取消
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={() => {
+                if (!pendingDeleteSessionId) {
+                  return;
+                }
+                void deleteSessionById(pendingDeleteSessionId);
+                setPendingDeleteSessionId(null);
+              }}
+            >
+              確認刪除
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

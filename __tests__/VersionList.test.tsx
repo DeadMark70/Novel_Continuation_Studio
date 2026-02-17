@@ -10,6 +10,7 @@ vi.mock('lucide-react', () => ({
   Trash2: () => <div data-testid="trash-icon" />,
   CheckCircle: () => <div data-testid="check-icon" />,
   Plus: () => <div data-testid="plus-icon" />,
+  XIcon: () => <div data-testid="x-icon" />,
 }));
 
 describe('VersionList', () => {
@@ -81,26 +82,19 @@ describe('VersionList', () => {
 
   it('calls loadSession when clicking an inactive session', () => {
     render(<VersionList />);
-    
-    const session2 = screen.getByText('Novel 2').closest('.group');
-    fireEvent.click(session2!);
+
+    fireEvent.click(screen.getByRole('button', { name: /載入創作：Novel 2/i }));
     
     expect(mockLoadSession).toHaveBeenCalledWith('session_2');
   });
 
   it('calls deleteSessionById when clicking delete button', () => {
-    const confirmSpy = vi.spyOn(window, 'confirm').mockImplementation(() => true);
-    
     render(<VersionList />);
     
     const deleteButtons = screen.getAllByTestId('trash-icon');
-    // Click delete for session 2 (first one rendered usually if ordered? map preserves order)
-    // mockSessions is rendered as is.
     fireEvent.click(deleteButtons[0].closest('button')!);
-    
-    expect(confirmSpy).toHaveBeenCalled();
+    fireEvent.click(screen.getByRole('button', { name: /確認刪除/i }));
+
     expect(mockDeleteSessionById).toHaveBeenCalledWith('session_2');
-    
-    confirmSpy.mockRestore();
   });
 });
