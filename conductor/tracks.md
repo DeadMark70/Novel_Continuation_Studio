@@ -4,6 +4,19 @@ This file records major project tracks and their documentation anchors.
 
 ## Latest Track
 
+- `next_wave_optimization_plan_20260217` (implemented)
+  - Path: `conductor/next_wave_optimization_plan_20260217.md`
+  - Scope:
+    - Lifecycle flush for debounced persistence.
+    - Resilience E2E fixture hardening for section-contract alignment.
+    - Additional Phase 0 / Phase 3 generator coverage.
+    - `StepOutline` modular refactor.
+  - Outcome:
+    - Added page lifecycle flush via `visibilitychange/pagehide` + explicit store flush APIs.
+    - Centralized resilience analysis mock fixture and restored stable `npm run e2e` 13/13.
+    - Expanded `useStepGenerator` risky-branch tests for compression and breakdown paths.
+    - Refactored `StepOutline` into controller + extracted presentation modules.
+
 - `maintenance_hardening_review_20260217` (implemented)
   - Scope:
     - Fix resilience E2E drift and restore full `npm run e2e` pass.

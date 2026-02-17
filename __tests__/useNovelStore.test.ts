@@ -34,6 +34,20 @@ describe('useNovelStore Integration', () => {
     expect(latest?.sessionId).toBeDefined();
   });
 
+  it('should flush pending debounced persist on demand', async () => {
+    const setNovelPromise = useNovelStore.getState().setNovel('Flush pending content');
+    expect(useNovelStore.getState().hasPendingPersist()).toBe(true);
+
+    await act(async () => {
+      await useNovelStore.getState().flushPendingPersist();
+    });
+    await setNovelPromise;
+
+    expect(useNovelStore.getState().hasPendingPersist()).toBe(false);
+    const latest = await getLatestNovel();
+    expect(latest?.content).toBe('Flush pending content');
+  });
+
   it('should normalize novel content when setting', async () => {
     const rawContent = '  Line 1  \n\n\n\n你好！  ';
     const expectedContent = 'Line 1\n\n你好!';

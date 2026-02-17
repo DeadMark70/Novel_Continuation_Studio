@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import { NovelPersistenceLifecycleBridge } from "@/components/NovelPersistenceLifecycleBridge";
 
 export const metadata: Metadata = {
   title: {
@@ -17,6 +18,7 @@ export default function RootLayout({
   return (
     <html lang="zh-Hant" className="dark">
       <body className="antialiased bg-background text-foreground">
+        <NovelPersistenceLifecycleBridge />
         {children}
       </body>
     </html>

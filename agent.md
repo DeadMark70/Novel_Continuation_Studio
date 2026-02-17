@@ -28,6 +28,12 @@
   - `next/font/google` dependency was removed in `app/layout.tsx` for offline-safe builds.
   - Added `app/error.tsx` and `app/not-found.tsx`.
   - Added high-risk tests for `useStepGenerator` (error recovery, continuation auto-queue, duplicate enqueue guard), raising statements coverage from ~3.18% to ~34.66%.
+- 2026-02-17 next-wave optimization was completed:
+  - Added explicit persistence drain APIs in `useNovelStore`: `hasPendingPersist()` + `flushPendingPersist()`.
+  - Added lifecycle flush bridge (`visibilitychange` + `pagehide`) to reduce last-buffered-input loss.
+  - Stabilized resilience E2E by extracting analysis section-contract fixture (`e2e/fixtures/analysis-contract.js`).
+  - Expanded `useStepGenerator` high-risk coverage (Phase 0/Phase 3 success, failure, and auto-resume branches).
+  - Refactored `StepOutline` into controller + presentation modules (`components/workflow/outline/*`).
 
 ## 3. Runtime Stack
 - Framework: Next.js App Router (`next@16.1.6`)
@@ -96,16 +102,15 @@ Resolution order:
 
 ## 6.2 Persistence & UX Guardrails (2026-02-17)
 - `setNovel` must stay debounced; avoid restoring per-keystroke full-session `persist` writes.
-- Before switching/deleting sessions, flush pending debounced writes to prevent losing unsaved text.
+- Before switching/deleting sessions, flush pending debounced writes (`flushPendingPersist`) to prevent losing unsaved text.
+- Keep lifecycle flush mounted (`NovelPersistenceLifecycleBridge`) to best-effort drain pending writes on tab hide/pagehide.
 - Confirmation flows should use Dialog components; avoid reintroducing blocking browser `alert/confirm`.
 - Keep session list rows as semantic controls (`button`) for keyboard and assistive-tech compatibility.
 
 ## 6.3 Remaining Optimization Opportunities
-- Add page lifecycle flush (`visibilitychange` / `pagehide`) for debounced novel persistence to reduce last-keystroke loss risk on abrupt tab close.
-- Continue targeted branch testing for `hooks/useStepGenerator.ts`, especially:
-  - Phase 0 compression pipeline failure/partial-task branches
-  - Phase 3 breakdown meta+chunk orchestration error paths
-- Refactor `components/workflow/StepOutline.tsx` into smaller modules to reduce maintenance risk and improve testability.
+- Add best-effort `beforeunload`/final snapshot strategy only if data-loss incidents persist after lifecycle flush (tradeoff: browser constraints).
+- Continue expanding generator tests around less-covered branches (cancellation races, scheduler handoff edge cases, consistency-check fallback).
+- Consider splitting `useStepOutlineController` further if future Phase 2 UX rules continue growing.
 
 ## 7. Cost-Safety / Environment Notes
 - User preference: avoid paid OpenRouter calls unless explicitly needed.

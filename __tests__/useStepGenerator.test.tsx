@@ -7,7 +7,7 @@ const runSchedulerState = {
   runExecutor: null as null | ((ctx: {
     runId: string;
     sessionId: string;
-    stepId: 'analysis' | 'continuation';
+    stepId: 'analysis' | 'continuation' | 'compression' | 'breakdown';
     source: 'manual' | 'auto';
     userNotes?: string;
     continuationPolicy?: { mode: 'manual' | 'full_auto' | 'range'; autoRangeEnd: number; isPaused: boolean };
@@ -112,7 +112,7 @@ const settingsState = {
   customPrompts: {},
   truncationThreshold: 799,
   dualEndBuffer: 500,
-  compressionMode: 'off' as const,
+  compressionMode: 'off' as 'auto' | 'on' | 'off',
   compressionAutoThreshold: 20000,
   compressionChunkSize: 6000,
   compressionChunkOverlap: 400,
@@ -227,6 +227,54 @@ function Harness() {
   return null;
 }
 
+function getRunExecutor() {
+  if (!runSchedulerState.runExecutor) {
+    throw new Error('executor not set');
+  }
+  return runSchedulerState.runExecutor;
+}
+
+function resolvePromptKind(prompt: string):
+  | 'compressionRoleCards'
+  | 'compressionStyleGuide'
+  | 'compressionPlotLedger'
+  | 'compressionEvidencePack'
+  | 'compressionEroticPack'
+  | 'breakdownMeta'
+  | 'breakdownChunk'
+  | 'other' {
+  if (prompt.includes('角色卡抽取器')) {
+    return 'compressionRoleCards';
+  }
+  if (prompt.includes('風格指南抽取器')) {
+    return 'compressionStyleGuide';
+  }
+  if (prompt.includes('劇情骨架與伏筆 ledger 抽取器')) {
+    return 'compressionPlotLedger';
+  }
+  if (prompt.includes('證據包抽取器')) {
+    return 'compressionEvidencePack';
+  }
+  if (prompt.includes('成人元素包抽取器')) {
+    return 'compressionEroticPack';
+  }
+  if (prompt.includes('先輸出章節總覽與升級守則')) {
+    return 'breakdownMeta';
+  }
+  if (prompt.includes('只為指定章節範圍輸出逐章內容')) {
+    return 'breakdownChunk';
+  }
+  return 'other';
+}
+
+const compressionTaskOutputByKind = {
+  compressionRoleCards: '【角色卡】\n角色資料',
+  compressionStyleGuide: '【風格指南】\n風格規則',
+  compressionPlotLedger: '【壓縮大綱】\n劇情骨架',
+  compressionEvidencePack: '【證據包】\n關鍵證據',
+  compressionEroticPack: '【成人元素包】\n成人張力規則',
+} as const;
+
 describe('useStepGenerator', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -236,10 +284,15 @@ describe('useStepGenerator', () => {
     workflowState.autoMode = 'manual';
     workflowState.autoRangeEnd = 5;
     workflowState.isPaused = false;
+    workflowState.steps.compression = createEmptyStep();
     workflowState.steps.analysis = createEmptyStep();
+    workflowState.steps.breakdown = createEmptyStep();
     workflowState.steps.continuation = createEmptyStep();
     novelState.currentSessionId = 'session_active';
     novelState.getSessionSnapshot.mockImplementation(async (sessionId: string) => createSessionSnapshot(sessionId));
+    settingsState.compressionMode = 'off';
+    settingsState.autoResumeOnLength = true;
+    settingsState.autoResumeMaxRounds = 2;
     generateStreamByProviderMock.mockImplementation(
       async function* (
         _provider: string,
@@ -351,5 +404,359 @@ describe('useStepGenerator', () => {
     );
     expect(warnSpy).toHaveBeenCalled();
     warnSpy.mockRestore();
+  });
+
+  it('skips compression when mode is off and persists skipped metadata', async () => {
+    settingsState.compressionMode = 'off';
+    novelState.currentSessionId = 'session_active';
+    novelState.getSessionSnapshot.mockImplementation(async (sessionId: string) => (
+      createSessionSnapshot(sessionId, { content: 'short source' })
+    ));
+
+    vi.useFakeTimers();
+    try {
+      const runPromise = getRunExecutor()({
+        runId: 'run_compression_skip',
+        sessionId: 'session_active',
+        stepId: 'compression',
+        source: 'manual',
+        signal: new AbortController().signal,
+        onProgress: vi.fn(),
+      });
+      await vi.advanceTimersByTimeAsync(1000);
+      await runPromise;
+    } finally {
+      vi.useRealTimers();
+    }
+
+    expect(novelState.updateWorkflowBySession).toHaveBeenCalledWith(
+      'session_active',
+      expect.objectContaining({
+        compressionMeta: expect.objectContaining({
+          skipped: true,
+          reason: expect.stringContaining('Compression mode is set to OFF'),
+        }),
+      })
+    );
+    expect(novelState.applyStepResultBySession).not.toHaveBeenCalled();
+    expect(runSchedulerState.enqueueRun).toHaveBeenCalledWith(
+      expect.objectContaining({
+        sessionId: 'session_active',
+        stepId: 'analysis',
+        source: 'auto',
+      })
+    );
+  });
+
+  it('records compression task failure and marks run as error', async () => {
+    settingsState.compressionMode = 'on';
+    novelState.currentSessionId = 'session_active';
+    novelState.getSessionSnapshot.mockImplementation(async (sessionId: string) => (
+      createSessionSnapshot(sessionId, {
+        content: 'A'.repeat(30000),
+      })
+    ));
+    generateStreamByProviderMock.mockImplementation(
+      async function* (
+        _provider: string,
+        prompt: string,
+        _model: string,
+        _apiKey: string,
+        _systemPrompt: unknown,
+        options?: { onFinish?: (meta: { finishReason: 'stop' | 'length' | 'unknown' }) => void }
+      ) {
+        options?.onFinish?.({ finishReason: 'stop' });
+        const kind = resolvePromptKind(prompt);
+        if (kind === 'compressionEvidencePack') {
+          yield 'missing section heading';
+          return;
+        }
+        if (kind in compressionTaskOutputByKind) {
+          yield compressionTaskOutputByKind[kind as keyof typeof compressionTaskOutputByKind];
+          return;
+        }
+        yield 'Generated content';
+      }
+    );
+
+    await expect(
+      getRunExecutor()({
+        runId: 'run_compression_fail',
+        sessionId: 'session_active',
+        stepId: 'compression',
+        source: 'manual',
+        signal: new AbortController().signal,
+        onProgress: vi.fn(),
+      })
+    ).rejects.toThrow(/格式檢查提醒/i);
+
+    expect(workflowState.setStepError).toHaveBeenCalled();
+    expect(novelState.setSessionRunMeta).toHaveBeenCalledWith(
+      'session_active',
+      expect.objectContaining({
+        runStatus: 'error',
+        recoverableStepId: 'compression',
+      })
+    );
+  });
+
+  it('persists compression pipeline metadata for successful runs', async () => {
+    settingsState.compressionMode = 'on';
+    novelState.currentSessionId = 'session_active';
+    novelState.getSessionSnapshot.mockImplementation(async (sessionId: string) => (
+      createSessionSnapshot(sessionId, {
+        content: 'B'.repeat(32000),
+      })
+    ));
+    generateStreamByProviderMock.mockImplementation(
+      async function* (
+        _provider: string,
+        prompt: string,
+        _model: string,
+        _apiKey: string,
+        _systemPrompt: unknown,
+        options?: { onFinish?: (meta: { finishReason: 'stop' | 'length' | 'unknown' }) => void }
+      ) {
+        options?.onFinish?.({ finishReason: 'stop' });
+        const kind = resolvePromptKind(prompt);
+        if (kind in compressionTaskOutputByKind) {
+          yield compressionTaskOutputByKind[kind as keyof typeof compressionTaskOutputByKind];
+          return;
+        }
+        yield 'Generated content';
+      }
+    );
+
+    vi.useFakeTimers();
+    try {
+      const runPromise = getRunExecutor()({
+        runId: 'run_compression_success',
+        sessionId: 'session_active',
+        stepId: 'compression',
+        source: 'manual',
+        signal: new AbortController().signal,
+        onProgress: vi.fn(),
+      });
+      await vi.advanceTimersByTimeAsync(1000);
+      await runPromise;
+    } finally {
+      vi.useRealTimers();
+    }
+
+    const compressionCalls = novelState.updateWorkflowBySession.mock.calls as unknown as Array<[string, { compressionMeta?: { skipped?: boolean; taskStatus?: Record<string, string>; taskDurationsMs?: Record<string, number> }; compressedContext?: string }]>;
+    const compressionCall = compressionCalls.find(([, payload]) => (
+      Boolean(payload?.compressionMeta && payload.compressionMeta.skipped === false)
+    ));
+    expect(compressionCall).toBeDefined();
+    const compressionPayload = compressionCall?.[1];
+    expect(compressionPayload?.compressionMeta?.taskStatus).toMatchObject({
+      roleCards: 'ok',
+      styleGuide: 'ok',
+      plotLedger: 'ok',
+      evidencePack: 'ok',
+      eroticPack: 'ok',
+      synthesis: 'ok',
+    });
+    expect(compressionPayload?.compressionMeta?.taskDurationsMs).toEqual(
+      expect.objectContaining({
+        roleCards: expect.any(Number),
+        styleGuide: expect.any(Number),
+        plotLedger: expect.any(Number),
+        evidencePack: expect.any(Number),
+        eroticPack: expect.any(Number),
+        synthesis: expect.any(Number),
+      })
+    );
+    expect(compressionPayload?.compressedContext).toContain('【角色卡】');
+    expect(compressionPayload?.compressedContext).toContain('【風格指南】');
+  });
+
+  it('surfaces breakdown chunk failure after successful meta stage', async () => {
+    settingsState.compressionMode = 'off';
+    novelState.currentSessionId = 'session_active';
+    novelState.getSessionSnapshot.mockImplementation(async (sessionId: string) => (
+      createSessionSnapshot(sessionId, {
+        targetChapterCount: 4,
+      })
+    ));
+    generateStreamByProviderMock.mockImplementation(
+      async function* (
+        _provider: string,
+        prompt: string,
+        _model: string,
+        _apiKey: string,
+        _systemPrompt: unknown,
+        options?: { onFinish?: (meta: { finishReason: 'stop' | 'length' | 'unknown' }) => void }
+      ) {
+        options?.onFinish?.({ finishReason: 'stop' });
+        const kind = resolvePromptKind(prompt);
+        if (kind === 'breakdownMeta') {
+          yield '【章節框架總覽】\n總覽\n\n【張力升級與去重守則】\n守則';
+          return;
+        }
+        if (kind === 'breakdownChunk') {
+          throw new Error('chunk failed');
+        }
+        yield 'Generated content';
+      }
+    );
+
+    await expect(
+      getRunExecutor()({
+        runId: 'run_breakdown_chunk_fail',
+        sessionId: 'session_active',
+        stepId: 'breakdown',
+        source: 'manual',
+        signal: new AbortController().signal,
+        onProgress: vi.fn(),
+      })
+    ).rejects.toThrow(/chunk failed/i);
+
+    expect(workflowState.setStepError).toHaveBeenCalled();
+    expect(novelState.setSessionRunMeta).toHaveBeenCalledWith(
+      'session_active',
+      expect.objectContaining({
+        runStatus: 'error',
+        recoverableStepId: 'breakdown',
+      })
+    );
+    expect(workflowState.updateStepContent).toHaveBeenCalledWith(
+      'breakdown',
+      expect.stringContaining('- Meta: done')
+    );
+    expect(workflowState.updateStepContent).toHaveBeenCalledWith(
+      'breakdown',
+      expect.stringContaining('Chunk 1 (1-4): error')
+    );
+  });
+
+  it('auto-resumes breakdown chunk when length finish reason is returned', async () => {
+    settingsState.compressionMode = 'off';
+    settingsState.autoResumeOnLength = true;
+    settingsState.autoResumeMaxRounds = 2;
+    novelState.currentSessionId = 'session_active';
+    novelState.getSessionSnapshot.mockImplementation(async (sessionId: string) => (
+      createSessionSnapshot(sessionId, {
+        targetChapterCount: 4,
+      })
+    ));
+
+    let chunkAttempts = 0;
+    generateStreamByProviderMock.mockImplementation(
+      async function* (
+        _provider: string,
+        prompt: string,
+        _model: string,
+        _apiKey: string,
+        _systemPrompt: unknown,
+        options?: { onFinish?: (meta: { finishReason: 'stop' | 'length' | 'unknown' }) => void }
+      ) {
+        const kind = resolvePromptKind(prompt);
+        if (kind === 'breakdownMeta') {
+          options?.onFinish?.({ finishReason: 'stop' });
+          yield '【章節框架總覽】\nMeta overview\n\n【張力升級與去重守則】\nMeta rules';
+          return;
+        }
+        if (kind === 'breakdownChunk') {
+          chunkAttempts += 1;
+          if (chunkAttempts === 1) {
+            options?.onFinish?.({ finishReason: 'length' });
+            yield '【逐章章節表】\n【第1章】第一版';
+            return;
+          }
+          options?.onFinish?.({ finishReason: 'stop' });
+          yield '\n【第2章】續寫版';
+          return;
+        }
+        options?.onFinish?.({ finishReason: 'stop' });
+        yield 'Generated content';
+      }
+    );
+
+    vi.useFakeTimers();
+    try {
+      const runPromise = getRunExecutor()({
+        runId: 'run_breakdown_resume',
+        sessionId: 'session_active',
+        stepId: 'breakdown',
+        source: 'manual',
+        signal: new AbortController().signal,
+        onProgress: vi.fn(),
+      });
+      await vi.advanceTimersByTimeAsync(3500);
+      await runPromise;
+    } finally {
+      vi.useRealTimers();
+    }
+
+    expect(chunkAttempts).toBe(2);
+    expect(workflowState.updateStepTruncation).toHaveBeenCalledWith(
+      'breakdown',
+      expect.objectContaining({
+        autoResumeRoundsUsed: 1,
+      })
+    );
+    expect(
+      generateStreamByProviderMock.mock.calls.some((call) => String(call[1]).includes('【已輸出內容（禁止重複）】'))
+    ).toBe(true);
+  });
+
+  it('composes final breakdown output from meta and chunk content', async () => {
+    settingsState.compressionMode = 'off';
+    novelState.currentSessionId = 'session_active';
+    novelState.getSessionSnapshot.mockImplementation(async (sessionId: string) => (
+      createSessionSnapshot(sessionId, {
+        targetChapterCount: 4,
+      })
+    ));
+    generateStreamByProviderMock.mockImplementation(
+      async function* (
+        _provider: string,
+        prompt: string,
+        _model: string,
+        _apiKey: string,
+        _systemPrompt: unknown,
+        options?: { onFinish?: (meta: { finishReason: 'stop' | 'length' | 'unknown' }) => void }
+      ) {
+        options?.onFinish?.({ finishReason: 'stop' });
+        const kind = resolvePromptKind(prompt);
+        if (kind === 'breakdownMeta') {
+          yield '【章節框架總覽】\n總覽內容\n\n【張力升級與去重守則】\n去重規則';
+          return;
+        }
+        if (kind === 'breakdownChunk') {
+          yield '【逐章章節表】\n【第1章】情節 A';
+          return;
+        }
+        yield 'Generated content';
+      }
+    );
+
+    vi.useFakeTimers();
+    try {
+      const runPromise = getRunExecutor()({
+        runId: 'run_breakdown_compose',
+        sessionId: 'session_active',
+        stepId: 'breakdown',
+        source: 'manual',
+        signal: new AbortController().signal,
+        onProgress: vi.fn(),
+      });
+      await vi.advanceTimersByTimeAsync(3500);
+      await runPromise;
+    } finally {
+      vi.useRealTimers();
+    }
+
+    const breakdownCalls = novelState.applyStepResultBySession.mock.calls as unknown as Array<[string, string, string]>;
+    const breakdownCall = breakdownCalls.find((call) => call[1] === 'breakdown');
+    expect(breakdownCall).toBeDefined();
+    const breakdownContent = String(breakdownCall?.[2] ?? '');
+    expect((breakdownContent.match(/【逐章章節表】/g) || []).length).toBe(1);
+    expect(breakdownContent).toContain('【章節框架總覽】');
+    expect(breakdownContent).toContain('總覽內容');
+    expect(breakdownContent).toContain('【第1章】情節 A');
+    expect(breakdownContent).toContain('【張力升級與去重守則】');
+    expect(breakdownContent).toContain('去重規則');
   });
 });
