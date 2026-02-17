@@ -1,5 +1,9 @@
 import { test, expect } from '@playwright/test';
 
+function ssePayload(text) {
+  return `data: ${JSON.stringify({ choices: [{ delta: { content: text } }] })}\n\ndata: [DONE]\n\n`;
+}
+
 async function saveSettings(page) {
   const saveButton = page.getByRole('button', { name: 'Save Configuration' });
   await expect(saveButton).toBeEnabled();
@@ -51,6 +55,40 @@ test.describe('Novel Continuation Studio smoke', () => {
     await openSettingsReady(page);
     await page.getByRole('button', { name: 'Show Debug' }).click();
     await expect(page.getByText(/persistCount=/)).toBeVisible();
+  });
+
+  test('phase 2 resume buttons are task-specific and update availability after 2A generation', async ({ page }) => {
+    await page.route('**/api/nim/generate', async (route) => {
+      await route.fulfill({
+        status: 200,
+        headers: { 'Content-Type': 'text/event-stream' },
+        body: ssePayload('mock-outline-subtask-output'),
+      });
+    });
+    await page.route('**/api/openrouter/generate', async (route) => {
+      await route.fulfill({
+        status: 200,
+        headers: { 'Content-Type': 'text/event-stream' },
+        body: ssePayload('mock-outline-subtask-output'),
+      });
+    });
+
+    await page.goto('/');
+    await page.locator('#novel-content').fill('Smoke novel for phase 2 resume button coverage.');
+    await page.getByText('Phase II: Story Outline', { exact: false }).first().click();
+
+    const resume2AButton = page.getByRole('button', { name: 'Resume 2A' });
+    const resume2BButton = page.getByRole('button', { name: 'Resume 2B' });
+    await expect(resume2AButton).toBeVisible();
+    await expect(resume2BButton).toBeVisible();
+    await expect(resume2AButton).toBeDisabled();
+    await expect(resume2BButton).toBeDisabled();
+
+    await page.getByPlaceholder(/Make the protagonist more aggressive/i).fill('[[OUTLINE_TASK:2A]]');
+    await page.getByRole('button', { name: /Generate 2A\+2B|Regenerate 2A\+2B/ }).click();
+
+    await expect(resume2AButton).toBeEnabled({ timeout: 15000 });
+    await expect(resume2BButton).toBeDisabled();
   });
 
   test('provider + model selection can be saved in current session', async ({ page }) => {
