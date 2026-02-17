@@ -32,6 +32,23 @@ describe('useWorkflowStore', () => {
     expect(useWorkflowStore.getState().steps.analysis.content).toBe('done');
   });
 
+  it('tracks truncation metadata per step', () => {
+    act(() => {
+      useWorkflowStore.getState().updateStepTruncation('outline', {
+        isTruncated: true,
+        lastFinishReason: 'length',
+        autoResumeRoundsUsed: 2,
+        lastTruncatedOutlineTask: '2B',
+      });
+    });
+
+    const state = useWorkflowStore.getState();
+    expect(state.steps.outline.truncation.isTruncated).toBe(true);
+    expect(state.steps.outline.truncation.lastFinishReason).toBe('length');
+    expect(state.steps.outline.truncation.autoResumeRoundsUsed).toBe(2);
+    expect(state.steps.outline.truncation.lastTruncatedOutlineTask).toBe('2B');
+  });
+
   it('sets step error and resets generation flags', () => {
     act(() => {
       useWorkflowStore.getState().setIsGenerating(true);

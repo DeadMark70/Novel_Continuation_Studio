@@ -11,6 +11,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Play, StopCircle, RefreshCw } from 'lucide-react';
 import { Textarea } from '@/components/ui/textarea';
 import { resolveWorkflowMode } from '@/lib/workflow-mode';
+import { appendResumeLastOutputDirective } from '@/lib/resume-directive';
 
 export const StepAnalysis: React.FC = () => {
   const { steps } = useWorkflowStore();
@@ -31,6 +32,8 @@ export const StepAnalysis: React.FC = () => {
   const step = steps.analysis;
   const isStreaming = step.status === 'streaming';
   const isCompleted = step.status === 'completed';
+  const hasContent = step.content.trim().length > 0;
+  const isTruncated = step.truncation.isTruncated;
   const modeMeta = resolveWorkflowMode({
     stepId: 'analysis',
     compressionMode,
@@ -41,6 +44,21 @@ export const StepAnalysis: React.FC = () => {
   const modeClass = modeMeta.isCompressed
     ? 'border-primary/40 bg-primary/20 text-primary-foreground'
     : 'border-zinc-500/30 bg-zinc-700/30 text-zinc-200';
+
+  const handleManualResume = () => {
+    if (!hasContent) {
+      return;
+    }
+    if (!isTruncated) {
+      const confirmed = window.confirm(
+        'No length truncation was detected in the last run. Continue anyway? This may duplicate content.'
+      );
+      if (!confirmed) {
+        return;
+      }
+    }
+    generate('analysis', appendResumeLastOutputDirective());
+  };
 
   return (
     <Card className="border-l-4 border-l-primary">
@@ -60,14 +78,31 @@ export const StepAnalysis: React.FC = () => {
               <StopCircle className="size-4 mr-2" /> Stop
             </Button>
           ) : (
-            <Button size="sm" onClick={() => generate('analysis')}>
-              {isCompleted ? <RefreshCw className="size-4 mr-2" /> : <Play className="size-4 mr-2" />}
-              {isCompleted ? 'Regenerate' : 'Start Analysis'}
-            </Button>
+            <>
+              <Button size="sm" onClick={() => generate('analysis')}>
+                {isCompleted ? <RefreshCw className="size-4 mr-2" /> : <Play className="size-4 mr-2" />}
+                {isCompleted ? 'Regenerate' : 'Start Analysis'}
+              </Button>
+              <Button
+                size="sm"
+                variant={isTruncated ? 'secondary' : 'outline'}
+                disabled={!hasContent}
+                onClick={handleManualResume}
+              >
+                Resume Missing
+              </Button>
+            </>
           )}
         </div>
       </CardHeader>
       <CardContent>
+        <p className={`mb-2 text-xs ${isTruncated ? 'text-amber-400' : 'text-muted-foreground'}`}>
+          {isTruncated
+            ? 'Detected length truncation. Resume Missing will continue from the previous output tail.'
+            : hasContent
+              ? 'Manual resume is available. If no truncation occurred, continuing may duplicate content.'
+              : 'Manual resume button will be enabled after analysis has output content.'}
+        </p>
         <Textarea 
           readOnly 
           value={step.content} 

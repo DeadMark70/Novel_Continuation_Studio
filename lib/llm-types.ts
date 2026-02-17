@@ -34,6 +34,18 @@ export interface GenerationParams {
   thinkingBudget?: number;
 }
 
+export type GenerateFinishReason =
+  | 'stop'
+  | 'length'
+  | 'content_filter'
+  | 'tool_calls'
+  | 'unknown';
+
+export interface GenerateFinishMeta {
+  finishReason: GenerateFinishReason;
+  providerRawReason?: string;
+}
+
 export interface GenerateOptions extends Partial<GenerationParams> {
   enableThinking?: boolean;
   thinkingSupported?: boolean;
@@ -47,6 +59,7 @@ export interface GenerateOptions extends Partial<GenerationParams> {
   retryableErrors?: number[];
   onRetry?: (attempt: number, maxRetries: number, delay: number, error: unknown) => void;
   onError?: (error: unknown, context?: string) => void;
+  onFinish?: (meta: GenerateFinishMeta) => void;
 }
 
 export interface ProviderScopedSettings {

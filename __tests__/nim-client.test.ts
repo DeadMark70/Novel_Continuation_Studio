@@ -100,6 +100,37 @@ describe('NIM Client', () => {
       expect(result).toBe('Hello World');
     });
 
+    it('reports finish_reason through onFinish callback', async () => {
+      const mockStream = new ReadableStream({
+        start(controller) {
+          const encoder = new TextEncoder();
+          const chunks = [
+            'data: {"choices":[{"delta":{"content":"partial"}}]}\n\n',
+            'data: {"choices":[{"finish_reason":"length"}]}\n\n',
+            'data: [DONE]\n\n',
+          ];
+          chunks.forEach((chunk) => controller.enqueue(encoder.encode(chunk)));
+          controller.close();
+        },
+      });
+
+      (global.fetch as unknown as ReturnType<typeof vi.fn>).mockResolvedValue({
+        ok: true,
+        body: mockStream,
+      });
+
+      const onFinish = vi.fn();
+      const result = await collectStream(
+        generateStream('prompt', 'model-id', 'api-key', undefined, { onFinish })
+      );
+
+      expect(result).toBe('partial');
+      expect(onFinish).toHaveBeenCalledWith({
+        finishReason: 'length',
+        providerRawReason: 'length',
+      });
+    });
+
     it('includes thinking params when supported', async () => {
       const mockStream = new ReadableStream({
         start(controller) {

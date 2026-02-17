@@ -1,4 +1,10 @@
-import type { GenerateOptions, LLMModel, LLMProvider, ModelCapability } from '@/lib/llm-types';
+import type {
+  GenerateFinishReason,
+  GenerateOptions,
+  LLMModel,
+  LLMProvider,
+  ModelCapability,
+} from '@/lib/llm-types';
 import { assertOpenRouterNetworkEnabled } from '@/lib/openrouter-guard';
 import { estimateTokenCount, estimateTokenCountHeuristic } from '@/lib/token-estimator';
 import { yieldToMain } from '@/lib/yield-to-main';
@@ -240,6 +246,22 @@ function getGenerateUrl(provider: LLMProvider): string {
   return provider === 'openrouter' ? '/api/openrouter/generate' : '/api/nim/generate';
 }
 
+function normalizeFinishReason(value: unknown): GenerateFinishReason {
+  if (typeof value !== 'string') {
+    return 'unknown';
+  }
+  const normalized = value.trim().toLowerCase();
+  if (
+    normalized === 'stop' ||
+    normalized === 'length' ||
+    normalized === 'content_filter' ||
+    normalized === 'tool_calls'
+  ) {
+    return normalized;
+  }
+  return 'unknown';
+}
+
 export async function fetchModels(
   provider: LLMProvider,
   apiKey?: string
@@ -436,6 +458,7 @@ export async function* generateStream(
     retryableErrors = [502, 503, 504],
     onRetry,
     onError,
+    onFinish,
   } = options || {};
 
   const resolvedInactivityTimeout = Math.max(
@@ -524,6 +547,8 @@ export async function* generateStream(
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
       let buffer = '';
+      let latestFinishReason: GenerateFinishReason = 'unknown';
+      let latestRawFinishReason: string | undefined;
 
       while (true) {
         if (controller.signal.aborted) {
@@ -551,6 +576,15 @@ export async function* generateStream(
               throw new Error(`API Error: ${message}`);
             }
 
+            const rawFinishReason = json.choices?.[0]?.finish_reason;
+            const normalizedFinishReason = normalizeFinishReason(rawFinishReason);
+            if (normalizedFinishReason !== 'unknown') {
+              latestFinishReason = normalizedFinishReason;
+            }
+            if (typeof rawFinishReason === 'string') {
+              latestRawFinishReason = rawFinishReason;
+            }
+
             const content =
               json.choices?.[0]?.delta?.content ??
               json.choices?.[0]?.message?.content ??
@@ -574,6 +608,14 @@ export async function* generateStream(
         if (trimmed !== 'data: [DONE]' && trimmed.startsWith('data: ')) {
           try {
             const json = JSON.parse(trimmed.slice(6));
+            const rawFinishReason = json.choices?.[0]?.finish_reason;
+            const normalizedFinishReason = normalizeFinishReason(rawFinishReason);
+            if (normalizedFinishReason !== 'unknown') {
+              latestFinishReason = normalizedFinishReason;
+            }
+            if (typeof rawFinishReason === 'string') {
+              latestRawFinishReason = rawFinishReason;
+            }
             const content = json.choices?.[0]?.delta?.content;
             if (content) yield content;
           } catch {
@@ -581,6 +623,11 @@ export async function* generateStream(
           }
         }
       }
+
+      onFinish?.({
+        finishReason: latestFinishReason,
+        providerRawReason: latestRawFinishReason,
+      });
 
       return;
     } catch (error) {

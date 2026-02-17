@@ -1,3 +1,8 @@
+import {
+  hasResumeLastOutputDirective,
+  stripResumeLastOutputDirective,
+} from '@/lib/resume-directive';
+
 export type OutlinePhase2Task = '2A' | '2B';
 
 export interface OutlinePhase2Content {
@@ -12,6 +17,7 @@ export interface OutlinePhase2Content {
 export interface OutlineTaskDirective {
   target: OutlinePhase2Task | 'both';
   userNotes?: string;
+  resumeFromLastOutput: boolean;
 }
 
 const DIRECTIVE_PATTERN = /\[\[OUTLINE_TASK:(2A|2B)\]\]/gi;
@@ -25,7 +31,8 @@ const MARKERS = {
 } as const;
 
 function stripDirectiveToken(input: string): string {
-  return input.replace(DIRECTIVE_PATTERN, '').trim();
+  const withoutTaskDirective = input.replace(DIRECTIVE_PATTERN, '').trim();
+  return stripResumeLastOutputDirective(withoutTaskDirective) || '';
 }
 
 function extractMissingLabels(input: string): string[] {
@@ -66,8 +73,9 @@ export function buildOutlineTaskDirective(
 
 export function parseOutlineTaskDirective(userNotes?: string): OutlineTaskDirective {
   if (!userNotes?.trim()) {
-    return { target: 'both' };
+    return { target: 'both', resumeFromLastOutput: false };
   }
+  const resumeFromLastOutput = hasResumeLastOutputDirective(userNotes);
   const matches = Array.from(userNotes.matchAll(DIRECTIVE_PATTERN));
   const lastDirective = matches[matches.length - 1]?.[1]?.toUpperCase();
   const stripped = stripDirectiveToken(userNotes);
@@ -75,11 +83,13 @@ export function parseOutlineTaskDirective(userNotes?: string): OutlineTaskDirect
     return {
       target: lastDirective,
       userNotes: stripped || undefined,
+      resumeFromLastOutput,
     };
   }
   return {
     target: 'both',
-    userNotes: userNotes.trim(),
+    userNotes: stripped || undefined,
+    resumeFromLastOutput,
   };
 }
 

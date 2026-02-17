@@ -124,6 +124,10 @@ export interface SettingsEntry {
   compressionChunkSize?: number;
   compressionChunkOverlap?: number;
   compressionEvidenceSegments?: number;
+  autoResumeOnLength?: boolean;
+  autoResumePhaseAnalysis?: boolean;
+  autoResumePhaseOutline?: boolean;
+  autoResumeMaxRounds?: number;
   thinkingEnabled?: boolean;
   modelCapabilities?: Record<string, ModelCapability>;
   activeProvider?: LLMProvider;
@@ -385,6 +389,26 @@ export class NovelDatabase extends Dexie {
       await tx.table('novelBlobs').toCollection().modify((entry: NovelBlobEntry) => {
         if (entry.eroticPack === undefined) {
           entry.eroticPack = '';
+        }
+      });
+    });
+    this.version(11).stores({
+      novels: '++id, sessionId, updatedAt, createdAt',
+      settings: 'id, updatedAt',
+      novelBlobs: 'sessionId, updatedAt'
+    }).upgrade(async (tx) => {
+      await tx.table('settings').toCollection().modify((entry: SettingsEntry) => {
+        if (entry.autoResumeOnLength === undefined) {
+          entry.autoResumeOnLength = true;
+        }
+        if (entry.autoResumePhaseAnalysis === undefined) {
+          entry.autoResumePhaseAnalysis = true;
+        }
+        if (entry.autoResumePhaseOutline === undefined) {
+          entry.autoResumePhaseOutline = true;
+        }
+        if (entry.autoResumeMaxRounds === undefined) {
+          entry.autoResumeMaxRounds = 2;
         }
       });
     });

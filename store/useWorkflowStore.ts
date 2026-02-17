@@ -1,4 +1,6 @@
 import { create } from 'zustand';
+import type { GenerateFinishReason } from '@/lib/llm-types';
+import type { OutlinePhase2Task } from '@/lib/outline-phase2';
 
 export type WorkflowStepId = 'compression' | 'analysis' | 'outline' | 'breakdown' | 'chapter1' | 'continuation';
 
@@ -7,6 +9,12 @@ export interface WorkflowStepState {
   status: 'idle' | 'streaming' | 'completed' | 'error';
   content: string;
   error?: string;
+  truncation: {
+    isTruncated: boolean;
+    lastFinishReason: GenerateFinishReason;
+    autoResumeRoundsUsed: number;
+    lastTruncatedOutlineTask?: OutlinePhase2Task;
+  };
 }
 
 interface WorkflowState {
@@ -23,6 +31,11 @@ interface WorkflowState {
 
   startStep: (stepId: WorkflowStepId) => void;
   updateStepContent: (stepId: WorkflowStepId, content: string) => void;
+  updateStepTruncation: (
+    stepId: WorkflowStepId,
+    patch: Partial<WorkflowStepState['truncation']>
+  ) => void;
+  resetStepTruncation: (stepId: WorkflowStepId) => void;
   completeStep: (stepId: WorkflowStepId) => Promise<void>;
   setStepError: (stepId: WorkflowStepId, error: string) => void;
   resetWorkflow: () => void;
@@ -52,12 +65,66 @@ interface WorkflowState {
 }
 
 const INITIAL_STEPS: Record<WorkflowStepId, WorkflowStepState> = {
-  compression: { id: 'compression', status: 'idle', content: '' },
-  analysis: { id: 'analysis', status: 'idle', content: '' },
-  outline: { id: 'outline', status: 'idle', content: '' },
-  breakdown: { id: 'breakdown', status: 'idle', content: '' },
-  chapter1: { id: 'chapter1', status: 'idle', content: '' },
-  continuation: { id: 'continuation', status: 'idle', content: '' },
+  compression: {
+    id: 'compression',
+    status: 'idle',
+    content: '',
+    truncation: {
+      isTruncated: false,
+      lastFinishReason: 'unknown',
+      autoResumeRoundsUsed: 0,
+    },
+  },
+  analysis: {
+    id: 'analysis',
+    status: 'idle',
+    content: '',
+    truncation: {
+      isTruncated: false,
+      lastFinishReason: 'unknown',
+      autoResumeRoundsUsed: 0,
+    },
+  },
+  outline: {
+    id: 'outline',
+    status: 'idle',
+    content: '',
+    truncation: {
+      isTruncated: false,
+      lastFinishReason: 'unknown',
+      autoResumeRoundsUsed: 0,
+    },
+  },
+  breakdown: {
+    id: 'breakdown',
+    status: 'idle',
+    content: '',
+    truncation: {
+      isTruncated: false,
+      lastFinishReason: 'unknown',
+      autoResumeRoundsUsed: 0,
+    },
+  },
+  chapter1: {
+    id: 'chapter1',
+    status: 'idle',
+    content: '',
+    truncation: {
+      isTruncated: false,
+      lastFinishReason: 'unknown',
+      autoResumeRoundsUsed: 0,
+    },
+  },
+  continuation: {
+    id: 'continuation',
+    status: 'idle',
+    content: '',
+    truncation: {
+      isTruncated: false,
+      lastFinishReason: 'unknown',
+      autoResumeRoundsUsed: 0,
+    },
+  },
 };
 
 function cloneInitialSteps(): Record<WorkflowStepId, WorkflowStepState> {
@@ -98,6 +165,12 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
           status: 'streaming',
           content: '',
           error: undefined,
+          truncation: {
+            isTruncated: false,
+            lastFinishReason: 'unknown',
+            autoResumeRoundsUsed: 0,
+            lastTruncatedOutlineTask: undefined,
+          },
         },
       },
       currentStepId: stepId,
@@ -110,6 +183,38 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
       steps: {
         ...state.steps,
         [stepId]: { ...state.steps[stepId], content },
+      },
+    }));
+  },
+
+  updateStepTruncation: (stepId, patch) => {
+    set((state) => ({
+      steps: {
+        ...state.steps,
+        [stepId]: {
+          ...state.steps[stepId],
+          truncation: {
+            ...state.steps[stepId].truncation,
+            ...patch,
+          },
+        },
+      },
+    }));
+  },
+
+  resetStepTruncation: (stepId) => {
+    set((state) => ({
+      steps: {
+        ...state.steps,
+        [stepId]: {
+          ...state.steps[stepId],
+          truncation: {
+            isTruncated: false,
+            lastFinishReason: 'unknown',
+            autoResumeRoundsUsed: 0,
+            lastTruncatedOutlineTask: undefined,
+          },
+        },
       },
     }));
   },
@@ -201,36 +306,66 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
           status: hasCompression ? 'completed' : 'idle',
           content: compressedContext,
           error: undefined,
+          truncation: {
+            isTruncated: false,
+            lastFinishReason: 'unknown',
+            autoResumeRoundsUsed: 0,
+          },
         },
         analysis: {
           id: 'analysis',
           status: analysis.trim() ? 'completed' : 'idle',
           content: analysis,
           error: undefined,
+          truncation: {
+            isTruncated: false,
+            lastFinishReason: 'unknown',
+            autoResumeRoundsUsed: 0,
+          },
         },
         outline: {
           id: 'outline',
           status: outline.trim() ? 'completed' : 'idle',
           content: outline,
           error: undefined,
+          truncation: {
+            isTruncated: false,
+            lastFinishReason: 'unknown',
+            autoResumeRoundsUsed: 0,
+          },
         },
         breakdown: {
           id: 'breakdown',
           status: breakdown.trim() ? 'completed' : 'idle',
           content: breakdown,
           error: undefined,
+          truncation: {
+            isTruncated: false,
+            lastFinishReason: 'unknown',
+            autoResumeRoundsUsed: 0,
+          },
         },
         chapter1: {
           id: 'chapter1',
           status: chapter1Content.trim() ? 'completed' : 'idle',
           content: chapter1Content,
           error: undefined,
+          truncation: {
+            isTruncated: false,
+            lastFinishReason: 'unknown',
+            autoResumeRoundsUsed: 0,
+          },
         },
         continuation: {
           id: 'continuation',
           status: 'idle',
           content: '',
           error: undefined,
+          truncation: {
+            isTruncated: false,
+            lastFinishReason: 'unknown',
+            autoResumeRoundsUsed: 0,
+          },
         },
       },
       currentStepId: resolvedCurrentStepId,

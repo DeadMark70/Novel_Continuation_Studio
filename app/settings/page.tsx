@@ -161,6 +161,10 @@ export default function SettingsPage() {
       compressionChunkSize: state.compressionChunkSize,
       compressionChunkOverlap: state.compressionChunkOverlap,
       compressionEvidenceSegments: state.compressionEvidenceSegments,
+      autoResumeOnLength: state.autoResumeOnLength,
+      autoResumePhaseAnalysis: state.autoResumePhaseAnalysis,
+      autoResumePhaseOutline: state.autoResumePhaseOutline,
+      autoResumeMaxRounds: state.autoResumeMaxRounds,
       persistCount: state.persistCount,
       lastPersistDurationMs: state.lastPersistDurationMs,
       lastPersistAt: state.lastPersistAt,
@@ -206,6 +210,10 @@ export default function SettingsPage() {
     compressionChunkSize: number;
     compressionChunkOverlap: number;
     compressionEvidenceSegments: number;
+    autoResumeOnLength: boolean;
+    autoResumePhaseAnalysis: boolean;
+    autoResumePhaseOutline: boolean;
+    autoResumeMaxRounds: number;
   }>(() => ({
     truncationThreshold: settings.truncationThreshold,
     dualEndBuffer: settings.dualEndBuffer,
@@ -214,6 +222,10 @@ export default function SettingsPage() {
     compressionChunkSize: settings.compressionChunkSize,
     compressionChunkOverlap: settings.compressionChunkOverlap,
     compressionEvidenceSegments: settings.compressionEvidenceSegments,
+    autoResumeOnLength: settings.autoResumeOnLength,
+    autoResumePhaseAnalysis: settings.autoResumePhaseAnalysis,
+    autoResumePhaseOutline: settings.autoResumePhaseOutline,
+    autoResumeMaxRounds: settings.autoResumeMaxRounds,
   }));
 
   const initialSignatureRef = useRef('');
@@ -233,6 +245,10 @@ export default function SettingsPage() {
       compressionChunkSize: settings.compressionChunkSize,
       compressionChunkOverlap: settings.compressionChunkOverlap,
       compressionEvidenceSegments: settings.compressionEvidenceSegments,
+      autoResumeOnLength: settings.autoResumeOnLength,
+      autoResumePhaseAnalysis: settings.autoResumePhaseAnalysis,
+      autoResumePhaseOutline: settings.autoResumePhaseOutline,
+      autoResumeMaxRounds: settings.autoResumeMaxRounds,
     };
 
     setDraftProvider(settings.activeProvider);
@@ -278,7 +294,7 @@ export default function SettingsPage() {
     }
     // one-time hydration to avoid clobbering dirty draft
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isInitialized, settings.activeProvider, settings.providers, settings.phaseConfig, settings.providerDefaults, settings.modelOverrides, settings.customPrompts, settings.truncationThreshold, settings.dualEndBuffer, settings.compressionMode, settings.compressionAutoThreshold, settings.compressionChunkSize, settings.compressionChunkOverlap, settings.compressionEvidenceSegments]);
+  }, [isInitialized, settings.activeProvider, settings.providers, settings.phaseConfig, settings.providerDefaults, settings.modelOverrides, settings.customPrompts, settings.truncationThreshold, settings.dualEndBuffer, settings.compressionMode, settings.compressionAutoThreshold, settings.compressionChunkSize, settings.compressionChunkOverlap, settings.compressionEvidenceSegments, settings.autoResumeOnLength, settings.autoResumePhaseAnalysis, settings.autoResumePhaseOutline, settings.autoResumeMaxRounds]);
 
   const signature = useMemo(() => JSON.stringify({
     activeProvider: draftProvider,
@@ -945,6 +961,69 @@ export default function SettingsPage() {
                   value={draftContext.compressionAutoThreshold}
                   onChange={(e) => setDraftContext((prev) => ({ ...prev, compressionAutoThreshold: parseInt(e.target.value, 10) || prev.compressionAutoThreshold }))}
                 />
+              </div>
+            </div>
+
+            <div className="rounded-lg border border-border p-3 space-y-3">
+              <h3 className="font-semibold uppercase text-sm">Auto Resume On Length Truncation</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div className="rounded border border-border px-3 py-2">
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor="context-auto-resume-on-length">auto_resume_on_length</Label>
+                    <Switch
+                      id="context-auto-resume-on-length"
+                      checked={draftContext.autoResumeOnLength}
+                      onCheckedChange={(checked) => setDraftContext((prev) => ({ ...prev, autoResumeOnLength: checked }))}
+                    />
+                  </div>
+                  <p className="text-[11px] text-muted-foreground mt-1">
+                    Enable automatic continuation only when finish_reason is length.
+                  </p>
+                </div>
+
+                <div className="rounded border border-border px-3 py-2">
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor="context-auto-resume-phase-analysis">auto_resume_phase_analysis</Label>
+                    <Switch
+                      id="context-auto-resume-phase-analysis"
+                      checked={draftContext.autoResumePhaseAnalysis}
+                      onCheckedChange={(checked) => setDraftContext((prev) => ({ ...prev, autoResumePhaseAnalysis: checked }))}
+                    />
+                  </div>
+                  <p className="text-[11px] text-muted-foreground mt-1">
+                    Override for Phase 1 analysis.
+                  </p>
+                </div>
+
+                <div className="rounded border border-border px-3 py-2">
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor="context-auto-resume-phase-outline">auto_resume_phase_outline</Label>
+                    <Switch
+                      id="context-auto-resume-phase-outline"
+                      checked={draftContext.autoResumePhaseOutline}
+                      onCheckedChange={(checked) => setDraftContext((prev) => ({ ...prev, autoResumePhaseOutline: checked }))}
+                    />
+                  </div>
+                  <p className="text-[11px] text-muted-foreground mt-1">
+                    Override for Phase 2 outline subtasks.
+                  </p>
+                </div>
+
+                <div className="space-y-1">
+                  <Label htmlFor="context-auto-resume-max-rounds">auto_resume_max_rounds</Label>
+                  <Input
+                    id="context-auto-resume-max-rounds"
+                    name="context-auto-resume-max-rounds"
+                    type="number"
+                    min={1}
+                    max={4}
+                    value={draftContext.autoResumeMaxRounds}
+                    onChange={(e) => setDraftContext((prev) => ({ ...prev, autoResumeMaxRounds: parseRequiredIntInput(e.target.value, prev.autoResumeMaxRounds) }))}
+                  />
+                  <p className="text-[11px] text-muted-foreground">
+                    Max automatic continuation rounds per step/task (1-4).
+                  </p>
+                </div>
               </div>
             </div>
           </TabsContent>

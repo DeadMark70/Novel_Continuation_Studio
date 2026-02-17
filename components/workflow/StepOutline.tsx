@@ -17,6 +17,7 @@ import {
   buildOutlineTaskDirective,
   parseOutlinePhase2Content,
 } from '@/lib/outline-phase2';
+import { appendResumeLastOutputDirective } from '@/lib/resume-directive';
 
 const MIN_TARGET_STORY_WORD_COUNT = 5000;
 const MAX_TARGET_STORY_WORD_COUNT = 50000;
@@ -92,7 +93,11 @@ export const StepOutline: React.FC = () => {
     parsedOutline.part2B.trim() ||
     parsedOutline.rawLegacyContent.trim()
   );
+  const hasOutline2AOutput = Boolean(parsedOutline.part2A.trim() || parsedOutline.rawLegacyContent.trim());
+  const hasOutline2BOutput = Boolean(parsedOutline.part2B.trim());
   const hasMissingSections = parsedOutline.missing2A.length > 0 || parsedOutline.missing2B.length > 0;
+  const isTruncated = step.truncation.isTruncated;
+  const lastTruncatedTask = step.truncation.lastTruncatedOutlineTask;
   const modeMeta = resolveWorkflowMode({
     stepId: 'outline',
     compressionMode,
@@ -187,6 +192,24 @@ export const StepOutline: React.FC = () => {
     await setPacingSettings({ eroticSceneLimitPerChapter: safeValue });
   };
 
+  const handleManualResumeTask = (task: '2A' | '2B') => {
+    const hasTaskOutput = task === '2A' ? hasOutline2AOutput : hasOutline2BOutput;
+    if (!hasTaskOutput) {
+      return;
+    }
+    if (!isTruncated) {
+      const confirmed = window.confirm(
+        'No length truncation was detected in the last run. Continue anyway? This may duplicate content.'
+      );
+      if (!confirmed) {
+        return;
+      }
+    }
+
+    const taskScopedNotes = buildOutlineTaskDirective(outlineDirection, task);
+    generate('outline', appendResumeLastOutputDirective(taskScopedNotes));
+  };
+
   return (
     <Card className="border-l-4 border-l-cyan-500 bg-cyan-500/5">
       <CardHeader className="flex flex-row items-center justify-between pb-2">
@@ -216,6 +239,22 @@ export const StepOutline: React.FC = () => {
                 {isCompleted ? <RefreshCw className="size-4 mr-2" /> : (isActive ? <FastForward className="size-4 mr-2" /> : <Play className="size-4 mr-2" />)}
                 {isCompleted ? 'Regenerate 2A+2B' : 'Generate 2A+2B'}
               </Button>
+              <Button
+                size="sm"
+                variant={isTruncated && lastTruncatedTask === '2A' ? 'secondary' : 'outline'}
+                disabled={!hasOutline2AOutput}
+                onClick={() => handleManualResumeTask('2A')}
+              >
+                Resume 2A
+              </Button>
+              <Button
+                size="sm"
+                variant={isTruncated && lastTruncatedTask === '2B' ? 'secondary' : 'outline'}
+                disabled={!hasOutline2BOutput}
+                onClick={() => handleManualResumeTask('2B')}
+              >
+                Resume 2B
+              </Button>
               {hasOutlineOutput && (
                 <>
                   <Button
@@ -242,6 +281,14 @@ export const StepOutline: React.FC = () => {
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
+        <div className={`rounded-md border px-3 py-2 text-xs ${isTruncated ? 'border-amber-400/40 bg-amber-500/10 text-amber-200' : 'border-border/60 bg-card/30 text-muted-foreground'}`}>
+          {isTruncated
+            ? `Detected length truncation. Use Resume 2A / Resume 2B to continue the specific subtask.${lastTruncatedTask ? ` Last truncated: ${lastTruncatedTask}.` : ''}`
+            : hasOutlineOutput
+              ? 'Manual resume is available per subtask. If no truncation occurred, continuing may duplicate content.'
+              : 'Resume 2A / Resume 2B will be enabled after corresponding output exists.'}
+        </div>
+
         <div className="space-y-2 rounded-lg border border-cyan-500/20 bg-card/30 p-3">
           <Label htmlFor="target-story-word-count" className="text-xs font-mono text-cyan-500 font-bold">
             TARGET STORY WORD COUNT

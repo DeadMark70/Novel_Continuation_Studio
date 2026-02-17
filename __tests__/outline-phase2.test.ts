@@ -10,6 +10,14 @@ describe('outline phase2 helpers', () => {
     const parsed = parseOutlineTaskDirective('keep tone dark\n[[OUTLINE_TASK:2A]]');
     expect(parsed.target).toBe('2A');
     expect(parsed.userNotes).toBe('keep tone dark');
+    expect(parsed.resumeFromLastOutput).toBe(false);
+  });
+
+  it('parses resume directive and strips token from notes', () => {
+    const parsed = parseOutlineTaskDirective('keep structure\n[[OUTLINE_TASK:2B]]\n[[RESUME_LAST_OUTPUT]]');
+    expect(parsed.target).toBe('2B');
+    expect(parsed.userNotes).toBe('keep structure');
+    expect(parsed.resumeFromLastOutput).toBe(true);
   });
 
   it('builds directive token for retry actions', () => {

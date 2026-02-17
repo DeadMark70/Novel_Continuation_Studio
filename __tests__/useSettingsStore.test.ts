@@ -156,6 +156,10 @@ describe('useSettingsStore', () => {
           compressionChunkSize: before.compressionChunkSize,
           compressionChunkOverlap: before.compressionChunkOverlap,
           compressionEvidenceSegments: before.compressionEvidenceSegments,
+          autoResumeOnLength: before.autoResumeOnLength,
+          autoResumePhaseAnalysis: before.autoResumePhaseAnalysis,
+          autoResumePhaseOutline: before.autoResumePhaseOutline,
+          autoResumeMaxRounds: before.autoResumeMaxRounds,
         },
       });
     });
@@ -183,6 +187,10 @@ describe('useSettingsStore', () => {
           compressionChunkSize: before.compressionChunkSize,
           compressionChunkOverlap: before.compressionChunkOverlap,
           compressionEvidenceSegments: before.compressionEvidenceSegments,
+          autoResumeOnLength: before.autoResumeOnLength,
+          autoResumePhaseAnalysis: before.autoResumePhaseAnalysis,
+          autoResumePhaseOutline: before.autoResumePhaseOutline,
+          autoResumeMaxRounds: before.autoResumeMaxRounds,
         },
       });
     });
@@ -219,6 +227,10 @@ describe('useSettingsStore', () => {
           compressionChunkSize: state.compressionChunkSize,
           compressionChunkOverlap: state.compressionChunkOverlap,
           compressionEvidenceSegments: state.compressionEvidenceSegments,
+          autoResumeOnLength: state.autoResumeOnLength,
+          autoResumePhaseAnalysis: state.autoResumePhaseAnalysis,
+          autoResumePhaseOutline: state.autoResumePhaseOutline,
+          autoResumeMaxRounds: state.autoResumeMaxRounds,
         },
       });
     });

@@ -8,10 +8,8 @@ import { injectPrompt } from '@/lib/prompt-engine';
 import { DEFAULT_PROMPTS } from '@/lib/prompts';
 import {
   applyPromptSectionContract,
-  appendMissingSectionsRetryInstruction,
   validatePromptSections,
 } from '@/lib/prompt-section-contracts';
-import { generateWithSectionRetry } from '@/lib/section-retry';
 import {
   parseOutlinePhase2Content,
   parseOutlineTaskDirective,
@@ -38,10 +36,18 @@ import { runConsistencyCheck } from '@/lib/consistency-checker';
 import { createThrottledUpdater } from '@/lib/streaming-throttle';
 import type { AutoContinuationPolicy, RunStepId } from '@/lib/run-types';
 import type { NovelEntry } from '@/lib/db';
+import type { GenerateFinishReason } from '@/lib/llm-types';
+import {
+  buildResumePrompt,
+  hasResumeLastOutputDirective,
+  stripResumeLastOutputDirective,
+} from '@/lib/resume-directive';
 
 type PromptTemplateKey = keyof typeof DEFAULT_PROMPTS;
 const activeAbortControllers = new Map<string, AbortController>();
 const PREVIEW_CHARS = 220;
+const UNKNOWN_FINISH_REASON: GenerateFinishReason = 'unknown';
+const BREAKDOWN_CHUNK_SIZE = 4;
 
 const STEP_TRANSITIONS: Record<
   Exclude<WorkflowStepId, 'continuation'>,
@@ -79,6 +85,18 @@ function toProgressPreview(value: string): string {
   return value.length <= PREVIEW_CHARS ? value : value.slice(-PREVIEW_CHARS);
 }
 
+function buildFormatNotice(
+  promptKey: PromptTemplateKey,
+  missingSections: string[]
+): string {
+  return [
+    '【格式檢查提醒】',
+    `此步驟輸出缺少必要章節：${missingSections.map((label) => `【${label}】`).join('、')}`,
+    `檢查規格：${promptKey}`,
+    '系統不會自動重試，請由使用者決定是否手動重試。',
+  ].join('\n');
+}
+
 function resolvePromptTemplateKey(stepId: WorkflowStepId, useCompressedContext: boolean): PromptTemplateKey {
   if (stepId === 'analysis') {
     return useCompressedContext ? 'analysisCompressed' : 'analysisRaw';
@@ -93,6 +111,19 @@ function resolvePromptTemplateKey(stepId: WorkflowStepId, useCompressedContext: 
     return useCompressedContext ? 'continuationCompressed' : 'continuationRaw';
   }
   return stepId;
+}
+
+function isLengthFinishReason(reason: GenerateFinishReason): boolean {
+  return reason === 'length';
+}
+
+interface StreamAttemptResult {
+  content: string;
+  finishReason: GenerateFinishReason;
+}
+
+interface StreamAttemptWithResumeResult extends StreamAttemptResult {
+  autoResumeRoundsUsed: number;
 }
 
 async function runWithConcurrency<T>(
@@ -290,6 +321,10 @@ export function useStepGenerator() {
         compressionChunkSize,
         compressionChunkOverlap,
         compressionEvidenceSegments,
+        autoResumeOnLength,
+        autoResumePhaseAnalysis,
+        autoResumePhaseOutline,
+        autoResumeMaxRounds,
       } = settingsState;
 
       const sessionSnapshot = await getSessionSnapshot(sessionId);
@@ -436,7 +471,7 @@ export function useStepGenerator() {
             compressionOutlineTargetRange = '8500-10000';
           }
 
-          const taskStatuses: Record<string, 'ok' | 'retry' | 'fallback' | 'failed'> = {};
+          const taskStatuses: Record<string, 'ok' | 'failed'> = {};
           const taskDurationsMs: Record<string, number> = {};
           const progressRows: string[] = [];
           const renderProgress = () => {
@@ -447,128 +482,106 @@ export function useStepGenerator() {
             onProgress(toProgressPreview(display));
           };
 
-            const runTask = async (
-              task: CompressionPipelineTask
-            ): Promise<string> => {
-              const template = (
-                customPrompts[task.promptKey] ||
-                DEFAULT_PROMPTS[task.promptKey] ||
-                customPrompts.compression ||
-                DEFAULT_PROMPTS.compression
+          const runTask = async (
+            task: CompressionPipelineTask
+          ): Promise<string> => {
+            const template = (
+              customPrompts[task.promptKey] ||
+              DEFAULT_PROMPTS[task.promptKey] ||
+              customPrompts.compression ||
+              DEFAULT_PROMPTS.compression
+            );
+            const contractedTemplate = applyPromptSectionContract(template, task.promptKey);
+            const prompt = injectPrompt(contractedTemplate, {
+              originalNovel: task.id === 'eroticPack'
+                ? eroticFocusedNovel
+                : resolvedOriginalNovel,
+              compressionOutlineTargetRange,
+              compressionChunkCount,
+              compressionSampledChunkCount: task.id === 'eroticPack'
+                ? eroticSampledChunkCount
+                : compressionSampledChunkCount,
+            });
+
+            const startedAt = Date.now();
+            progressRows.push(`${task.statusLabel}: running`);
+            renderProgress();
+            try {
+              let output = '';
+              const stream = generateStreamByProvider(
+                selectedProvider,
+                prompt,
+                selectedModel,
+                apiKey,
+                undefined,
+                {
+                  maxTokens: modelParams.autoMaxTokens ? undefined : modelParams.maxTokens,
+                  autoMaxTokens: modelParams.autoMaxTokens,
+                  temperature: modelParams.temperature,
+                  topP: modelParams.topP,
+                  topK: modelParams.topK,
+                  frequencyPenalty: modelParams.frequencyPenalty,
+                  presencePenalty: modelParams.presencePenalty,
+                  seed: modelParams.seed,
+                  enableThinking: false,
+                  thinkingSupported: false,
+                  supportedParameters,
+                  maxContextTokens,
+                  maxCompletionTokens,
+                  onRetry: (retryAttempt, maxRetries, delay) => {
+                    console.log(`[Compression:${task.id}] Retrying request ${retryAttempt}/${maxRetries} after ${delay}ms`);
+                  }
+                },
+                signal
               );
-              const contractedTemplate = applyPromptSectionContract(template, task.promptKey);
-              const basePrompt = injectPrompt(contractedTemplate, {
-                originalNovel: task.id === 'eroticPack'
-                  ? eroticFocusedNovel
-                  : resolvedOriginalNovel,
-                compressionOutlineTargetRange,
-                compressionChunkCount,
-                compressionSampledChunkCount: task.id === 'eroticPack'
-                  ? eroticSampledChunkCount
-                  : compressionSampledChunkCount,
-              });
 
-              let currentPrompt = basePrompt;
-              let attempt = 0;
-              while (attempt < 2) {
-                const startedAt = Date.now();
-                attempt += 1;
-                progressRows.push(`${task.statusLabel}: running (attempt ${attempt})`);
-                renderProgress();
-                try {
-                  let output = '';
-                  const stream = generateStreamByProvider(
-                    selectedProvider,
-                    currentPrompt,
-                    selectedModel,
-                    apiKey,
-                    undefined,
-                  {
-                    maxTokens: modelParams.autoMaxTokens ? undefined : modelParams.maxTokens,
-                    autoMaxTokens: modelParams.autoMaxTokens,
-                    temperature: modelParams.temperature,
-                    topP: modelParams.topP,
-                    topK: modelParams.topK,
-                    frequencyPenalty: modelParams.frequencyPenalty,
-                    presencePenalty: modelParams.presencePenalty,
-                    seed: modelParams.seed,
-                    enableThinking: false,
-                    thinkingSupported: false,
-                    supportedParameters,
-                    maxContextTokens,
-                    maxCompletionTokens,
-                    onRetry: (retryAttempt, maxRetries, delay) => {
-                      console.log(`[Compression:${task.id}] Retrying request ${retryAttempt}/${maxRetries} after ${delay}ms`);
-                    }
-                  },
-                  signal
-                );
-
-                  for await (const chunk of stream) {
-                    output += chunk;
-                  }
-
-                  const sectionValidation = validatePromptSections(task.promptKey, output);
-                  if (!sectionValidation.ok) {
-                    taskDurationsMs[task.id] = Date.now() - startedAt;
-                    if (attempt >= 2) {
-                      throw new Error(
-                        `Compression task ${task.id} missing sections: ${sectionValidation.missing
-                          .map((label) => `【${label}】`)
-                          .join('、')}`
-                      );
-                    }
-                    currentPrompt = appendMissingSectionsRetryInstruction(
-                      basePrompt,
-                      task.promptKey,
-                      sectionValidation.missing
-                    );
-                    progressRows.push(
-                      `${task.statusLabel}: missing ${sectionValidation.missing
-                        .map((label) => `【${label}】`)
-                        .join('、')}, retrying`
-                    );
-                    renderProgress();
-                    continue;
-                  }
-
-                  const section = extractCompressionSection(output, task.labels);
-                  if (!section.trim()) {
-                    taskDurationsMs[task.id] = Date.now() - startedAt;
-                    if (attempt >= 2) {
-                      throw new Error(`Compression task ${task.id} output section is empty.`);
-                    }
-                    currentPrompt = appendMissingSectionsRetryInstruction(
-                      basePrompt,
-                      task.promptKey,
-                      [task.labels[0]]
-                    );
-                    progressRows.push(`${task.statusLabel}: empty section content, retrying`);
-                    renderProgress();
-                    continue;
-                  }
-
-                  taskDurationsMs[task.id] = Date.now() - startedAt;
-                taskStatuses[task.id] = attempt > 1 ? 'retry' : 'ok';
-                progressRows.push(`${task.statusLabel}: done (${taskDurationsMs[task.id]}ms)`);
-                renderProgress();
-                return section;
-              } catch (taskError) {
-                if (isCancellationError(taskError)) {
-                  throw taskError;
-                }
-                taskDurationsMs[task.id] = Date.now() - startedAt;
-                if (attempt >= 2) {
-                  taskStatuses[task.id] = 'failed';
-                  progressRows.push(`${task.statusLabel}: failed (${taskDurationsMs[task.id]}ms)`);
-                  renderProgress();
-                  throw taskError;
-                }
-                progressRows.push(`${task.statusLabel}: retrying`);
-                renderProgress();
+              for await (const chunk of stream) {
+                output += chunk;
               }
+
+              const sectionValidation = validatePromptSections(task.promptKey, output);
+              if (!sectionValidation.ok) {
+                const notice = buildFormatNotice(task.promptKey, sectionValidation.missing);
+                progressRows.push(`${task.statusLabel}: format-invalid`);
+                renderProgress();
+                if (isActiveSession(sessionId)) {
+                  useWorkflowStore.getState().updateStepContent(stepId, notice);
+                }
+                onProgress(toProgressPreview(notice));
+                throw new Error(notice);
+              }
+
+              const section = extractCompressionSection(output, task.labels);
+              if (!section.trim()) {
+                const notice = [
+                  '【格式檢查提醒】',
+                  `${task.statusLabel} 輸出為空白區塊。`,
+                  '系統不會自動重試，請由使用者決定是否手動重試。',
+                ].join('\n');
+                progressRows.push(`${task.statusLabel}: empty-output`);
+                renderProgress();
+                if (isActiveSession(sessionId)) {
+                  useWorkflowStore.getState().updateStepContent(stepId, notice);
+                }
+                onProgress(toProgressPreview(notice));
+                throw new Error(notice);
+              }
+
+              taskDurationsMs[task.id] = Date.now() - startedAt;
+              taskStatuses[task.id] = 'ok';
+              progressRows.push(`${task.statusLabel}: done (${taskDurationsMs[task.id]}ms)`);
+              renderProgress();
+              return section;
+            } catch (taskError) {
+              if (isCancellationError(taskError)) {
+                throw taskError;
+              }
+              taskDurationsMs[task.id] = Date.now() - startedAt;
+              taskStatuses[task.id] = 'failed';
+              progressRows.push(`${task.statusLabel}: failed (${taskDurationsMs[task.id]}ms)`);
+              renderProgress();
+              throw taskError;
             }
-            throw new Error(`Compression task ${task.id} failed`);
           };
 
           const tasks: CompressionPipelineTask[] = [
@@ -675,11 +688,13 @@ export function useStepGenerator() {
           resolvedOriginalNovel = compressedContext;
         }
 
-        const streamPromptAttempt = async (
+        const runSinglePromptAttempt = async (
           promptToRun: string,
+          initialContent: string,
           onContentUpdate?: (next: string) => void
-        ): Promise<string> => {
-          let attemptContent = '';
+        ): Promise<StreamAttemptResult> => {
+          let attemptContent = initialContent;
+          let finishReason: GenerateFinishReason = UNKNOWN_FINISH_REASON;
           const stream = generateStreamByProvider(
             selectedProvider,
             promptToRun,
@@ -703,7 +718,10 @@ export function useStepGenerator() {
               maxCompletionTokens,
               onRetry: (attempt, maxRetries, delay) => {
                 console.log(`[Generator] Retrying request ${attempt}/${maxRetries} after ${delay}ms`);
-              }
+              },
+              onFinish: (meta) => {
+                finishReason = meta.finishReason;
+              },
             },
             signal
           );
@@ -722,6 +740,10 @@ export function useStepGenerator() {
             },
           });
 
+          if (attemptContent.length > 0) {
+            throttledContentUpdate.push(attemptContent);
+          }
+
           try {
             for await (const chunk of stream) {
               attemptContent += chunk;
@@ -731,8 +753,69 @@ export function useStepGenerator() {
             throttledContentUpdate.flush();
             throttledContentUpdate.cancel();
           }
-          return attemptContent;
+          return { content: attemptContent, finishReason };
         };
+
+        const streamPromptAttempt = async (
+          promptToRun: string,
+          onContentUpdate?: (next: string) => void,
+          options?: {
+            manualResume?: boolean;
+            initialContent?: string;
+            autoResumeEnabled?: boolean;
+          }
+        ): Promise<StreamAttemptWithResumeResult> => {
+          const maxRounds = Math.max(1, Math.floor(autoResumeMaxRounds));
+          let attemptPrompt = promptToRun;
+          let accumulatedContent = options?.initialContent ?? '';
+          let autoResumeRoundsUsed = 0;
+          let latestFinishReason: GenerateFinishReason = UNKNOWN_FINISH_REASON;
+          const shouldManualResume = Boolean(options?.manualResume && accumulatedContent.trim());
+
+          if (shouldManualResume) {
+            attemptPrompt = buildResumePrompt(promptToRun, accumulatedContent);
+          }
+
+          while (true) {
+            const result = await runSinglePromptAttempt(
+              attemptPrompt,
+              accumulatedContent,
+              onContentUpdate
+            );
+            accumulatedContent = result.content;
+            latestFinishReason = result.finishReason;
+
+            const canAutoResume = Boolean(
+              options?.autoResumeEnabled &&
+              isLengthFinishReason(latestFinishReason) &&
+              autoResumeRoundsUsed < maxRounds
+            );
+
+            if (!canAutoResume) {
+              break;
+            }
+
+            autoResumeRoundsUsed += 1;
+            attemptPrompt = buildResumePrompt(promptToRun, accumulatedContent);
+          }
+
+          return {
+            content: accumulatedContent,
+            finishReason: latestFinishReason,
+            autoResumeRoundsUsed,
+          };
+        };
+
+        const manualResumeRequested = hasResumeLastOutputDirective(userNotes);
+        const normalizedUserNotes = stripResumeLastOutputDirective(userNotes);
+        const autoResumeEnabledForStep = Boolean(
+          autoResumeOnLength &&
+          (
+            (stepId === 'analysis' && autoResumePhaseAnalysis) ||
+            (stepId === 'outline' && autoResumePhaseOutline) ||
+            stepId === 'breakdown'
+          )
+        );
 
         const buildPrompt = (template: string, notes?: string) => injectPrompt(
           applyPromptSectionContract(template, resolvedPromptTemplateKey),
@@ -781,9 +864,22 @@ export function useStepGenerator() {
             outlineState.part2A = parsedOutline.rawLegacyContent;
           }
 
-          const tasksToRun: OutlinePhase2Task[] = outlineDirective.target === 'both'
-            ? ['2A', '2B']
-            : [outlineDirective.target];
+          const lastTruncatedOutlineTask = isActiveSession(sessionId)
+            ? useWorkflowStore.getState().steps.outline.truncation.lastTruncatedOutlineTask
+            : undefined;
+          const tasksToRun: OutlinePhase2Task[] = (
+            outlineDirective.resumeFromLastOutput &&
+            outlineDirective.target === 'both' &&
+            lastTruncatedOutlineTask
+          )
+            ? [lastTruncatedOutlineTask]
+            : outlineDirective.target === 'both'
+              ? ['2A', '2B']
+              : [outlineDirective.target];
+          let hadOutlineLengthTruncation = false;
+          let outlineAutoResumeRoundsUsed = 0;
+          let outlineTruncatedTask: OutlinePhase2Task | undefined;
+          let outlineFinishReason: GenerateFinishReason = UNKNOWN_FINISH_REASON;
 
           const runOutlineTask = async (task: OutlinePhase2Task): Promise<void> => {
             const promptKey: PromptTemplateKey = task === '2A'
@@ -830,7 +926,16 @@ export function useStepGenerator() {
               }
             );
 
-            const taskOutput = await streamPromptAttempt(
+            const resumeSeed = task === '2A' ? outlineState.part2A : outlineState.part2B;
+            const shouldManualResumeTask = Boolean(
+              outlineDirective.resumeFromLastOutput &&
+              (
+                outlineDirective.target === task ||
+                (outlineDirective.target === 'both' && tasksToRun.length === 1 && tasksToRun[0] === task)
+              )
+            );
+
+            const taskResult = await streamPromptAttempt(
               prompt,
               (next) => {
                 const previewState = {
@@ -848,7 +953,24 @@ export function useStepGenerator() {
                   useWorkflowStore.getState().updateStepContent(stepId, preview);
                 }
                 onProgress(toProgressPreview(preview));
+              },
+              {
+                manualResume: shouldManualResumeTask,
+                initialContent: shouldManualResumeTask ? resumeSeed : '',
+                autoResumeEnabled: autoResumeEnabledForStep,
               }
+            );
+            const taskOutput = taskResult.content;
+            if (isLengthFinishReason(taskResult.finishReason)) {
+              hadOutlineLengthTruncation = true;
+              outlineTruncatedTask = task;
+              outlineFinishReason = 'length';
+            } else if (!hadOutlineLengthTruncation) {
+              outlineFinishReason = taskResult.finishReason;
+            }
+            outlineAutoResumeRoundsUsed = Math.max(
+              outlineAutoResumeRoundsUsed,
+              taskResult.autoResumeRoundsUsed
             );
 
             const validation = validatePromptSections(promptKey, taskOutput);
@@ -862,9 +984,27 @@ export function useStepGenerator() {
 
             const snapshot = serializeOutlinePhase2Content(outlineState);
             if (isActiveSession(sessionId)) {
+              useWorkflowStore.getState().updateStepTruncation(stepId, {
+                isTruncated: hadOutlineLengthTruncation,
+                lastFinishReason: outlineFinishReason,
+                autoResumeRoundsUsed: outlineAutoResumeRoundsUsed,
+                lastTruncatedOutlineTask: hadOutlineLengthTruncation ? outlineTruncatedTask : undefined,
+              });
               useWorkflowStore.getState().updateStepContent(stepId, snapshot);
             }
             onProgress(toProgressPreview(snapshot));
+
+            if (!validation.ok) {
+              const notice = buildFormatNotice(promptKey, validation.missing);
+              if (isActiveSession(sessionId)) {
+                useWorkflowStore.getState().updateStepContent(
+                  stepId,
+                  [notice, '', snapshot].join('\n')
+                );
+              }
+              onProgress(toProgressPreview(notice));
+              throw new Error(notice);
+            }
           };
 
           for (const task of tasksToRun) {
@@ -872,11 +1012,14 @@ export function useStepGenerator() {
           }
           content = serializeOutlinePhase2Content(outlineState);
         } else if (stepId === 'breakdown') {
-          const breakdownRanges = buildBreakdownRanges(targetChapterCount, 5);
+          const breakdownRanges = buildBreakdownRanges(targetChapterCount, BREAKDOWN_CHUNK_SIZE);
           const chunkOutputs = new Array<string>(breakdownRanges.length).fill('');
           const chunkStates = new Array<'idle' | 'running' | 'done' | 'error'>(breakdownRanges.length).fill('idle');
           let metaState: 'idle' | 'running' | 'done' | 'error' = 'idle';
           let metaRaw = '';
+          let hadBreakdownLengthTruncation = false;
+          let breakdownAutoResumeRoundsUsed = 0;
+          let breakdownFinishReason: GenerateFinishReason = UNKNOWN_FINISH_REASON;
 
           const buildBreakdownPreview = (): string => {
             const metaSections = extractBreakdownMetaSections(metaRaw);
@@ -944,10 +1087,27 @@ export function useStepGenerator() {
           metaState = 'running';
           publishBreakdownPreview();
           try {
-            metaRaw = await streamPromptAttempt(metaPrompt, (next) => {
-              metaRaw = next;
-              publishBreakdownPreview();
-            });
+            const metaResult = await streamPromptAttempt(
+              metaPrompt,
+              (next) => {
+                metaRaw = next;
+                publishBreakdownPreview();
+              },
+              {
+                autoResumeEnabled: autoResumeEnabledForStep,
+              }
+            );
+            metaRaw = metaResult.content;
+            if (isLengthFinishReason(metaResult.finishReason)) {
+              hadBreakdownLengthTruncation = true;
+              breakdownFinishReason = 'length';
+            } else if (!hadBreakdownLengthTruncation) {
+              breakdownFinishReason = metaResult.finishReason;
+            }
+            breakdownAutoResumeRoundsUsed = Math.max(
+              breakdownAutoResumeRoundsUsed,
+              metaResult.autoResumeRoundsUsed
+            );
             metaState = 'done';
           } catch (metaError) {
             metaState = 'error';
@@ -978,11 +1138,28 @@ export function useStepGenerator() {
             chunkStates[index] = 'running';
             publishBreakdownPreview();
             try {
-              const chunkRaw = await streamPromptAttempt(chunkPrompt, (next) => {
-                chunkOutputs[index] = normalizeBreakdownChunkContent(next);
-                publishBreakdownPreview();
-              });
+              const chunkResult = await streamPromptAttempt(
+                chunkPrompt,
+                (next) => {
+                  chunkOutputs[index] = normalizeBreakdownChunkContent(next);
+                  publishBreakdownPreview();
+                },
+                {
+                  autoResumeEnabled: autoResumeEnabledForStep,
+                }
+              );
+              const chunkRaw = chunkResult.content;
               chunkOutputs[index] = normalizeBreakdownChunkContent(chunkRaw);
+              if (isLengthFinishReason(chunkResult.finishReason)) {
+                hadBreakdownLengthTruncation = true;
+                breakdownFinishReason = 'length';
+              } else if (!hadBreakdownLengthTruncation) {
+                breakdownFinishReason = chunkResult.finishReason;
+              }
+              breakdownAutoResumeRoundsUsed = Math.max(
+                breakdownAutoResumeRoundsUsed,
+                chunkResult.autoResumeRoundsUsed
+              );
               chunkStates[index] = 'done';
               publishBreakdownPreview();
             } catch (chunkError) {
@@ -999,6 +1176,14 @@ export function useStepGenerator() {
             chapterTable: mergedChapterTable,
             rules: metaSections.rules,
           });
+          if (isActiveSession(sessionId)) {
+            useWorkflowStore.getState().updateStepTruncation(stepId, {
+              isTruncated: hadBreakdownLengthTruncation,
+              lastFinishReason: breakdownFinishReason,
+              autoResumeRoundsUsed: breakdownAutoResumeRoundsUsed,
+              lastTruncatedOutlineTask: undefined,
+            });
+          }
         } else {
           const template = (
             customPrompts[resolvedPromptTemplateKey] ||
@@ -1010,33 +1195,40 @@ export function useStepGenerator() {
             throw new Error(`No prompt template found for ${stepId}`);
           }
 
-          const contractedPrompt = buildPrompt(template, userNotes);
-          const shouldRetryForSections = (
+          const contractedPrompt = buildPrompt(template, normalizedUserNotes);
+          const shouldCheckSections = (
             resolvedPromptTemplateKey === 'analysisRaw' ||
             resolvedPromptTemplateKey === 'analysisCompressed'
           );
 
-          if (shouldRetryForSections) {
-            const retryResult = await generateWithSectionRetry({
-              prompt: contractedPrompt,
-              promptKey: resolvedPromptTemplateKey,
-              maxAttempts: 2,
-              generate: async (promptToRun, attempt, missingSections) => {
-                if (attempt > 1) {
-                  const retryNotice = `【格式修正重試】缺少章節：${missingSections
-                    .map((label) => `【${label}】`)
-                    .join('、')}`;
-                  if (isActiveSession(sessionId)) {
-                    useWorkflowStore.getState().updateStepContent(stepId, retryNotice);
-                  }
-                  onProgress(toProgressPreview(retryNotice));
-                }
-                return streamPromptAttempt(promptToRun);
-              },
+          const stepResult = await streamPromptAttempt(
+            contractedPrompt,
+            undefined,
+            {
+              manualResume: manualResumeRequested,
+              initialContent: manualResumeRequested ? analysis : '',
+              autoResumeEnabled: autoResumeEnabledForStep,
+            }
+          );
+          content = stepResult.content;
+          if (isActiveSession(sessionId) && stepId === 'analysis') {
+            useWorkflowStore.getState().updateStepTruncation(stepId, {
+              isTruncated: isLengthFinishReason(stepResult.finishReason),
+              lastFinishReason: stepResult.finishReason,
+              autoResumeRoundsUsed: stepResult.autoResumeRoundsUsed,
+              lastTruncatedOutlineTask: undefined,
             });
-            content = retryResult.content;
-          } else {
-            content = await streamPromptAttempt(contractedPrompt);
+          }
+          if (shouldCheckSections) {
+            const validation = validatePromptSections(resolvedPromptTemplateKey, content);
+            if (!validation.ok) {
+              const notice = buildFormatNotice(resolvedPromptTemplateKey, validation.missing);
+              if (isActiveSession(sessionId)) {
+                useWorkflowStore.getState().updateStepContent(stepId, notice);
+              }
+              onProgress(toProgressPreview(notice));
+              throw new Error(notice);
+            }
           }
         }
 

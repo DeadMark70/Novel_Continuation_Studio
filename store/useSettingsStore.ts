@@ -57,6 +57,11 @@ function sanitizePositiveInt(value: number, fallback: number): number {
   return Math.floor(value);
 }
 
+function sanitizeResumeRounds(value: number, fallback: number): number {
+  const normalized = sanitizePositiveInt(value, fallback);
+  return Math.max(1, Math.min(4, normalized));
+}
+
 function createDefaultProviderSettings(): Record<LLMProvider, ProviderScopedSettings> {
   return {
     nim: {
@@ -172,6 +177,10 @@ interface SettingsState {
   compressionChunkSize: number;
   compressionChunkOverlap: number;
   compressionEvidenceSegments: number;
+  autoResumeOnLength: boolean;
+  autoResumePhaseAnalysis: boolean;
+  autoResumePhaseOutline: boolean;
+  autoResumeMaxRounds: number;
   persistCount: number;
   lastPersistDurationMs?: number;
   lastPersistAt?: number;
@@ -192,6 +201,10 @@ interface SettingsState {
       | 'compressionChunkSize'
       | 'compressionChunkOverlap'
       | 'compressionEvidenceSegments'
+      | 'autoResumeOnLength'
+      | 'autoResumePhaseAnalysis'
+      | 'autoResumePhaseOutline'
+      | 'autoResumeMaxRounds'
     >;
   }) => Promise<void>;
 
@@ -232,6 +245,10 @@ interface SettingsState {
     | 'compressionChunkSize'
     | 'compressionChunkOverlap'
     | 'compressionEvidenceSegments'
+    | 'autoResumeOnLength'
+    | 'autoResumePhaseAnalysis'
+    | 'autoResumePhaseOutline'
+    | 'autoResumeMaxRounds'
   >>) => Promise<void>;
   resetPrompt: (key: string) => Promise<void>;
   initialize: () => Promise<void>;
@@ -259,6 +276,10 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   compressionChunkSize: DEFAULT_COMPRESSION_CHUNK_SIZE,
   compressionChunkOverlap: DEFAULT_COMPRESSION_CHUNK_OVERLAP,
   compressionEvidenceSegments: DEFAULT_COMPRESSION_EVIDENCE_SEGMENTS,
+  autoResumeOnLength: true,
+  autoResumePhaseAnalysis: true,
+  autoResumePhaseOutline: true,
+  autoResumeMaxRounds: 2,
   persistCount: 0,
   lastPersistDurationMs: undefined,
   lastPersistAt: undefined,
@@ -319,6 +340,13 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
         compressionEvidenceSegments: Math.max(
           4,
           Math.min(16, sanitizePositiveInt(snapshot.context.compressionEvidenceSegments, state.compressionEvidenceSegments))
+        ),
+        autoResumeOnLength: snapshot.context.autoResumeOnLength ?? state.autoResumeOnLength,
+        autoResumePhaseAnalysis: snapshot.context.autoResumePhaseAnalysis ?? state.autoResumePhaseAnalysis,
+        autoResumePhaseOutline: snapshot.context.autoResumePhaseOutline ?? state.autoResumePhaseOutline,
+        autoResumeMaxRounds: sanitizeResumeRounds(
+          snapshot.context.autoResumeMaxRounds,
+          state.autoResumeMaxRounds
         ),
       };
       return { ...next, ...resolveCompatibilityFields(next) };
@@ -601,6 +629,12 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       compressionEvidenceSegments: settings.compressionEvidenceSegments === undefined
         ? state.compressionEvidenceSegments
         : Math.max(4, Math.min(16, sanitizePositiveInt(settings.compressionEvidenceSegments, state.compressionEvidenceSegments))),
+      autoResumeOnLength: settings.autoResumeOnLength ?? state.autoResumeOnLength,
+      autoResumePhaseAnalysis: settings.autoResumePhaseAnalysis ?? state.autoResumePhaseAnalysis,
+      autoResumePhaseOutline: settings.autoResumePhaseOutline ?? state.autoResumePhaseOutline,
+      autoResumeMaxRounds: settings.autoResumeMaxRounds === undefined
+        ? state.autoResumeMaxRounds
+        : sanitizeResumeRounds(settings.autoResumeMaxRounds, state.autoResumeMaxRounds),
     }));
     await get().persist();
   },
@@ -682,6 +716,10 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       compressionChunkSize: settings.compressionChunkSize ?? DEFAULT_COMPRESSION_CHUNK_SIZE,
       compressionChunkOverlap: settings.compressionChunkOverlap ?? DEFAULT_COMPRESSION_CHUNK_OVERLAP,
       compressionEvidenceSegments: settings.compressionEvidenceSegments ?? DEFAULT_COMPRESSION_EVIDENCE_SEGMENTS,
+      autoResumeOnLength: settings.autoResumeOnLength ?? true,
+      autoResumePhaseAnalysis: settings.autoResumePhaseAnalysis ?? true,
+      autoResumePhaseOutline: settings.autoResumePhaseOutline ?? true,
+      autoResumeMaxRounds: sanitizeResumeRounds(settings.autoResumeMaxRounds ?? 2, 2),
     };
     set((state) => {
       const merged = { ...state, ...nextPartial };
@@ -718,6 +756,10 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       compressionChunkSize: state.compressionChunkSize,
       compressionChunkOverlap: state.compressionChunkOverlap,
       compressionEvidenceSegments: state.compressionEvidenceSegments,
+      autoResumeOnLength: state.autoResumeOnLength,
+      autoResumePhaseAnalysis: state.autoResumePhaseAnalysis,
+      autoResumePhaseOutline: state.autoResumePhaseOutline,
+      autoResumeMaxRounds: state.autoResumeMaxRounds,
     });
     const duration = now() - startedAt;
     set((nextState) => ({
