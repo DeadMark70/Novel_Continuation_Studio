@@ -1,126 +1,181 @@
 # Novel Continuation Studio
 
 > [!CAUTION]
-> **Research Prototype - Use at Your Own Risk**  
-> This project is a personal research prototype designed for experimenting with specific AI-assisted writing workflows. It is currently in an **experimental alpha state** and contains significant known bugs, stability issues, and unoptimized code paths.
+> **Research Prototype — Use at Your Own Risk**
 >
-> - **Data Loss**: There is no cloud sync. All data is stored locally in your browser (IndexedDB). Clearing your browser cache **will delete all your novels**.
-> - **Cost**: This tool consumes high-end LLM APIs (Claude 3.5 Sonnet, GPT-4o, etc.). Monitor your usage carefully.
-> - **Support**: There is no active support or maintenance provided.
+> This project is a **personal research prototype** for experimenting with AI-assisted novel writing workflows. It is in an **experimental alpha state** and contains known bugs, stability issues, and unoptimized code paths.
+>
+> - **Data Loss**: No cloud sync. All data lives in browser IndexedDB. Clearing cache **deletes everything**.
+> - **Cost**: Consumes commercial LLM APIs (Claude, GPT-4o, etc.). Monitor your spending.
+> - **Support**: No active support or maintenance is provided.
+> - **Language**: The internal prompt templates are written in **Traditional Chinese (繁體中文)**. Using English-language novels will likely produce degraded or mixed-language outputs because the system prompts guide the AI in Chinese.
 
-## Overview
+---
 
-**Novel Continuation Studio** is a specialized local-first writing environment designed to explore **Phase-Based Narrative Generation**. Unlike generic chat interfaces, this studio treats story writing as a structured pipeline, moving from high-level context compression to granular scene drafting.
+> [!CAUTION]
+> **研究原型 — 使用風險自負**
+>
+> 此專案為**個人研究用原型**，用於實驗 AI 輔助小說寫作工作流程。目前處於**實驗性 Alpha 階段**，包含已知 Bug、穩定性問題及未優化的程式碼路徑。
+>
+> - **資料遺失風險**：無雲端同步。所有資料儲存在瀏覽器 IndexedDB 中，清除快取**將刪除所有小說資料**。
+> - **費用**：使用商業 LLM API（Claude、GPT-4o 等），請注意用量與花費。
+> - **支援**：不提供任何主動支援或維護。
+> - **語言**：內部 Prompt 模板以**繁體中文**撰寫，使用英文小說可能產生品質下降或中英混雜的輸出。
 
-It implements a **Hybrid AI Architecture**:
+---
 
-- **Routing Integration**: Uses **OpenRouter** for high-intelligence reasoning (e.g., Anthropic Claude 3.5 Sonnet, OpenAI GPT-4o) and **NVIDIA NIM** for low-latency, cost-effective inference.
-- **Structured Workflows**: Enforces a strict creative process: `Compression` -> `Analysis` -> `Outline` -> `Breakdown` -> `Drafting`.
+## Overview / 概述
 
-## Architecture & Workflows
+**Novel Continuation Studio** is a local-first writing environment that implements **Phase-Based Narrative Generation**. Instead of a single-shot chat prompt, it breaks story continuation into a structured pipeline — from context compression to scene-level drafting.
 
-The system is built around a unidirectional data flow that mimics a professional writer's planning process:
+**Novel Continuation Studio** 是一個本地優先的寫作環境，實現了**階段式敘事生成**。它並非單次對話式生成，而是將故事續寫拆解為結構化的流水線——從上下文壓縮到場景級草稿撰寫。
 
-1.  **Context Compression**:
-    - Consolidates previous chapters and established lore into a token-efficient summary.
-    - _Goal_: Maintain long-term narrative consistency without exceeding context windows.
+## Architecture / 架構
 
-2.  **Consistency Analysis**:
-    - Evaluates the current state of the story against character profiles and world-building rules.
-    - _Goal_: Detect plot holes or character drift before generating new text.
+### Multi-Phase Generation Pipeline / 多階段生成管線
 
-3.  **Outlining (Scene Planning)**:
-    - Generates high-level beats for the upcoming chapter using reasoning models.
-    - _Goal_: Ensure pacing and structural integrity.
+The system enforces a strict creative pipeline:
 
-4.  **Scene Breakdown**:
-    - Expands outline beats into detailed beat-by-beat instructions.
-    - _Goal_: Provide granular guidance for the drafting model.
+系統強制執行嚴格的創作流水線：
 
-5.  **Drafting (Continuation)**:
-    - Executes the final prose generation based on the breakdown.
-    - _Goal_: High-quality literary output.
+```
+Compression → Analysis → Outline → Breakdown → Drafting (Chapter 1 / Continuation)
+壓縮        → 分析      → 大綱    → 細綱      → 撰寫（首章 / 續寫）
+```
 
-## Technical Stack
+| Phase           | Purpose / 用途                                                                                             |
+| --------------- | ---------------------------------------------------------------------------------------------------------- |
+| **Compression** | Consolidates previous chapters into token-efficient summaries / 將先前章節壓縮為高效摘要                   |
+| **Analysis**    | Rule-based + LLM consistency checks against character profiles and world rules / 規則 + LLM 雙重一致性檢查 |
+| **Outline**     | Generates chapter-level narrative beats / 產生章節級敘事節拍                                               |
+| **Breakdown**   | Expands beats into scene-level instructions / 將節拍展開為場景級指令                                       |
+| **Drafting**    | Executes final prose generation / 執行最終散文生成                                                         |
 
-This project is a modern **Next.js** application leveraging a local-first philosophy.
+### Hybrid AI Engine / 混合 AI 引擎
 
-- **Framework**: [Next.js 15](https://nextjs.org/) (App Router)
-- **Language**: TypeScript / React 19
-- **Styling**: TailwindCSS v4
-- **State Management**: `zustand` (Separated stores for Settings, Novel Data, and Execution State)
-- **Persistence**: `Dexie.js` (IndexedDB wrapper) for robust client-side storage
-- **Validation**: `zod` for strict schema validation of LLM outputs
-- **Testing**:
-  - Unit: `Vitest`
-  - E2E: `Playwright`
+- **OpenRouter**: Primary provider for high-intelligence models (Claude 3.5 Sonnet, GPT-4o, etc.)
+- **NVIDIA NIM**: Optional provider for low-latency, cost-effective inference
+- **Phase Routing**: Each pipeline phase can be individually assigned to a different provider + model combination
 
-## Getting Started
+### Key Features / 核心功能
 
-### Prerequisites
+- **Consistency Checker** — A 785-line hybrid engine combining rule-based checks with LLM analysis. Tracks **character timelines** and maintains a **foreshadow ledger** (伏筆追蹤) across chapters.
+- **Auto-Mode Control** — Three generation modes:
+  - `手動 (Manual)`: Pause after each chapter for review
+  - `全自動 (Full Auto)`: Generate all remaining chapters continuously
+  - `範圍 (Range)`: Specify a custom chapter range for batch generation
+- **Version History** — Per-step version snapshots with comparison and rollback capabilities.
+- **Thinking Mode** — Built-in support for reasoning-capable models (e.g., extended thinking). Automatically probes and caches model capability.
+- **Run Scheduler** — Queue-based execution engine with abort control and concurrent run management.
+- **Streaming** — Real-time Server-Sent Events (SSE) streaming with configurable throttle control.
+- **Prompt Engine** — Template-based prompt injection system supporting pacing ratios, dramatic curve control, and structured section contracts.
 
-- **Node.js**: v20.10.0 or higher is required.
-- **API Keys**: You must have access to:
-  - [OpenRouter](https://openrouter.ai/) (for primary reasoning models)
-  - [NVIDIA NIM](https://build.nvidia.com/explore/discover) (optional, for specific fast models)
+## Technical Stack / 技術棧
 
-### Installation
+| Category    | Technology                                                    |
+| ----------- | ------------------------------------------------------------- |
+| Framework   | [Next.js 16](https://nextjs.org/) (App Router)                |
+| Language    | TypeScript / React 19                                         |
+| Styling     | TailwindCSS v4                                                |
+| State       | `zustand` (4 stores: Settings, Novel, Workflow, RunScheduler) |
+| Persistence | `Dexie.js` (IndexedDB) — local-first, no backend              |
+| Tokenizer   | Web Worker–based token estimator                              |
+| Unit Tests  | `Vitest`                                                      |
+| E2E Tests   | `Playwright`                                                  |
+| UI Language | Traditional Chinese (繁體中文)                                |
 
-1.  **Clone the repository**:
+## Project Structure / 專案結構
 
-    ```bash
-    git clone https://github.com/your-username/novel-continuation-studio.git
-    cd novel-continuation-studio
-    ```
+```
+Novel_Continuation_Studio/
+├── app/                    # Next.js App Router pages & API routes
+│   ├── api/                #   ├── nim/        (NVIDIA NIM proxy)
+│   │                       #   └── openrouter/  (OpenRouter proxy)
+│   ├── history/            # Reading room & export page
+│   └── settings/           # Provider, model, prompt configuration
+├── components/
+│   ├── ui/                 # Radix-based design system (Button, Dialog, etc.)
+│   └── workflow/           # Pipeline step components & AutoModeControl
+├── conductor/              # Orchestration logic & archived iterations
+├── hooks/                  # useStepGenerator, useWorkflowOrchestrator, etc.
+├── lib/                    # Core logic
+│   ├── consistency-checker.ts   # Rule + LLM hybrid consistency engine
+│   ├── prompt-engine.ts         # Template injection & pacing control
+│   ├── llm-client.ts            # Unified LLM client (streaming, retry)
+│   ├── db.ts                    # Dexie.js database schema & operations
+│   └── prompts.ts               # Default prompt templates (Chinese)
+├── store/                  # Zustand state stores
+├── workers/                # Web Worker (tokenizer)
+├── __tests__/              # Vitest unit tests
+└── e2e/                    # Playwright E2E tests
+```
 
-2.  **Install dependencies**:
+## Getting Started / 快速開始
 
-    ```bash
-    npm install
-    # or
-    pnpm install
-    ```
+### Prerequisites / 前置需求
 
-3.  **Configure Environment**:
-    Create a `.env.local` file in the root directory:
+- **Node.js** v20.10.0+
+- At least one API key:
+  - [OpenRouter](https://openrouter.ai/) (recommended)
+  - [NVIDIA NIM](https://build.nvidia.com/explore/discover) (optional)
 
-    ```bash
-    # Required for core functionality
-    OPENROUTER_API_KEY=sk-or-your-key-here
-
-    # Optional: For specialized routing
-    NIM_API_KEY=nvapi-your-key-here
-
-    # Optional: OpenRouter attribution
-    OPENROUTER_SITE_URL=http://localhost:3000
-    OPENROUTER_SITE_NAME=NovelContinuationStudio
-    ```
-
-4.  **Start Development Server**:
-    ```bash
-    npm run dev
-    ```
-    Access the application at `http://localhost:3000`.
-
-## Quality Assurance
-
-The project includes a suite of tests to ensure basic stability of the prompt engine and data persistence details.
+### Installation / 安裝
 
 ```bash
-# Run unit tests
+git clone https://github.com/your-username/novel-continuation-studio.git
+cd novel-continuation-studio
+npm install
+```
+
+### Environment / 環境設定
+
+Create `.env.local`:
+
+```bash
+# Required / 必填
+OPENROUTER_API_KEY=sk-or-your-key-here
+
+# Optional / 選填
+NIM_API_KEY=nvapi-your-key-here
+OPENROUTER_SITE_URL=http://localhost:3000
+OPENROUTER_SITE_NAME=NovelContinuationStudio
+```
+
+### Run / 啟動
+
+```bash
+npm run dev
+```
+
+Open `http://localhost:3000`.
+
+## Quality Assurance / 品質保證
+
+```bash
+# Type check
+npx tsc --noEmit
+
+# Lint
+npm run lint
+
+# Unit tests
 npm test
 
-# Run E2E smoke tests (requires Playwright browsers)
+# E2E (install browsers first)
 npx playwright install --with-deps chromium
 npm run e2e
 ```
 
-## Known Limitations
+## Known Limitations / 已知限制
 
-- **Browser Storage**: Database size is limited by your browser's IndexedDB quota. Large projects with many versions may hit this limit.
-- **Context Window**: Extremely long novels may degrade consistency if the compression phase fails to capture key details.
-- **Mobile Support**: The UI is optimized for desktop usage; mobile experience is currently broken/unsupported.
+| Issue / 問題        | Details / 說明                                                                                                                                                                   |
+| ------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Browser Storage** | IndexedDB has a quota limit. Large projects with many versions may hit it. / IndexedDB 有容量限制，版本過多可能觸發上限。                                                        |
+| **Context Window**  | Very long novels may degrade if compression misses key details. / 極長小說若壓縮遺漏關鍵細節，品質會下降。                                                                       |
+| **English Prompts** | System prompts are Chinese-only. English novels produce mixed-language or degraded output. / 系統 Prompt 僅中文，英文小說會產生混語或品質下降的輸出。                            |
+| **Mobile**          | Desktop-only UI. Mobile experience is broken. / 僅支援桌面瀏覽器，手機體驗不佳。                                                                                                 |
+| **Bugs**            | This is an alpha prototype. Expect frequent UI glitches, edge-case crashes, and incomplete error handling. / 此為 Alpha 原型，預期會有 UI 問題、邊界情況崩潰及不完整的錯誤處理。 |
 
 ---
 
-_Verified locally on Windows 11 / Node v20.11.0_
+_Last verified locally on Windows 11 / Node v20.11.0 — 2026-02-18_
