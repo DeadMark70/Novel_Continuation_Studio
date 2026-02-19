@@ -14,6 +14,7 @@ import { normalizeNovelText } from '@/lib/utils';
 import type { CompressionMeta } from '@/lib/compression';
 import type { WorkflowStepId } from '@/store/useWorkflowStore';
 import type { PersistedRunMeta, RunStatus, RunStepId } from '@/lib/run-types';
+import type { HarvestedTemplateCandidate } from '@/lib/llm-types';
 import type {
   CharacterTimelineEntry,
   ConsistencyCheckResult,
@@ -55,6 +56,7 @@ interface NovelState {
   characterTimeline: CharacterTimelineEntry[];
   foreshadowLedger: ForeshadowEntry[];
   latestConsistencySummary?: ConsistencySummary;
+  harvestCandidates: HarvestedTemplateCandidate[];
   runStatus: RunStatus;
   recoverableStepId?: RunStepId;
   lastRunAt?: number;
@@ -133,6 +135,8 @@ interface NovelState {
     | 'foreshadowLedger'
     | 'latestConsistencySummary'
   >>) => Promise<void>;
+  setHarvestCandidates: (candidates: HarvestedTemplateCandidate[]) => void;
+  clearHarvestCandidates: () => void;
   appendConsistencyReport: (result: ConsistencyCheckResult) => Promise<void>;
   getLatestConsistencyReport: () => ConsistencyReport | undefined;
   reset: () => Promise<void>;
@@ -239,6 +243,7 @@ export const useNovelStore = create<NovelState>((set, get) => {
   characterTimeline: [],
   foreshadowLedger: [],
   latestConsistencySummary: undefined,
+  harvestCandidates: [],
   runStatus: 'idle',
   recoverableStepId: undefined,
   lastRunAt: undefined,
@@ -518,6 +523,14 @@ export const useNovelStore = create<NovelState>((set, get) => {
     await get().persist();
   },
 
+  setHarvestCandidates: (candidates) => {
+    set({ harvestCandidates: candidates });
+  },
+
+  clearHarvestCandidates: () => {
+    set({ harvestCandidates: [] });
+  },
+
   appendConsistencyReport: async (result) => {
     set((state) => ({
       consistencyReports: [...state.consistencyReports, result.report].slice(-30),
@@ -688,6 +701,7 @@ export const useNovelStore = create<NovelState>((set, get) => {
         characterTimeline: session.characterTimeline ?? [],
         foreshadowLedger: session.foreshadowLedger ?? [],
         latestConsistencySummary: session.latestConsistencySummary,
+        harvestCandidates: [],
         runStatus: session.runStatus ?? 'idle',
         recoverableStepId: session.recoverableStepId,
         lastRunAt: session.lastRunAt,
@@ -739,6 +753,7 @@ export const useNovelStore = create<NovelState>((set, get) => {
       characterTimeline: [],
       foreshadowLedger: [],
       latestConsistencySummary: undefined,
+      harvestCandidates: [],
       runStatus: 'idle',
       recoverableStepId: undefined,
       lastRunAt: undefined,
@@ -816,6 +831,7 @@ export const useNovelStore = create<NovelState>((set, get) => {
         characterTimeline: latest.characterTimeline ?? [],
         foreshadowLedger: latest.foreshadowLedger ?? [],
         latestConsistencySummary: latest.latestConsistencySummary,
+        harvestCandidates: [],
         runStatus: latest.runStatus ?? 'idle',
         recoverableStepId: latest.recoverableStepId,
         lastRunAt: latest.lastRunAt,

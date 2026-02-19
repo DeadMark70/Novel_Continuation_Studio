@@ -20,7 +20,8 @@ type WorkflowPhaseId =
   | 'outline'
   | 'breakdown'
   | 'chapter1'
-  | 'continuation';
+  | 'continuation'
+  | 'sensoryHarvest';
 
 const DEFAULT_PHASE_IDS: WorkflowPhaseId[] = [
   'compression',
@@ -29,13 +30,17 @@ const DEFAULT_PHASE_IDS: WorkflowPhaseId[] = [
   'breakdown',
   'chapter1',
   'continuation',
+  'sensoryHarvest',
 ];
 
 const DEFAULT_MODEL_PARAMS: GenerationParams = {
   maxTokens: 4096,
   autoMaxTokens: false,
   temperature: 0.7,
-  topP: 1,
+  topP: 0.85,
+  topK: 40,
+  frequencyPenalty: 0.5,
+  presencePenalty: 0.2,
   thinkingEnabled: false,
 };
 
@@ -135,6 +140,16 @@ export interface SettingsEntry {
   providerDefaults?: Record<LLMProvider, GenerationParams>;
   modelOverrides?: Record<LLMProvider, Record<string, Partial<GenerationParams>>>;
   phaseConfig?: Partial<PhaseConfigMap>;
+  sensoryAnchorTemplates?: Array<{
+    id: string;
+    name: string;
+    content: string;
+    tags?: string[];
+  }>;
+  sensoryAutoTemplateByPhase?: {
+    chapter1?: string;
+    continuation?: string;
+  };
   updatedAt: number;
 }
 
@@ -409,6 +424,37 @@ export class NovelDatabase extends Dexie {
         }
         if (entry.autoResumeMaxRounds === undefined) {
           entry.autoResumeMaxRounds = 2;
+        }
+      });
+    });
+    this.version(12).stores({
+      novels: '++id, sessionId, updatedAt, createdAt',
+      settings: 'id, updatedAt',
+      novelBlobs: 'sessionId, updatedAt'
+    }).upgrade(async (tx) => {
+      await tx.table('settings').toCollection().modify((entry: SettingsEntry) => {
+        if (!Array.isArray(entry.sensoryAnchorTemplates) || entry.sensoryAnchorTemplates.length === 0) {
+          entry.sensoryAnchorTemplates = [{
+            id: 'sensory_default',
+            name: 'Default Sensory Focus',
+            content: [
+              'Write only concrete physical actions and sensations.',
+              'Prioritize temperature, texture, sound, breath, muscle tension, and involuntary reaction.',
+              'Avoid abstract symbolism and explanatory summary tone.',
+            ].join('\n'),
+          }];
+        }
+
+        if (!entry.sensoryAutoTemplateByPhase) {
+          entry.sensoryAutoTemplateByPhase = {
+            chapter1: 'sensory_default',
+            continuation: 'sensory_default',
+          };
+        } else {
+          entry.sensoryAutoTemplateByPhase = {
+            chapter1: entry.sensoryAutoTemplateByPhase.chapter1 ?? 'sensory_default',
+            continuation: entry.sensoryAutoTemplateByPhase.continuation ?? 'sensory_default',
+          };
         }
       });
     });

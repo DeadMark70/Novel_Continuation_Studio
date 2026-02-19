@@ -76,4 +76,23 @@ export interface PhaseModelSelection {
   model?: string;
 }
 
-export type PhaseConfigMap = Record<WorkflowStepId, PhaseModelSelection>;
+export type GenerationPhaseId = WorkflowStepId | 'sensoryHarvest';
+
+export type PhaseConfigMap = Record<GenerationPhaseId, PhaseModelSelection>;
+
+export interface SensoryAnchorTemplate {
+  id: string;
+  name: string;
+  content: string;
+  tags?: string[];
+}
+
+export interface HarvestedTemplateCandidate {
+  id: string;
+  text: string;
+  tags: string[];
+  sensoryScore: number;
+  controlLossScore: number;
+  source: 'uploaded_novel';
+  createdAt: string;
+}

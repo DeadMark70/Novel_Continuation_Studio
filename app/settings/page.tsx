@@ -21,21 +21,28 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { DEFAULT_PROMPTS } from '@/lib/prompts';
-import type { GenerationParams, LLMProvider, PhaseConfigMap, ProviderScopedSettings } from '@/lib/llm-types';
-import type { WorkflowStepId } from '@/store/useWorkflowStore';
+import type {
+  GenerationPhaseId,
+  GenerationParams,
+  LLMProvider,
+  PhaseConfigMap,
+  ProviderScopedSettings,
+  SensoryAnchorTemplate,
+} from '@/lib/llm-types';
 import type { CompressionMode } from '@/lib/compression';
 
 type PromptKey = keyof typeof DEFAULT_PROMPTS;
 
 const PROVIDERS: LLMProvider[] = ['nim', 'openrouter'];
-const PHASES: WorkflowStepId[] = ['compression', 'analysis', 'outline', 'breakdown', 'chapter1', 'continuation'];
-const PHASE_LABELS: Record<WorkflowStepId, string> = {
+const PHASES: GenerationPhaseId[] = ['compression', 'analysis', 'outline', 'breakdown', 'chapter1', 'continuation', 'sensoryHarvest'];
+const PHASE_LABELS: Record<GenerationPhaseId, string> = {
   compression: 'Phase 0 Compression',
   analysis: 'Phase 1 Analysis',
   outline: 'Phase 2 Outline',
   breakdown: 'Phase 3 Breakdown',
   chapter1: 'Phase 4 Chapter 1',
   continuation: 'Phase 5 Continuation',
+  sensoryHarvest: 'Sensory Template Harvest',
 };
 const PROMPT_KEYS = Object.keys(DEFAULT_PROMPTS) as PromptKey[];
 const PROMPT_GROUPS: Array<{ title: string; keys: PromptKey[] }> = [
@@ -79,6 +86,7 @@ const PROMPT_DESCRIPTIONS: Partial<Record<PromptKey, string>> = {
   continuationRaw: 'Generate continuation chapter using raw context.',
   consistency: 'Run consistency checks for timeline and character logic.',
 };
+const FALLBACK_PHASE_PROVIDER: LLMProvider = 'nim';
 
 function clone<T>(value: T): T {
   return JSON.parse(JSON.stringify(value));
@@ -103,7 +111,7 @@ function normalizeParams(params: GenerationParams): GenerationParams {
     maxTokens: Math.max(1, Math.floor(params.maxTokens || 4096)),
     autoMaxTokens: Boolean(params.autoMaxTokens),
     temperature: Number.isFinite(params.temperature) ? params.temperature : 0.7,
-    topP: Number.isFinite(params.topP) ? params.topP : 1,
+    topP: Number.isFinite(params.topP) ? params.topP : 0.85,
     topK: params.topK,
     frequencyPenalty: params.frequencyPenalty,
     presencePenalty: params.presencePenalty,
@@ -153,6 +161,10 @@ function parseRequiredFloatInput(raw: string, current: number): number {
   return Number.isFinite(next) ? next : current;
 }
 
+function createTemplateId(): string {
+  return `sensory_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+}
+
 export default function SettingsPage() {
   const router = useRouter();
   const settings = useSettingsStore(
@@ -163,6 +175,8 @@ export default function SettingsPage() {
       providerDefaults: state.providerDefaults,
       modelOverrides: state.modelOverrides,
       customPrompts: state.customPrompts,
+      sensoryAnchorTemplates: state.sensoryAnchorTemplates,
+      sensoryAutoTemplateByPhase: state.sensoryAutoTemplateByPhase,
       truncationThreshold: state.truncationThreshold,
       dualEndBuffer: state.dualEndBuffer,
       compressionMode: state.compressionMode,
@@ -212,6 +226,13 @@ export default function SettingsPage() {
   const [draftPrompts, setDraftPrompts] = useState<Record<string, string>>(() =>
     clone(settings.customPrompts)
   );
+  const [draftSensoryTemplates, setDraftSensoryTemplates] = useState<SensoryAnchorTemplate[]>(() =>
+    clone(settings.sensoryAnchorTemplates)
+  );
+  const [draftSensoryAutoTemplateByPhase, setDraftSensoryAutoTemplateByPhase] = useState<{
+    chapter1?: string;
+    continuation?: string;
+  }>(() => clone(settings.sensoryAutoTemplateByPhase));
   const [draftContext, setDraftContext] = useState<{
     truncationThreshold: number;
     dualEndBuffer: number;
@@ -247,6 +268,8 @@ export default function SettingsPage() {
     const nextDefaults = clone(settings.providerDefaults);
     const nextOverrides = clone(settings.modelOverrides);
     const nextPrompts = clone(settings.customPrompts);
+    const nextSensoryTemplates = clone(settings.sensoryAnchorTemplates);
+    const nextSensoryAutoByPhase = clone(settings.sensoryAutoTemplateByPhase);
     const nextContext = {
       truncationThreshold: settings.truncationThreshold,
       dualEndBuffer: settings.dualEndBuffer,
@@ -267,6 +290,8 @@ export default function SettingsPage() {
     setDraftDefaults(nextDefaults);
     setDraftOverrides(nextOverrides);
     setDraftPrompts(nextPrompts);
+    setDraftSensoryTemplates(nextSensoryTemplates);
+    setDraftSensoryAutoTemplateByPhase(nextSensoryAutoByPhase);
     setDraftContext(nextContext);
     setOverrideProvider('nim');
     setOverrideModel(nextProviders.nim.selectedModel);
@@ -278,6 +303,8 @@ export default function SettingsPage() {
       providerDefaults: nextDefaults,
       modelOverrides: nextOverrides,
       prompts: nextPrompts,
+      sensoryTemplates: nextSensoryTemplates,
+      sensoryAutoByPhase: nextSensoryAutoByPhase,
       context: nextContext,
     });
     didHydrateRef.current = true;
@@ -304,7 +331,7 @@ export default function SettingsPage() {
     }
     // one-time hydration to avoid clobbering dirty draft
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isInitialized, settings.activeProvider, settings.providers, settings.phaseConfig, settings.providerDefaults, settings.modelOverrides, settings.customPrompts, settings.truncationThreshold, settings.dualEndBuffer, settings.compressionMode, settings.compressionAutoThreshold, settings.compressionChunkSize, settings.compressionChunkOverlap, settings.compressionEvidenceSegments, settings.autoResumeOnLength, settings.autoResumePhaseAnalysis, settings.autoResumePhaseOutline, settings.autoResumeMaxRounds]);
+  }, [isInitialized, settings.activeProvider, settings.providers, settings.phaseConfig, settings.providerDefaults, settings.modelOverrides, settings.customPrompts, settings.sensoryAnchorTemplates, settings.sensoryAutoTemplateByPhase, settings.truncationThreshold, settings.dualEndBuffer, settings.compressionMode, settings.compressionAutoThreshold, settings.compressionChunkSize, settings.compressionChunkOverlap, settings.compressionEvidenceSegments, settings.autoResumeOnLength, settings.autoResumePhaseAnalysis, settings.autoResumePhaseOutline, settings.autoResumeMaxRounds]);
 
   const signature = useMemo(() => JSON.stringify({
     activeProvider: draftProvider,
@@ -313,8 +340,10 @@ export default function SettingsPage() {
     providerDefaults: draftDefaults,
     modelOverrides: draftOverrides,
     prompts: draftPrompts,
+    sensoryTemplates: draftSensoryTemplates,
+    sensoryAutoByPhase: draftSensoryAutoTemplateByPhase,
     context: draftContext,
-  }), [draftProvider, draftProviders, draftPhaseConfig, draftDefaults, draftOverrides, draftPrompts, draftContext]);
+  }), [draftProvider, draftProviders, draftPhaseConfig, draftDefaults, draftOverrides, draftPrompts, draftSensoryTemplates, draftSensoryAutoTemplateByPhase, draftContext]);
 
   const isDirty = didHydrateRef.current && signature !== initialSignatureRef.current;
 
@@ -354,8 +383,8 @@ export default function SettingsPage() {
     const next: string[] = [];
     for (const phase of PHASES) {
       const selection = draftPhaseConfig[phase];
-      const provider = selection.provider;
-      const model = selection.model?.trim() || draftProviders[provider].selectedModel?.trim();
+      const provider = selection?.provider ?? FALLBACK_PHASE_PROVIDER;
+      const model = selection?.model?.trim() || draftProviders[provider]?.selectedModel?.trim();
       if (!provider) next.push(`${phase}: provider required`);
       if (!model) next.push(`${phase}: model required`);
       if (!allowCustomModelId && model && availableModels[provider].length > 0 && !availableModels[provider].includes(model)) {
@@ -395,8 +424,9 @@ export default function SettingsPage() {
     try {
       const normalizedPhaseConfig = PHASES.reduce((acc, phase) => {
         const selection = draftPhaseConfig[phase];
-        const model = selection.model?.trim() || draftProviders[selection.provider].selectedModel;
-        acc[phase] = { provider: selection.provider, model };
+        const provider = selection?.provider ?? FALLBACK_PHASE_PROVIDER;
+        const model = selection?.model?.trim() || draftProviders[provider].selectedModel;
+        acc[phase] = { provider, model };
         return acc;
       }, {} as PhaseConfigMap);
 
@@ -430,6 +460,8 @@ export default function SettingsPage() {
         },
         modelOverrides: normalizedOverrides,
         customPrompts: normalizedPrompts,
+        sensoryAnchorTemplates: draftSensoryTemplates,
+        sensoryAutoTemplateByPhase: draftSensoryAutoTemplateByPhase,
         context: draftContext,
       });
 
@@ -448,6 +480,10 @@ export default function SettingsPage() {
   const selectedOverrideModel = (overrideModel || draftProviders[overrideProvider].selectedModel).trim();
   const hasSelectedOverrideModel = selectedOverrideModel.length > 0;
   const selectedOverrideValue = draftOverrides[overrideProvider]?.[selectedOverrideModel] || {};
+  const sensoryTemplateOptions = useMemo(
+    () => draftSensoryTemplates.map((entry) => ({ id: entry.id, name: entry.name })),
+    [draftSensoryTemplates]
+  );
   const canInteract = isInitialized && didHydrateRef.current;
   const handleBackToStudio = () => {
     if (isDirty) {
@@ -561,7 +597,10 @@ export default function SettingsPage() {
               Allow manual model IDs
             </label>
             {PHASES.map((phase) => {
-              const selection = draftPhaseConfig[phase];
+              const selection = draftPhaseConfig[phase] ?? {
+                provider: FALLBACK_PHASE_PROVIDER,
+                model: draftProviders[FALLBACK_PHASE_PROVIDER].selectedModel,
+              };
               return (
                 <div key={phase} className="grid grid-cols-1 lg:grid-cols-4 gap-3 rounded-lg border border-border p-3">
                   <div>{PHASE_LABELS[phase]}</div>
@@ -595,7 +634,7 @@ export default function SettingsPage() {
             {PROVIDERS.map((provider) => (
               <div key={provider} className="rounded-lg border border-border p-3 space-y-3">
                 <h3 className="font-semibold uppercase text-sm">{provider} defaults</h3>
-                <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+                <div className="grid grid-cols-2 lg:grid-cols-6 gap-3">
                   <div className="space-y-1">
                     <Label htmlFor={`${provider}-default-maxTokens`}>max_tokens</Label>
                     <Input
@@ -703,6 +742,40 @@ export default function SettingsPage() {
                       <p className="text-[11px] text-destructive">{getParamValidationMessage('topK', draftDefaults[provider].topK)}</p>
                     )}
                   </div>
+                  <div className="space-y-1">
+                    <Label htmlFor={`${provider}-default-frequencyPenalty`}>frequency_penalty</Label>
+                    <Input
+                      id={`${provider}-default-frequencyPenalty`}
+                      name={`${provider}-default-frequencyPenalty`}
+                      type="number"
+                      step="0.1"
+                      value={draftDefaults[provider].frequencyPenalty ?? ''}
+                      onChange={(e) => setDraftDefaults((prev) => ({
+                        ...prev,
+                        [provider]: {
+                          ...prev[provider],
+                          frequencyPenalty: e.target.value ? parseFloat(e.target.value) : undefined,
+                        },
+                      }))}
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label htmlFor={`${provider}-default-presencePenalty`}>presence_penalty</Label>
+                    <Input
+                      id={`${provider}-default-presencePenalty`}
+                      name={`${provider}-default-presencePenalty`}
+                      type="number"
+                      step="0.1"
+                      value={draftDefaults[provider].presencePenalty ?? ''}
+                      onChange={(e) => setDraftDefaults((prev) => ({
+                        ...prev,
+                        [provider]: {
+                          ...prev[provider],
+                          presencePenalty: e.target.value ? parseFloat(e.target.value) : undefined,
+                        },
+                      }))}
+                    />
+                  </div>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                   <div className="rounded border border-border p-3 space-y-2">
@@ -778,7 +851,7 @@ export default function SettingsPage() {
                   <datalist id={`override-${overrideProvider}-models`}>{availableModels[overrideProvider].map((m) => <option key={`override-${m}`} value={m} />)}</datalist>
                 </div>
               </div>
-              <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+              <div className="grid grid-cols-2 lg:grid-cols-6 gap-3">
                 <div className="space-y-1">
                   <Label htmlFor="override-maxTokens">max_tokens</Label>
                     <Input
@@ -869,6 +942,48 @@ export default function SettingsPage() {
                       <p className="text-[11px] text-destructive">{getParamValidationMessage('topK', selectedOverrideValue.topK)}</p>
                     )}
                   </div>
+                  <div className="space-y-1">
+                    <Label htmlFor="override-frequencyPenalty">frequency_penalty</Label>
+                    <Input
+                      id="override-frequencyPenalty"
+                      name="override-frequencyPenalty"
+                      type="number"
+                      step="0.1"
+                      disabled={!hasSelectedOverrideModel}
+                      value={selectedOverrideValue.frequencyPenalty ?? ''}
+                      onChange={(e) => setDraftOverrides((prev) => ({
+                        ...prev,
+                        [overrideProvider]: {
+                          ...prev[overrideProvider],
+                          [selectedOverrideModel]: {
+                            ...(prev[overrideProvider]?.[selectedOverrideModel] || {}),
+                            frequencyPenalty: e.target.value ? parseFloat(e.target.value) : undefined,
+                          },
+                        },
+                      }))}
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label htmlFor="override-presencePenalty">presence_penalty</Label>
+                    <Input
+                      id="override-presencePenalty"
+                      name="override-presencePenalty"
+                      type="number"
+                      step="0.1"
+                      disabled={!hasSelectedOverrideModel}
+                      value={selectedOverrideValue.presencePenalty ?? ''}
+                      onChange={(e) => setDraftOverrides((prev) => ({
+                        ...prev,
+                        [overrideProvider]: {
+                          ...prev[overrideProvider],
+                          [selectedOverrideModel]: {
+                            ...(prev[overrideProvider]?.[selectedOverrideModel] || {}),
+                            presencePenalty: e.target.value ? parseFloat(e.target.value) : undefined,
+                          },
+                        },
+                      }))}
+                    />
+                  </div>
                 </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 <div className="rounded border border-border p-3 space-y-2">
@@ -938,6 +1053,7 @@ export default function SettingsPage() {
                     <p>
                       max_tokens={resolved.params.autoMaxTokens ? 'auto' : resolved.params.maxTokens} temperature={resolved.params.temperature} top_p={resolved.params.topP} top_k={resolved.params.topK ?? 'n/a'}
                     </p>
+                    <p>frequency_penalty={resolved.params.frequencyPenalty ?? 'n/a'} presence_penalty={resolved.params.presencePenalty ?? 'n/a'}</p>
                     <p>thinking_enabled={resolved.params.thinkingEnabled ? 'true' : 'false'} thinking_budget={resolved.params.thinkingBudget ?? 'n/a'}</p>
                   </div>
                 );
@@ -1038,6 +1154,115 @@ export default function SettingsPage() {
                   <p className="text-[11px] text-muted-foreground">
                     Max automatic continuation rounds per step/task (1-4).
                   </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="rounded-lg border border-border p-3 space-y-3">
+              <div className="flex items-center justify-between">
+                <h3 className="font-semibold uppercase text-sm">Sensory Anchor Templates</h3>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setDraftSensoryTemplates((prev) => ([
+                    ...prev,
+                    {
+                      id: createTemplateId(),
+                      name: `Template ${prev.length + 1}`,
+                      content: '',
+                    },
+                  ]))}
+                >
+                  Add Template
+                </Button>
+              </div>
+
+              <div className="space-y-3">
+                {draftSensoryTemplates.map((template) => (
+                  <div key={template.id} className="rounded border border-border p-3 space-y-2">
+                    <div className="flex items-center gap-2">
+                      <Input
+                        value={template.name}
+                        onChange={(e) => setDraftSensoryTemplates((prev) => prev.map((entry) => (
+                          entry.id === template.id
+                            ? { ...entry, name: e.target.value }
+                            : entry
+                        )))}
+                        placeholder="Template name"
+                      />
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => {
+                          setDraftSensoryTemplates((prev) => prev.filter((entry) => entry.id !== template.id));
+                          setDraftSensoryAutoTemplateByPhase((prev) => ({
+                            chapter1: prev.chapter1 === template.id ? undefined : prev.chapter1,
+                            continuation: prev.continuation === template.id ? undefined : prev.continuation,
+                          }));
+                        }}
+                        disabled={draftSensoryTemplates.length <= 1}
+                      >
+                        Delete
+                      </Button>
+                    </div>
+                    <Textarea
+                      value={template.content}
+                      onChange={(e) => setDraftSensoryTemplates((prev) => prev.map((entry) => (
+                        entry.id === template.id
+                          ? { ...entry, content: e.target.value }
+                          : entry
+                      )))}
+                      className="min-h-[96px] text-xs font-mono"
+                      placeholder="Concrete sensory constraints for chapter generation..."
+                    />
+                  </div>
+                ))}
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <Label htmlFor="sensory-auto-chapter1">chapter1_auto_template</Label>
+                  <Select
+                    value={draftSensoryAutoTemplateByPhase.chapter1 ?? '__none__'}
+                    onValueChange={(value) => setDraftSensoryAutoTemplateByPhase((prev) => ({
+                      ...prev,
+                      chapter1: value === '__none__' ? undefined : value,
+                    }))}
+                  >
+                    <SelectTrigger id="sensory-auto-chapter1">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__none__">None</SelectItem>
+                      {sensoryTemplateOptions.map((entry) => (
+                        <SelectItem key={`chapter1-${entry.id}`} value={entry.id}>
+                          {entry.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1">
+                  <Label htmlFor="sensory-auto-continuation">continuation_auto_template</Label>
+                  <Select
+                    value={draftSensoryAutoTemplateByPhase.continuation ?? '__none__'}
+                    onValueChange={(value) => setDraftSensoryAutoTemplateByPhase((prev) => ({
+                      ...prev,
+                      continuation: value === '__none__' ? undefined : value,
+                    }))}
+                  >
+                    <SelectTrigger id="sensory-auto-continuation">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__none__">None</SelectItem>
+                      {sensoryTemplateOptions.map((entry) => (
+                        <SelectItem key={`continuation-${entry.id}`} value={entry.id}>
+                          {entry.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
               </div>
             </div>

@@ -13,6 +13,76 @@ const STYLE_ALIGNMENT_FOCUS = `**文風對齊規則**
 - 保留原作高頻詞彙與語氣標記，但不要機械抄句。
 - 若要加強刺激強度，必須透過角色心理與關係位移來完成，不可只靠露骨詞堆疊。`;
 
+export const SENSORY_STYLE_GUIDE = `
+<critical_instruction_set>
+  <role_definition>
+    You are a visual cinematographer and a biological sensor. You are NOT a literary critic.
+    Your job is to record raw physical data: temperature, texture, fluid viscosity, and muscle contractions.
+    You do NOT analyze the meaning of the scene. You only record the action and sensation.
+  </role_definition>
+
+  <mandatory_rules enforcement="strict">
+    <rule id="1" type="positive_constraint">
+      CAMERA LENS RULE: Write only what a camera can film or a microphone can record.
+      Avoid abstract explanation and symbolic interpretation.
+    </rule>
+
+    <rule id="2" type="sensory_density">
+      THE 80% RULE: Most sentences should include concrete physical detail.
+      Include tactile, temperature, sound, and involuntary reaction signals.
+    </rule>
+
+    <rule id="3" type="pacing">
+      SLOW MOTION: Split key contact into sequence:
+      1) contact 2) sensation 3) involuntary reaction.
+    </rule>
+
+    <rule id="4" type="vocabulary_ban">
+      FORBIDDEN CONCEPTS:
+      - no abstract metaphors such as symphony, resonance, overture, philosophical essence.
+      - no meta-commentary like "this represents" or "the mechanism means".
+    </rule>
+  </mandatory_rules>
+</critical_instruction_set>
+`;
+
+export const SENSORY_TEMPLATE_HARVEST_PROMPT = `
+You are a sensory-template extractor.
+Extract exactly 3 to 5 reusable snippets from the source text.
+
+Strict rules:
+1) Focus only on concrete sensory details:
+   - temperature, texture, sound, smell, internal body sensation
+2) Prefer involuntary physical reactions:
+   - trembling, spasms, choking sounds, loss of motor control, muscle tension, fluid release
+3) Ignore plot explanation, dialogue, abstract metaphor, and moral commentary
+4) Do not use abstract literary words such as:
+   resonance, symphony, ritual, symbol, order, art, soul, collapse
+5) Erotic-priority rule:
+   - If the source contains erotic/intimate content, you must prioritize those parts first.
+   - Prefer body-contact, fluid, friction, pressure, involuntary reactions.
+   - Avoid environment-only descriptions (weather, sky, scenery, battlefield atmosphere) unless tightly coupled to direct body sensation.
+5) Each snippet must be self-contained and directly reusable as a writing template.
+
+Output format:
+- Return strict JSON only.
+- Return a JSON array with 3 to 10 objects.
+- Every object must match:
+  {
+    "text": "string",
+    "tags": ["string", "string"],
+    "sensoryScore": 0.0,
+    "controlLossScore": 0.0
+  }
+- tags must be Traditional Chinese short labels (1-6 chars), for example:
+  "百合", "觸感質地", "強制絶頂", "拘束", "貞操帯", "監禁", "快楽責め", "拘束衣", "媚薬", "寸止".
+- No markdown fences.
+- No additional keys.
+
+Source text:
+{{NOVEL_TEXT}}
+`;
+
 const OUTLINE_COMPRESSED_PROMPT = `基於以下資訊，為這部成人小說生成續寫大綱。
 
 **壓縮上下文：**
@@ -309,6 +379,8 @@ const CHAPTER1_COMPRESSED_PROMPT = `基於所有前置資訊，撰寫續寫的�
 ${EROTIC_CONTINUATION_FOCUS}
 ${STYLE_ALIGNMENT_FOCUS}
 ${ADULT_FICTION_GUARDRAILS}
+{{SENSORY_STYLE_GUIDE_SECTION}}
+{{SENSORY_FOCUS_SECTION}}
 
 **輸出：** 直接輸出小說文本，無需分析或註釋。`;
 
@@ -339,6 +411,8 @@ const CHAPTER1_RAW_PROMPT = `基於原文與前置分析，撰寫續寫的第一
 ${EROTIC_CONTINUATION_FOCUS}
 ${STYLE_ALIGNMENT_FOCUS}
 ${ADULT_FICTION_GUARDRAILS}
+{{SENSORY_STYLE_GUIDE_SECTION}}
+{{SENSORY_FOCUS_SECTION}}
 
 **輸出：** 直接輸出小說文本，無需分析或註釋。`;
 
@@ -384,6 +458,8 @@ const CONTINUATION_COMPRESSED_PROMPT = `基於所有資訊和已生成章節，�
 ${EROTIC_CONTINUATION_FOCUS}
 ${STYLE_ALIGNMENT_FOCUS}
 ${ADULT_FICTION_GUARDRAILS}
+{{SENSORY_STYLE_GUIDE_SECTION}}
+{{SENSORY_FOCUS_SECTION}}
 
 **輸出：** 直接輸出小說文本，無需分析或註釋。`;
 
@@ -417,6 +493,8 @@ const CONTINUATION_RAW_PROMPT = `基於原文與已生成章節，撰寫下一�
 ${EROTIC_CONTINUATION_FOCUS}
 ${STYLE_ALIGNMENT_FOCUS}
 ${ADULT_FICTION_GUARDRAILS}
+{{SENSORY_STYLE_GUIDE_SECTION}}
+{{SENSORY_FOCUS_SECTION}}
 
 **輸出：** 直接輸出小說文本，無需分析或註釋。`;
 

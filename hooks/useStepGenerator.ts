@@ -282,6 +282,7 @@ export function useStepGenerator() {
     sessionId,
     stepId,
     userNotes,
+    sensoryAnchors,
     continuationPolicy,
     signal,
     onProgress,
@@ -290,6 +291,7 @@ export function useStepGenerator() {
     sessionId: string;
     stepId: WorkflowStepId;
     userNotes?: string;
+    sensoryAnchors?: string;
     source: 'manual' | 'auto';
     continuationPolicy?: AutoContinuationPolicy;
     signal: AbortSignal;
@@ -321,6 +323,8 @@ export function useStepGenerator() {
         compressionChunkSize,
         compressionChunkOverlap,
         compressionEvidenceSegments,
+        sensoryAnchorTemplates = [],
+        sensoryAutoTemplateByPhase = {},
         autoResumeOnLength,
         autoResumePhaseAnalysis,
         autoResumePhaseOutline,
@@ -346,6 +350,19 @@ export function useStepGenerator() {
       const evidencePack = sessionSnapshot.evidencePack ?? '';
       const eroticPack = sessionSnapshot.eroticPack ?? '';
       const compressedContext = sessionSnapshot.compressedContext ?? '';
+      const manualSensoryAnchors = sensoryAnchors?.trim();
+      const autoTemplateId = stepId === 'chapter1'
+        ? sensoryAutoTemplateByPhase.chapter1
+        : stepId === 'continuation'
+          ? sensoryAutoTemplateByPhase.continuation
+          : undefined;
+      const autoTemplate = autoTemplateId
+        ? sensoryAnchorTemplates.find((entry) => entry.id === autoTemplateId)
+        : undefined;
+      const resolvedSensoryAnchors = manualSensoryAnchors || autoTemplate?.content?.trim() || undefined;
+      const resolvedSensoryTemplateName = manualSensoryAnchors
+        ? undefined
+        : autoTemplate?.name;
 
       let generationConfig = settingsState.getResolvedGenerationConfig(stepId);
       if (
@@ -842,6 +859,8 @@ export function useStepGenerator() {
             compressionOutline,
             evidencePack,
             eroticPack,
+            sensoryAnchors: resolvedSensoryAnchors,
+            sensoryTemplateName: resolvedSensoryTemplateName,
           }
         );
 
@@ -1393,7 +1412,14 @@ export function useStepGenerator() {
     });
   }, [executeRun, setRunExecutor]);
 
-  const generate = useCallback((stepId: WorkflowStepId, userNotes?: string, sessionId?: string) => {
+  const generate = useCallback((
+    stepId: WorkflowStepId,
+    userNotesOrOptions?: string | { userNotes?: string; sensoryAnchors?: string },
+    sessionId?: string
+  ) => {
+    const options = typeof userNotesOrOptions === 'string' || userNotesOrOptions === undefined
+      ? { userNotes: userNotesOrOptions, sensoryAnchors: undefined }
+      : userNotesOrOptions;
     const resolvedSessionId = sessionId ?? useNovelStore.getState().currentSessionId;
     const continuationPolicy = stepId === 'continuation'
       ? (resolveActiveContinuationPolicy(resolvedSessionId) ?? undefined)
@@ -1401,12 +1427,19 @@ export function useStepGenerator() {
     const runId = useRunSchedulerStore.getState().enqueueRun({
       sessionId: resolvedSessionId,
       stepId: stepId as RunStepId,
-      userNotes,
+      userNotes: options.userNotes,
+      sensoryAnchors: options.sensoryAnchors,
       source: 'manual',
       continuationPolicy,
     });
     if (!runId) {
       console.warn(`[Generator] Ignored ${stepId} for ${resolvedSessionId}: session is already running or queued.`);
+      if (resolvedSessionId === useNovelStore.getState().currentSessionId) {
+        useWorkflowStore.getState().setStepError(
+          stepId,
+          'Run ignored: this session already has a queued/running task. Stop current run or wait for completion.'
+        );
+      }
       return;
     }
     void useNovelStore.getState().setSessionRunMeta(resolvedSessionId, {

@@ -148,6 +148,8 @@ describe('useSettingsStore', () => {
         providerDefaults: before.providerDefaults,
         modelOverrides: { nim: {}, openrouter: {} },
         customPrompts: before.customPrompts,
+        sensoryAnchorTemplates: before.sensoryAnchorTemplates,
+        sensoryAutoTemplateByPhase: before.sensoryAutoTemplateByPhase,
         context: {
           truncationThreshold: before.truncationThreshold,
           dualEndBuffer: before.dualEndBuffer,
@@ -179,6 +181,8 @@ describe('useSettingsStore', () => {
         providerDefaults: before.providerDefaults,
         modelOverrides: before.modelOverrides,
         customPrompts: before.customPrompts,
+        sensoryAnchorTemplates: before.sensoryAnchorTemplates,
+        sensoryAutoTemplateByPhase: before.sensoryAutoTemplateByPhase,
         context: {
           truncationThreshold: before.truncationThreshold,
           dualEndBuffer: before.dualEndBuffer,
@@ -219,6 +223,8 @@ describe('useSettingsStore', () => {
         providerDefaults: state.providerDefaults,
         modelOverrides: state.modelOverrides,
         customPrompts: state.customPrompts,
+        sensoryAnchorTemplates: state.sensoryAnchorTemplates,
+        sensoryAutoTemplateByPhase: state.sensoryAutoTemplateByPhase,
         context: {
           truncationThreshold: state.truncationThreshold,
           dualEndBuffer: state.dualEndBuffer,
@@ -248,5 +254,86 @@ describe('useSettingsStore', () => {
     const reloaded = useSettingsStore.getState();
     expect(reloaded.providers.openrouter.selectedModel).toBe(customModel);
     expect(reloaded.activeProvider).toBe('openrouter');
+  });
+
+  it('uses anti-purple default params and persists sensory template config', async () => {
+    const initial = useSettingsStore.getState();
+    expect(initial.providerDefaults.nim.topP).toBe(0.85);
+    expect(initial.providerDefaults.nim.topK).toBe(40);
+    expect(initial.providerDefaults.nim.frequencyPenalty).toBe(0.5);
+    expect(initial.providerDefaults.nim.presencePenalty).toBe(0.2);
+
+    const nextTemplates = [
+      { id: 'sensory_a', name: 'A', content: 'cold + sticky + breath', tags: [] },
+      { id: 'sensory_b', name: 'B', content: 'metal scrape + shallow breath', tags: [] },
+    ];
+    await act(async () => {
+      await useSettingsStore.getState().applySettingsSnapshot({
+        activeProvider: initial.activeProvider,
+        providers: initial.providers,
+        phaseConfig: initial.phaseConfig,
+        providerDefaults: initial.providerDefaults,
+        modelOverrides: initial.modelOverrides,
+        customPrompts: initial.customPrompts,
+        sensoryAnchorTemplates: nextTemplates,
+        sensoryAutoTemplateByPhase: {
+          chapter1: 'sensory_b',
+          continuation: 'sensory_a',
+        },
+        context: {
+          truncationThreshold: initial.truncationThreshold,
+          dualEndBuffer: initial.dualEndBuffer,
+          compressionMode: initial.compressionMode,
+          compressionAutoThreshold: initial.compressionAutoThreshold,
+          compressionChunkSize: initial.compressionChunkSize,
+          compressionChunkOverlap: initial.compressionChunkOverlap,
+          compressionEvidenceSegments: initial.compressionEvidenceSegments,
+          autoResumeOnLength: initial.autoResumeOnLength,
+          autoResumePhaseAnalysis: initial.autoResumePhaseAnalysis,
+          autoResumePhaseOutline: initial.autoResumePhaseOutline,
+          autoResumeMaxRounds: initial.autoResumeMaxRounds,
+        },
+      });
+    });
+
+    const state = useSettingsStore.getState();
+    expect(state.sensoryAnchorTemplates).toEqual(nextTemplates);
+    expect(state.sensoryAutoTemplateByPhase.chapter1).toBe('sensory_b');
+    expect(state.sensoryAutoTemplateByPhase.continuation).toBe('sensory_a');
+  });
+
+  it('adds harvested sensory templates with dedupe', async () => {
+    const before = useSettingsStore.getState();
+    const initialCount = before.sensoryAnchorTemplates.length;
+
+    await act(async () => {
+      await useSettingsStore.getState().addSensoryTemplatesFromHarvest([
+        {
+          id: 'h1',
+          text: 'Cold slime coated her thigh and dripped slowly.',
+          tags: ['cold', 'slime'],
+          sensoryScore: 0.9,
+          controlLossScore: 0.8,
+          source: 'uploaded_novel',
+          createdAt: new Date().toISOString(),
+        },
+        {
+          id: 'h2',
+          text: 'Cold slime coated her thigh and dripped slowly.',
+          tags: ['dup'],
+          sensoryScore: 0.4,
+          controlLossScore: 0.4,
+          source: 'uploaded_novel',
+          createdAt: new Date().toISOString(),
+        },
+      ]);
+    });
+
+    const after = useSettingsStore.getState();
+    expect(after.sensoryAnchorTemplates.length).toBe(initialCount + 1);
+    const added = after.sensoryAnchorTemplates.find((entry) => entry.content === 'Cold slime coated her thigh and dripped slowly.');
+    expect(added).toBeDefined();
+    expect(added?.name.startsWith('收割-')).toBe(true);
+    expect(added?.tags?.every((tag) => /[\u3400-\u9FFF]/.test(tag))).toBe(true);
   });
 });

@@ -10,14 +10,23 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Play, StopCircle, RefreshCw, ArrowDownRight } from 'lucide-react';
 import { Textarea } from '@/components/ui/textarea';
+import { Label } from '@/components/ui/label';
 import { resolveWorkflowMode } from '@/lib/workflow-mode';
+import { mergeSensoryAnchorBlocks } from '@/lib/sensory-anchors';
 
 export const StepChapter1: React.FC = () => {
   const { steps, startStep } = useWorkflowStore();
-  const { compressionMode, compressionAutoThreshold } = useSettingsStore(
+  const {
+    compressionMode,
+    compressionAutoThreshold,
+    sensoryAnchorTemplates,
+    sensoryAutoTemplateByPhase,
+  } = useSettingsStore(
     useShallow((state) => ({
       compressionMode: state.compressionMode,
       compressionAutoThreshold: state.compressionAutoThreshold,
+      sensoryAnchorTemplates: state.sensoryAnchorTemplates,
+      sensoryAutoTemplateByPhase: state.sensoryAutoTemplateByPhase,
     }))
   );
   const { wordCount, compressedContext } = useNovelStore(
@@ -27,6 +36,31 @@ export const StepChapter1: React.FC = () => {
     }))
   );
   const { generate, stop } = useStepGenerator();
+  const [sensoryAnchors, setSensoryAnchors] = React.useState('');
+  const [selectedTemplateIds, setSelectedTemplateIds] = React.useState<string[]>([]);
+
+  React.useEffect(() => {
+    const validTemplateIds = new Set(sensoryAnchorTemplates.map((entry) => entry.id));
+    const autoTemplateId = sensoryAutoTemplateByPhase.chapter1;
+    setSelectedTemplateIds((current) => {
+      const filtered = current.filter((id) => validTemplateIds.has(id));
+      if (filtered.length > 0) {
+        return filtered;
+      }
+      if (autoTemplateId && validTemplateIds.has(autoTemplateId)) {
+        return [autoTemplateId];
+      }
+      return [];
+    });
+  }, [sensoryAutoTemplateByPhase.chapter1, sensoryAnchorTemplates]);
+
+  const toggleTemplate = React.useCallback((id: string) => {
+    setSelectedTemplateIds((current) => (
+      current.includes(id)
+        ? current.filter((entry) => entry !== id)
+        : [...current, id]
+    ));
+  }, []);
   
   const step = steps.chapter1;
   const isStreaming = step.status === 'streaming';
@@ -65,7 +99,12 @@ export const StepChapter1: React.FC = () => {
               <StopCircle className="size-4 mr-2" /> Stop
             </Button>
           ) : (
-            <Button size="sm" onClick={() => generate('chapter1')}>
+            <Button
+              size="sm"
+              onClick={() => generate('chapter1', {
+                sensoryAnchors: sensoryAnchors.trim() || undefined,
+              })}
+            >
               {isCompleted ? <RefreshCw className="size-4 mr-2" /> : <Play className="size-4 mr-2" />}
               {isCompleted ? 'Regenerate' : 'Generate Chapter 1'}
             </Button>
@@ -73,6 +112,57 @@ export const StepChapter1: React.FC = () => {
         </div>
       </CardHeader>
       <CardContent>
+        <div className="space-y-2 mb-4">
+          <div className="flex items-center gap-2">
+            <Label className="text-xs font-mono">Sensory Anchors (Optional)</Label>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={() => {
+                const selectedBlocks = sensoryAnchorTemplates
+                  .filter((entry) => selectedTemplateIds.includes(entry.id))
+                  .map((entry) => entry.content);
+                setSensoryAnchors((current) => mergeSensoryAnchorBlocks(current, selectedBlocks));
+              }}
+              disabled={selectedTemplateIds.length === 0}
+            >
+              Apply Selected Templates
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="ghost"
+              onClick={() => setSelectedTemplateIds([])}
+              disabled={selectedTemplateIds.length === 0}
+            >
+              Clear Selection
+            </Button>
+          </div>
+          <div className="flex flex-wrap gap-2 rounded border border-border/60 p-2">
+            {sensoryAnchorTemplates.map((entry) => {
+              const selected = selectedTemplateIds.includes(entry.id);
+              return (
+                <Button
+                  key={entry.id}
+                  type="button"
+                  size="sm"
+                  variant={selected ? 'default' : 'outline'}
+                  className="h-7 px-2 text-[11px]"
+                  onClick={() => toggleTemplate(entry.id)}
+                >
+                  {entry.name}
+                </Button>
+              );
+            })}
+          </div>
+          <Textarea
+            value={sensoryAnchors}
+            onChange={(event) => setSensoryAnchors(event.target.value)}
+            placeholder="Concrete sensations only: temperature, texture, breath, sound, involuntary reaction..."
+            className="min-h-[110px] text-xs font-mono"
+          />
+        </div>
         <Textarea 
           readOnly 
           value={step.content} 

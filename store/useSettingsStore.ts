@@ -5,14 +5,16 @@ import {
   fetchModelsByProvider,
 } from '@/lib/nim-client';
 import type {
+  GenerationPhaseId,
   GenerationParams,
+  HarvestedTemplateCandidate,
   LLMProvider,
   ModelCapability,
   PhaseConfigMap,
   PhaseModelSelection,
   ProviderScopedSettings,
+  SensoryAnchorTemplate,
 } from '@/lib/llm-types';
-import type { WorkflowStepId } from '@/store/useWorkflowStore';
 import { getModelCapabilityOverride } from '@/lib/nim-model-overrides';
 import {
   DEFAULT_COMPRESSION_AUTO_THRESHOLD,
@@ -22,19 +24,23 @@ import {
   DEFAULT_COMPRESSION_MODE,
   type CompressionMode,
 } from '@/lib/compression';
+import { buildHarvestTemplateName, sanitizeSensoryTags } from '@/lib/sensory-tags';
 
 const CAPABILITY_CACHE_TTL_MS = 10 * 60 * 1000;
 
 const DEFAULT_NIM_MODEL = 'meta/llama3-70b-instruct';
 const DEFAULT_OPENROUTER_MODEL = 'openai/gpt-4o-mini';
-const DEFAULT_PHASES: WorkflowStepId[] = [
+const DEFAULT_SENSORY_TEMPLATE_ID = 'sensory_default';
+const DEFAULT_PHASES: GenerationPhaseId[] = [
   'compression',
   'analysis',
   'outline',
   'breakdown',
   'chapter1',
   'continuation',
+  'sensoryHarvest',
 ];
+const MAX_SENSORY_TAGS = 8;
 
 function isCapabilityFresh(capability?: ModelCapability): boolean {
   if (!capability) {
@@ -102,17 +108,103 @@ function createDefaultProviderDefaults(): Record<LLMProvider, GenerationParams> 
       maxTokens: 4096,
       autoMaxTokens: false,
       temperature: 0.7,
-      topP: 1,
+      topP: 0.85,
+      topK: 40,
+      frequencyPenalty: 0.5,
+      presencePenalty: 0.2,
       thinkingEnabled: false,
     },
     openrouter: {
       maxTokens: 4096,
       autoMaxTokens: false,
       temperature: 0.7,
-      topP: 1,
+      topP: 0.85,
+      topK: 40,
+      frequencyPenalty: 0.5,
+      presencePenalty: 0.2,
       thinkingEnabled: false,
     },
   };
+}
+
+function createDefaultSensoryAnchorTemplates(): SensoryAnchorTemplate[] {
+  return [
+    {
+      id: DEFAULT_SENSORY_TEMPLATE_ID,
+      name: 'Default Sensory Focus',
+      content: [
+        'Write only concrete physical actions and sensations.',
+        'Prioritize temperature, texture, sound, breath, muscle tension, and involuntary reaction.',
+        'Avoid abstract symbolism and explanatory summary tone.',
+      ].join('\n'),
+      tags: ['基礎', '感官'],
+    },
+  ];
+}
+
+function normalizeTemplateContent(content: string): string {
+  return content.replace(/\s+/g, ' ').trim().toLowerCase();
+}
+
+function sanitizeTemplateTags(tags: unknown): string[] {
+  return sanitizeSensoryTags(tags, MAX_SENSORY_TAGS);
+}
+
+function createSensoryTemplateId(prefix = 'sensory_harvest'): string {
+  return `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+}
+
+function sanitizeSensoryAnchorTemplates(
+  value?: SensoryAnchorTemplate[]
+): SensoryAnchorTemplate[] {
+  const fallback = createDefaultSensoryAnchorTemplates();
+  if (!Array.isArray(value) || value.length === 0) {
+    return fallback;
+  }
+
+  const sanitized: SensoryAnchorTemplate[] = [];
+  for (const item of value) {
+    const id = item?.id?.trim();
+    const name = item?.name?.trim();
+    const content = item?.content?.trim();
+    if (!id || !name || !content) {
+      continue;
+    }
+    if (sanitized.some((entry) => entry.id === id)) {
+      continue;
+    }
+    sanitized.push({
+      id,
+      name,
+      content,
+      tags: sanitizeTemplateTags(item?.tags),
+    });
+  }
+
+  return sanitized.length > 0 ? sanitized : fallback;
+}
+
+function createDefaultSensoryAutoTemplateByPhase(): {
+  chapter1?: string;
+  continuation?: string;
+} {
+  return {
+    chapter1: DEFAULT_SENSORY_TEMPLATE_ID,
+    continuation: DEFAULT_SENSORY_TEMPLATE_ID,
+  };
+}
+
+function sanitizeSensoryAutoTemplateByPhase(
+  value: { chapter1?: string; continuation?: string } | undefined,
+  templates: SensoryAnchorTemplate[]
+): { chapter1?: string; continuation?: string } {
+  const fallback = createDefaultSensoryAutoTemplateByPhase();
+  const validIds = new Set(templates.map((entry) => entry.id));
+  const chapter1 = value?.chapter1 && validIds.has(value.chapter1) ? value.chapter1 : fallback.chapter1;
+  const continuation = value?.continuation && validIds.has(value.continuation)
+    ? value.continuation
+    : fallback.continuation;
+  return { chapter1, continuation };
 }
 
 function createDefaultPhaseConfig(): PhaseConfigMap {
@@ -123,6 +215,7 @@ function createDefaultPhaseConfig(): PhaseConfigMap {
     breakdown: { provider: 'nim', model: DEFAULT_NIM_MODEL },
     chapter1: { provider: 'nim', model: DEFAULT_NIM_MODEL },
     continuation: { provider: 'nim', model: DEFAULT_NIM_MODEL },
+    sensoryHarvest: { provider: 'nim', model: DEFAULT_NIM_MODEL },
   };
 }
 
@@ -137,6 +230,20 @@ function normalizeGenerationParams(
     autoMaxTokens: Boolean(params?.autoMaxTokens),
     temperature: Number.isFinite(params?.temperature) ? Number(params?.temperature) : fallback.temperature,
     topP: Number.isFinite(params?.topP) ? Number(params?.topP) : fallback.topP,
+    topK: Number.isFinite(params?.topK)
+      ? Math.max(1, Math.floor(Number(params?.topK)))
+      : fallback.topK,
+    frequencyPenalty: Number.isFinite(params?.frequencyPenalty)
+      ? Number(params?.frequencyPenalty)
+      : fallback.frequencyPenalty,
+    presencePenalty: Number.isFinite(params?.presencePenalty)
+      ? Number(params?.presencePenalty)
+      : fallback.presencePenalty,
+    seed: Number.isFinite(params?.seed) ? Number(params?.seed) : fallback.seed,
+    thinkingEnabled: Boolean(params?.thinkingEnabled ?? fallback.thinkingEnabled),
+    thinkingBudget: Number.isFinite(params?.thinkingBudget)
+      ? Number(params?.thinkingBudget)
+      : fallback.thinkingBudget,
   };
 }
 
@@ -170,6 +277,11 @@ interface SettingsState {
   modelCapabilities: Record<string, ModelCapability>;
 
   customPrompts: Record<string, string>;
+  sensoryAnchorTemplates: SensoryAnchorTemplate[];
+  sensoryAutoTemplateByPhase: {
+    chapter1?: string;
+    continuation?: string;
+  };
   truncationThreshold: number;
   dualEndBuffer: number;
   compressionMode: CompressionMode;
@@ -192,6 +304,11 @@ interface SettingsState {
     providerDefaults: Record<LLMProvider, GenerationParams>;
     modelOverrides: Record<LLMProvider, Record<string, Partial<GenerationParams>>>;
     customPrompts: Record<string, string>;
+    sensoryAnchorTemplates: SensoryAnchorTemplate[];
+    sensoryAutoTemplateByPhase: {
+      chapter1?: string;
+      continuation?: string;
+    };
     context: Pick<
       SettingsState,
       | 'truncationThreshold'
@@ -211,11 +328,11 @@ interface SettingsState {
   setActiveProvider: (provider: LLMProvider) => Promise<void>;
   setProviderApiKey: (provider: LLMProvider, key: string) => Promise<void>;
   setProviderSelectedModel: (provider: LLMProvider, model: string) => Promise<void>;
-  setPhaseSelection: (phaseId: WorkflowStepId, selection: PhaseModelSelection) => Promise<void>;
+  setPhaseSelection: (phaseId: GenerationPhaseId, selection: PhaseModelSelection) => Promise<void>;
   setProviderDefaultParams: (provider: LLMProvider, params: Partial<GenerationParams>) => Promise<void>;
   setModelOverrideParams: (provider: LLMProvider, model: string, params: Partial<GenerationParams>) => Promise<void>;
   clearModelOverrideParams: (provider: LLMProvider, model: string) => Promise<void>;
-  getResolvedGenerationConfig: (phaseId: WorkflowStepId) => {
+  getResolvedGenerationConfig: (phaseId: GenerationPhaseId) => {
     provider: LLMProvider;
     model: string;
     apiKey: string;
@@ -232,6 +349,9 @@ interface SettingsState {
   setSelectedModel: (model: string) => Promise<void>;
   addRecentModel: (model: string, provider?: LLMProvider) => Promise<void>;
   setCustomPrompt: (key: string, prompt: string) => Promise<void>;
+  setSensoryAnchorTemplates: (templates: SensoryAnchorTemplate[]) => Promise<void>;
+  addSensoryTemplatesFromHarvest: (candidates: HarvestedTemplateCandidate[]) => Promise<void>;
+  setSensoryAutoTemplate: (phase: 'chapter1' | 'continuation', templateId?: string) => Promise<void>;
   setThinkingEnabled: (enabled: boolean, provider?: LLMProvider) => Promise<void>;
   upsertModelCapability: (model: string, capability: ModelCapability, provider?: LLMProvider) => Promise<void>;
   probeModelCapability: (model: string, apiKey?: string, provider?: LLMProvider) => Promise<ModelCapability>;
@@ -269,6 +389,8 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   modelCapabilities: {},
 
   customPrompts: {},
+  sensoryAnchorTemplates: createDefaultSensoryAnchorTemplates(),
+  sensoryAutoTemplateByPhase: createDefaultSensoryAutoTemplateByPhase(),
   truncationThreshold: 799,
   dualEndBuffer: 500,
   compressionMode: DEFAULT_COMPRESSION_MODE,
@@ -319,6 +441,11 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
           ].slice(0, 24),
         },
       };
+      const normalizedSensoryTemplates = sanitizeSensoryAnchorTemplates(snapshot.sensoryAnchorTemplates);
+      const normalizedSensoryAutoTemplateByPhase = sanitizeSensoryAutoTemplateByPhase(
+        snapshot.sensoryAutoTemplateByPhase,
+        normalizedSensoryTemplates
+      );
 
       const next = {
         ...state,
@@ -328,6 +455,8 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
         providerDefaults: normalizedProviderDefaults,
         modelOverrides: snapshot.modelOverrides,
         customPrompts: snapshot.customPrompts,
+        sensoryAnchorTemplates: normalizedSensoryTemplates,
+        sensoryAutoTemplateByPhase: normalizedSensoryAutoTemplateByPhase,
         truncationThreshold: sanitizePositiveInt(snapshot.context.truncationThreshold, state.truncationThreshold),
         dualEndBuffer: sanitizePositiveInt(snapshot.context.dualEndBuffer, state.dualEndBuffer),
         compressionMode: snapshot.context.compressionMode,
@@ -505,6 +634,72 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     await get().persist();
   },
 
+  setSensoryAnchorTemplates: async (templates) => {
+    const normalizedTemplates = sanitizeSensoryAnchorTemplates(templates);
+    set((state) => ({
+      sensoryAnchorTemplates: normalizedTemplates,
+      sensoryAutoTemplateByPhase: sanitizeSensoryAutoTemplateByPhase(
+        state.sensoryAutoTemplateByPhase,
+        normalizedTemplates
+      ),
+    }));
+    await get().persist();
+  },
+
+  addSensoryTemplatesFromHarvest: async (candidates) => {
+    if (!Array.isArray(candidates) || candidates.length === 0) {
+      return;
+    }
+
+    set((state) => {
+      const existing = sanitizeSensoryAnchorTemplates(state.sensoryAnchorTemplates);
+      const seen = new Set(existing.map((entry) => normalizeTemplateContent(entry.content)));
+      const next = [...existing];
+
+      for (const candidate of candidates) {
+        const text = candidate?.text?.trim();
+        if (!text) {
+          continue;
+        }
+        const key = normalizeTemplateContent(text);
+        if (!key || seen.has(key)) {
+          continue;
+        }
+        seen.add(key);
+        const normalizedTags = sanitizeTemplateTags(candidate.tags);
+        next.push({
+          id: createSensoryTemplateId(),
+          name: buildHarvestTemplateName(normalizedTags),
+          content: text,
+          tags: normalizedTags,
+        });
+      }
+
+      return {
+        sensoryAnchorTemplates: next,
+        sensoryAutoTemplateByPhase: sanitizeSensoryAutoTemplateByPhase(
+          state.sensoryAutoTemplateByPhase,
+          next
+        ),
+      };
+    });
+    await get().persist();
+  },
+
+  setSensoryAutoTemplate: async (phase, templateId) => {
+    set((state) => {
+      const validIds = new Set(state.sensoryAnchorTemplates.map((entry) => entry.id));
+      const nextTemplateId = templateId && validIds.has(templateId) ? templateId : undefined;
+      return {
+        sensoryAutoTemplateByPhase: {
+          ...state.sensoryAutoTemplateByPhase,
+          [phase]: nextTemplateId,
+        },
+      };
+    });
+    await get().persist();
+  },
+
   setThinkingEnabled: async (enabled, provider) => {
     const targetProvider = provider ?? get().activeProvider;
     await get().setProviderDefaultParams(targetProvider, { thinkingEnabled: enabled });
@@ -667,6 +862,11 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     };
     const modelOverrides = settings.modelOverrides ?? { nim: {}, openrouter: {} };
     const phaseConfig = { ...createDefaultPhaseConfig(), ...(settings.phaseConfig || {}) };
+    const sensoryAnchorTemplates = sanitizeSensoryAnchorTemplates(settings.sensoryAnchorTemplates);
+    const sensoryAutoTemplateByPhase = sanitizeSensoryAutoTemplateByPhase(
+      settings.sensoryAutoTemplateByPhase,
+      sensoryAnchorTemplates
+    );
 
     // Backfill legacy values into nim provider when needed.
     if (!settings.providers) {
@@ -709,6 +909,8 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       modelOverrides,
       phaseConfig,
       customPrompts: settings.customPrompts || {},
+      sensoryAnchorTemplates,
+      sensoryAutoTemplateByPhase,
       truncationThreshold: settings.truncationThreshold ?? 799,
       dualEndBuffer: settings.dualEndBuffer ?? 500,
       compressionMode: settings.compressionMode ?? DEFAULT_COMPRESSION_MODE,
@@ -749,6 +951,8 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       phaseConfig: state.phaseConfig,
 
       customPrompts: state.customPrompts,
+      sensoryAnchorTemplates: state.sensoryAnchorTemplates,
+      sensoryAutoTemplateByPhase: state.sensoryAutoTemplateByPhase,
       truncationThreshold: state.truncationThreshold,
       dualEndBuffer: state.dualEndBuffer,
       compressionMode: state.compressionMode,
