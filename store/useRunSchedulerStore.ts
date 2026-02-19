@@ -19,6 +19,7 @@ interface RunTask {
   sessionId: string;
   stepId: RunStepId;
   userNotes?: string;
+  sensoryAnchors?: string;
   source: RunSource;
   continuationPolicy?: AutoContinuationPolicy;
   queuedAt: number;
@@ -37,6 +38,7 @@ interface RunExecutorContext {
   sessionId: string;
   stepId: RunStepId;
   userNotes?: string;
+  sensoryAnchors?: string;
   source: RunSource;
   continuationPolicy?: AutoContinuationPolicy;
   signal: AbortSignal;
@@ -59,6 +61,7 @@ interface RunSchedulerState {
     sessionId: string;
     stepId: RunStepId;
     userNotes?: string;
+    sensoryAnchors?: string;
     source?: RunSource;
     continuationPolicy?: AutoContinuationPolicy;
     allowWhileRunning?: boolean;
@@ -96,6 +99,7 @@ export const useRunSchedulerStore = create<RunSchedulerState>((set, get) => ({
     sessionId,
     stepId,
     userNotes,
+    sensoryAnchors,
     source = 'manual',
     continuationPolicy,
     allowWhileRunning = false,
@@ -122,6 +126,7 @@ export const useRunSchedulerStore = create<RunSchedulerState>((set, get) => ({
       sessionId,
       stepId,
       userNotes,
+      sensoryAnchors,
       source,
       continuationPolicy,
       queuedAt,
@@ -255,6 +260,7 @@ export const useRunSchedulerStore = create<RunSchedulerState>((set, get) => ({
             sessionId: task.sessionId,
             stepId: task.stepId,
             userNotes: task.userNotes,
+            sensoryAnchors: task.sensoryAnchors,
             source: task.source,
             continuationPolicy: task.continuationPolicy,
             signal: abortController.signal,

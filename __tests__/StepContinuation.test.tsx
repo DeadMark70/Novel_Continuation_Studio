@@ -35,6 +35,8 @@ type StepContinuationWorkflowState = {
 type StepContinuationNovelState = {
   chapters: string[];
   targetChapterCount: number;
+  wordCount: number;
+  compressedContext: string;
 };
 
 type StepGeneratorState = {
@@ -56,7 +58,9 @@ describe('StepContinuation', () => {
     };
     const novelState: StepContinuationNovelState = {
       chapters: ['Ch1'],
-      targetChapterCount: 7
+      targetChapterCount: 7,
+      wordCount: 1200,
+      compressedContext: ''
     };
     const stepGeneratorState: StepGeneratorState = {
       generate: vi.fn(),

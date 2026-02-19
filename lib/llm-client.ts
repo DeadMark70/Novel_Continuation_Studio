@@ -359,10 +359,10 @@ function buildGeneratePayload(
 ) {
   const {
     temperature = 0.7,
-    topP = 1,
-    topK,
-    frequencyPenalty,
-    presencePenalty,
+    topP = 0.85,
+    topK = 40,
+    frequencyPenalty = 0.5,
+    presencePenalty = 0.2,
     seed,
     enableThinking = false,
     thinkingSupported = false,

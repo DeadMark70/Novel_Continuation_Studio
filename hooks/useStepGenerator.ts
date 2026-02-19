@@ -181,9 +181,10 @@ async function onStepCompleted(
   content: string,
   options?: {
     continuationPolicy?: AutoContinuationPolicy;
+    persistentSensoryAnchors?: string;
   }
 ): Promise<void> {
-  const { continuationPolicy } = options ?? {};
+  const { continuationPolicy, persistentSensoryAnchors } = options ?? {};
   const novelStore = useNovelStore.getState();
   const runScheduler = useRunSchedulerStore.getState();
   // Compression writes all artifacts via updateWorkflowBySession already.
@@ -265,6 +266,7 @@ async function onStepCompleted(
       sessionId,
       stepId: 'continuation',
       source: 'auto',
+      sensoryAnchors: persistentSensoryAnchors?.trim() || undefined,
       continuationPolicy: effectivePolicy,
       allowWhileRunning: true,
     });
@@ -456,7 +458,10 @@ export function useStepGenerator() {
             await workflow.completeStep(stepId);
           }
           onProgress(toProgressPreview(skippedMessage));
-          await onStepCompleted(sessionId, stepId, skippedMessage, { continuationPolicy });
+          await onStepCompleted(sessionId, stepId, skippedMessage, {
+            continuationPolicy,
+            persistentSensoryAnchors: resolvedSensoryAnchors,
+          });
           content = skippedMessage;
         } else {
           const builtSource = buildCompressionSource(originalNovel, {
@@ -696,7 +701,10 @@ export function useStepGenerator() {
           if (isActiveSession(sessionId)) {
             await useWorkflowStore.getState().completeStep(stepId);
           }
-          await onStepCompleted(sessionId, stepId, content, { continuationPolicy });
+          await onStepCompleted(sessionId, stepId, content, {
+            continuationPolicy,
+            persistentSensoryAnchors: resolvedSensoryAnchors,
+          });
         }
       } else {
         const resolvedPromptTemplateKey = resolvePromptTemplateKey(stepId, canUseCompressedContext);
@@ -1258,7 +1266,10 @@ export function useStepGenerator() {
           }
           await useWorkflowStore.getState().completeStep(stepId);
         }
-        await onStepCompleted(sessionId, stepId, content, { continuationPolicy });
+        await onStepCompleted(sessionId, stepId, content, {
+          continuationPolicy,
+          persistentSensoryAnchors: resolvedSensoryAnchors,
+        });
 
         if ((stepId === 'chapter1' || stepId === 'continuation') && isActiveSession(sessionId)) {
           const latestGeneratedChapter = content;

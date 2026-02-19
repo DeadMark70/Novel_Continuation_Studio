@@ -1,3 +1,5 @@
+import { SENSORY_STYLE_GUIDE } from '@/lib/prompts';
+
 export interface PromptContext {
   originalNovel?: string;
   compressedContext?: string;
@@ -26,6 +28,8 @@ export interface PromptContext {
   compressionSampledChunkCount?: number;
   chapterRangeStart?: number;
   chapterRangeEnd?: number;
+  sensoryAnchors?: string;
+  sensoryTemplateName?: string;
 }
 
 function clampPercent(value: number | undefined, fallback: number): number {
@@ -200,6 +204,19 @@ export function injectPrompt(template: string, context: PromptContext): string {
     Math.max(0, Math.min(8, context.eroticSceneLimitPerChapter ?? 2)).toString()
   );
 
+  result = result.replace(/{{SENSORY_STYLE_GUIDE_SECTION}}/g, SENSORY_STYLE_GUIDE.trim());
+  if (context.sensoryAnchors?.trim()) {
+    const templateLine = context.sensoryTemplateName?.trim()
+      ? `\nTemplate: ${context.sensoryTemplateName.trim()}`
+      : '';
+    result = result.replace(
+      /{{SENSORY_FOCUS_SECTION}}/g,
+      `<sensory_focus_for_scene>${templateLine}\n${context.sensoryAnchors.trim()}\n</sensory_focus_for_scene>`
+    );
+  } else {
+    result = result.replace(/{{SENSORY_FOCUS_SECTION}}/g, '');
+  }
+
   // Handle User Notes / Direction
   if (context.userNotes) {
     // New automation-friendly conditional blocks
@@ -221,6 +238,9 @@ export function injectPrompt(template: string, context: PromptContext): string {
     result = result.replace(/{{USER_DIRECTION_SECTION}}/g, '');
     result = result.replace(/{{USER_DIRECTION_REQUIREMENT}}/g, '');
   }
+
+  // Safety net: never leak unresolved template placeholders to LLM input.
+  result = result.replace(/{{[A-Z0-9_]+}}/g, '');
 
   return result;
 }

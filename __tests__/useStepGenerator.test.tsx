@@ -7,9 +7,10 @@ const runSchedulerState = {
   runExecutor: null as null | ((ctx: {
     runId: string;
     sessionId: string;
-    stepId: 'analysis' | 'continuation' | 'compression' | 'breakdown';
+    stepId: 'analysis' | 'outline' | 'chapter1' | 'continuation' | 'compression' | 'breakdown';
     source: 'manual' | 'auto';
     userNotes?: string;
+    sensoryAnchors?: string;
     continuationPolicy?: { mode: 'manual' | 'full_auto' | 'range'; autoRangeEnd: number; isPaused: boolean };
     signal: AbortSignal;
     onProgress: (preview: string) => void;
@@ -117,6 +118,17 @@ const settingsState = {
   compressionChunkSize: 6000,
   compressionChunkOverlap: 400,
   compressionEvidenceSegments: 10,
+  sensoryAnchorTemplates: [
+    {
+      id: 'sensory_default',
+      name: 'Default Sensory Focus',
+      content: 'Concrete sensory details only.',
+    },
+  ],
+  sensoryAutoTemplateByPhase: {
+    chapter1: 'sensory_default',
+    continuation: 'sensory_default',
+  },
   autoResumeOnLength: true,
   autoResumePhaseAnalysis: true,
   autoResumePhaseOutline: true,
@@ -370,6 +382,7 @@ describe('useStepGenerator', () => {
         sessionId: 'session_auto',
         stepId: 'continuation',
         source: 'auto',
+        sensoryAnchors: 'Concrete sensory details only.',
         allowWhileRunning: true,
       })
     );
@@ -404,6 +417,21 @@ describe('useStepGenerator', () => {
     );
     expect(warnSpy).toHaveBeenCalled();
     warnSpy.mockRestore();
+  });
+
+  it('forwards sensory anchors when manually queuing chapter generation', () => {
+    act(() => {
+      hookApi?.generate('chapter1', { sensoryAnchors: 'cold steel, wet cloth' }, 'session_active');
+    });
+
+    expect(runSchedulerState.enqueueRun).toHaveBeenCalledWith(
+      expect.objectContaining({
+        sessionId: 'session_active',
+        stepId: 'chapter1',
+        source: 'manual',
+        sensoryAnchors: 'cold steel, wet cloth',
+      })
+    );
   });
 
   it('skips compression when mode is off and persists skipped metadata', async () => {

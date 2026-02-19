@@ -122,4 +122,23 @@ describe('useRunSchedulerStore', () => {
     expect(capturedRangeEnd).toBe(12);
     expect(capturedPaused).toBe(false);
   });
+
+  it('forwards sensory anchors to run executor context', async () => {
+    let capturedAnchors: string | undefined;
+    useRunSchedulerStore.getState().setRunExecutor(async ({ sensoryAnchors }) => {
+      capturedAnchors = sensoryAnchors;
+    });
+
+    useRunSchedulerStore.getState().enqueueRun({
+      sessionId: 's1',
+      stepId: 'chapter1',
+      source: 'manual',
+      sensoryAnchors: 'cold metal, wet cloth friction',
+    });
+
+    await flush();
+    await flush();
+
+    expect(capturedAnchors).toBe('cold metal, wet cloth friction');
+  });
 });
