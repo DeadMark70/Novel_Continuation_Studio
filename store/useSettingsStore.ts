@@ -39,6 +39,7 @@ const DEFAULT_PHASES: GenerationPhaseId[] = [
   'chapter1',
   'continuation',
   'sensoryHarvest',
+  'loreExtractor',
 ];
 const MAX_SENSORY_TAGS = 8;
 
@@ -216,6 +217,7 @@ function createDefaultPhaseConfig(): PhaseConfigMap {
     chapter1: { provider: 'nim', model: DEFAULT_NIM_MODEL },
     continuation: { provider: 'nim', model: DEFAULT_NIM_MODEL },
     sensoryHarvest: { provider: 'nim', model: DEFAULT_NIM_MODEL },
+    loreExtractor: { provider: 'nim', model: DEFAULT_NIM_MODEL },
   };
 }
 
@@ -585,10 +587,21 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     const model = phaseSelection?.model || scoped.selectedModel;
     const defaults = state.providerDefaults[provider];
     const override = state.modelOverrides[provider]?.[model] || {};
+    
+    // Fallback to environment variables if apiKey is missing in settings
+    let resolvedApiKey = scoped.apiKey;
+    if (!resolvedApiKey) {
+      if (provider === 'nim') {
+        resolvedApiKey = process.env.NEXT_PUBLIC_NIM_API_KEY || '';
+      } else if (provider === 'openrouter') {
+        resolvedApiKey = process.env.NEXT_PUBLIC_OPENROUTER_API_KEY || '';
+      }
+    }
+
     return {
       provider,
       model,
-      apiKey: scoped.apiKey,
+      apiKey: resolvedApiKey,
       params: { ...defaults, ...override },
       capability: scoped.modelCapabilities[model],
       supportedParameters: scoped.modelParameterSupport[model] || [],

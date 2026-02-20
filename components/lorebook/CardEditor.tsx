@@ -20,7 +20,7 @@ interface CardEditorProps {
 export function CardEditor({ cardId, onClose }: CardEditorProps) {
   const { cards, addCard, updateCard, deleteCard } = useLorebookStore();
   const { currentSessionId } = useNovelStore();
-  const { activeProvider, selectedModel, apiKey } = useSettingsStore();
+  const { getResolvedGenerationConfig } = useSettingsStore();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [formData, setFormData] = useState<Partial<LoreCard>>({
@@ -105,9 +105,9 @@ export function CardEditor({ cardId, onClose }: CardEditorProps) {
     if (!extractText.trim()) return;
     setIsExtracting(true);
     try {
-      if (!apiKey) throw new Error('API key not configured for standard provider.');
+      const config = getResolvedGenerationConfig('loreExtractor');
 
-      const outputCards = await extractLoreFromText(extractText, activeProvider, selectedModel, apiKey);
+      const outputCards = await extractLoreFromText(extractText, config.provider, config.model, config.apiKey);
       if (outputCards && outputCards.length > 0) {
         const first = outputCards[0];
         setFormData(prev => ({
