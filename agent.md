@@ -1,14 +1,21 @@
 # Agent Handoff: Novel Continuation Studio
 
 ## 1. Mission
+
 - Build a local-first novel continuation studio with a structured Phase 0-5 workflow.
 - Support provider/model routing per phase while keeping generation deterministic and debuggable.
 
-## 2. Current Status (2026-02-17)
+## 2. Current Status (Latest)
+
+- **Lorebook Extraction & Export (2026-02-21)**:
+  - Added `/lorebook` page for managing character and world cards.
+  - Implemented SillyTavern V2 and V3 PNG Steganography Export (`lib/sillytavern-export.ts`).
+  - Added UI manual trigger for AI Card Extraction parsing from plain text via `loreExtractor` phase routing.
 - Dual-provider support is implemented: NVIDIA NIM + OpenRouter.
 - Full pages are active:
   - `/settings` for provider config, phase routing, model params, prompt editing, and context controls.
   - `/history` for reading room, version history, and export.
+  - `/lorebook` for viewing and extracting dynamic character/world cards.
 - Settings persistence was optimized via snapshot-style save (`applySettingsSnapshot`) to reduce slow multi-write saves.
 - Prompt editor issues around empty custom prompts were fixed (defaults render correctly; custom prompt is optional overlay).
 - OpenRouter paid-network guard is implemented for test/offline environments.
@@ -36,6 +43,7 @@
   - Refactored `StepOutline` into controller + presentation modules (`components/workflow/outline/*`).
 
 ## 3. Runtime Stack
+
 - Framework: Next.js App Router (`next@16.1.6`)
 - UI: React 19, Tailwind CSS v4, shadcn/ui, Radix primitives
 - State: Zustand (`useWorkflowStore`, `useNovelStore`, `useSettingsStore`)
@@ -45,12 +53,14 @@
   - OpenRouter routes: `app/api/openrouter/*`
 
 ## 4. Agent Skills
+
 - **vercel-react-best-practices**: Guidelines for React 19/Next.js performance and patterns.
 - **vercel-composition-patterns**: React component architecture and composition.
 - **web-design-guidelines**: Accessibility and UI best practices.
 - **chrome-devtools**: Browser debugging and automation.
 
 ## 5. Key Paths
+
 - Main app: `app/page.tsx`
 - Settings page: `app/settings/page.tsx`
 - History page: `app/history/page.tsx`
@@ -62,6 +72,7 @@
 - E2E smoke tests: `e2e/smoke.spec.js`
 
 ## 5. State Model (Important)
+
 - `providers[provider]`: API key, selected model, recent models, parameter support map.
 - `phaseConfig[phase]`: explicit `{ provider, model }` selection for each phase.
 - `providerDefaults[provider]`: default generation params.
@@ -69,11 +80,13 @@
 - `getResolvedGenerationConfig(phase)`: effective config resolution entrypoint used by generation flow.
 
 Resolution order:
+
 1. Phase provider/model (`phaseConfig`)
 2. Provider default params (`providerDefaults`)
 3. Model overrides (`modelOverrides`)
 
 ## 6. Reliability Rules
+
 - Cross-novel parallel generation is supported.
 - Same novel session is single-run at a time (no concurrent multi-phase within one session).
 - NIM streaming client keeps inactivity-timeout and retry behavior.
@@ -82,6 +95,7 @@ Resolution order:
   - `OPENROUTER_DISABLE_NETWORK=1`
 
 ## 6.1 Rendering Freeze Prevention (2026-02 Incident)
+
 - Symptom:
   - Navigating to `/settings` showed persistent `rendering` while Phase 0 was running in one or more sessions.
   - Stopping Phase 0 immediately restored normal navigation.
@@ -101,6 +115,7 @@ Resolution order:
   - Streaming progress updates written to global stores at high frequency without strict need.
 
 ## 6.2 Persistence & UX Guardrails (2026-02-17)
+
 - `setNovel` must stay debounced; avoid restoring per-keystroke full-session `persist` writes.
 - Before switching/deleting sessions, flush pending debounced writes (`flushPendingPersist`) to prevent losing unsaved text.
 - Keep lifecycle flush mounted (`NovelPersistenceLifecycleBridge`) to best-effort drain pending writes on tab hide/pagehide.
@@ -108,11 +123,13 @@ Resolution order:
 - Keep session list rows as semantic controls (`button`) for keyboard and assistive-tech compatibility.
 
 ## 6.3 Remaining Optimization Opportunities
+
 - Add best-effort `beforeunload`/final snapshot strategy only if data-loss incidents persist after lifecycle flush (tradeoff: browser constraints).
 - Continue expanding generator tests around less-covered branches (cancellation races, scheduler handoff edge cases, consistency-check fallback).
 - Consider splitting `useStepOutlineController` further if future Phase 2 UX rules continue growing.
 
 ## 7. Cost-Safety / Environment Notes
+
 - User preference: avoid paid OpenRouter calls unless explicitly needed.
 - Recommended local/CI defaults:
   - Use NIM as default provider.
@@ -120,6 +137,7 @@ Resolution order:
 - Do not run live OpenRouter integration tests without explicit confirmation.
 
 ## 8. Development Commands
+
 - Dev: `npm run dev`
 - Typecheck: `npx tsc --noEmit`
 - Lint: `npm run lint`
@@ -127,8 +145,8 @@ Resolution order:
 - E2E smoke: `npm run e2e`
 
 ## 9. Documentation Anchors
+
 - `README.md`
 - `conductor/tracks.md`
 - `conductor/product.md`
 - `conductor/tech-stack.md`
-

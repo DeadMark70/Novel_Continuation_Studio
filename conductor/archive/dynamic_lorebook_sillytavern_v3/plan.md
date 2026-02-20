@@ -23,7 +23,7 @@
   - [x] Create `lib/lore-extractor.ts` to call `llm-client.ts`
   - [x] Add JSON parsing and validation logic (strip markdown blocks)
   - [x] Write unit tests with mocked LLM responses (`__tests__/lore-extractor.test.ts`)
-- [ ] Task: Conductor - User Manual Verification 'Phase 2: AI Extraction Pipeline' (Protocol in workflow.md)
+- [x] Task: Conductor - User Manual Verification 'Phase 2: AI Extraction Pipeline' (Protocol in workflow.md)
 
 ## Phase 3: Lorebook UI Presentation
 
@@ -37,15 +37,15 @@
   - [x] Create `components/lorebook/CardList.tsx`
   - [x] Create `components/lorebook/CardEditor.tsx` (Handle standard fields and manual extraction trigger)
   - [x] Implement image upload utilizing `FileReader` to Base64 conversions
-- [ ] Task: Conductor - User Manual Verification 'Phase 3: Lorebook UI Presentation' (Protocol in workflow.md)
+- [x] Task: Conductor - User Manual Verification 'Phase 3: Lorebook UI Presentation' (Protocol in workflow.md)
 
 ## Phase 4: Export Engine
 
 - [x] Task: PNG Steganography Core
   - [x] Create `lib/sillytavern-export.ts`
   - [x] Implement `buildV2Payload` and `buildV3Payload`
-  - [ ] Verify test payloads correctly assemble JSON (`__tests__/sillytavern-export.test.ts`)
+  - [x] Verify test payloads correctly assemble JSON (`__tests__/sillytavern-export.test.ts`)
 - [x] Task: Integration
   - [x] Implement logic to read PNG array buffers, write `chara` and `ccv3` tEXt chunks, and encode to Blob
   - [x] Wire the Export functions to the `CardEditor` or `CardList` UI trigger
-- [ ] Task: Conductor - User Manual Verification 'Phase 4: Export Engine' (Protocol in workflow.md)
+- [x] Task: Conductor - User Manual Verification 'Phase 4: Export Engine' (Protocol in workflow.md)
