@@ -634,6 +634,34 @@ const COMPRESSION_EROTIC_PACK_PROMPT = `你是長篇成人小說壓縮流程中�
 - 成人證據片段 6-10 筆（每筆包含：摘錄 + 為何有效 + 可沿用元素）
 - 所有角色皆為成年虛構人物，不得引入未成年要素`;
 
+export const LORE_EXTRACTION_PROMPT = `你是設定集（Lorebook）與角色卡片的自動萃取器。
+請分析以下文本，提取出最關鍵的角色與世界觀設定，並嚴格按照 JSON 格式回傳。
+
+提取規則：
+1. 分析文本中出現的主要實體（角色 Character 或世界觀/地點/勢力 World）。
+2. 為每個實體建立詳細的設定資料，包含：name, description, personality, scenario, first_mes, mes_example。
+3. mes_example 必須包含對話範例，並強制使用 \`<START>\` 標籤開頭，並且使用 \`{{user}}\` 與 \`{{char}}\` 作為對話巨集替換原名。
+
+輸出格式要求：
+- 必須是純 JSON，最外層為 \`{ "cards": [...] }\`。
+- 如果系統包裝了 Markdown 區塊 (例如 \`\`\`json)，請確保內容仍然是合法的 JSON。
+
+範例格式：
+{
+  "cards": [
+    {
+      "type": "character",
+      "name": "實體名稱",
+      "description": "外貌、背景與核心設定介紹",
+      "personality": "性格特徵",
+      "scenario": "角色目前所處情境或世界觀前提",
+      "first_mes": "角色的第一句開場白",
+      "mes_example": "<START>\\n{{user}}: 你好\\n{{char}}: 嗨，請問有什麼事嗎？"
+    }
+  ]
+}
+`;
+
 const COMPRESSION_SYNTHESIS_PROMPT = `你是壓縮流程的最終彙整器。請將以下五份子結果整編成可直接給續寫模型使用的最終上下文。
 
 【角色卡】
