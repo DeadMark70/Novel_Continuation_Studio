@@ -10,7 +10,7 @@ import { StoryUpload } from '@/components/StoryUpload';
 import { WorkflowStepper } from '@/components/WorkflowStepper';
 import { Separator } from '@/components/ui/separator';
 import { Button } from '@/components/ui/button';
-import { Terminal, ShieldAlert, History, Settings, Plus } from 'lucide-react';
+import { Terminal, ShieldAlert, History, Settings, Plus, Library } from 'lucide-react';
 
 export default function Home() {
   const { initializeNovel, resetNovel } = useNovelStore(
@@ -69,6 +69,12 @@ export default function Home() {
               >
                 <Plus className="size-4" />
                 新建創作
+              </Button>
+              <Button asChild variant="outline" className="gap-2">
+                <Link href="/lorebook">
+                  <Library className="size-4" />
+                  Lorebook
+                </Link>
               </Button>
               <Button asChild variant="outline" className="gap-2">
                 <Link href="/history">

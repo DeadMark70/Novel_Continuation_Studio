@@ -38,6 +38,7 @@ vi.mock('lucide-react', () => ({
   Repeat: () => <div />,
   FastForward: () => <div />,
   Plus: () => <div />,
+  Library: () => <div />,
 }));
 
 describe('Home Page', () => {

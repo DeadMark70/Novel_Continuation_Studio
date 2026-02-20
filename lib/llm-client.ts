@@ -712,3 +712,15 @@ export async function* generateStream(
 
   throw lastError instanceof Error ? lastError : new Error('Unknown generation error');
 }
+
+export async function* streamToAsyncIterable(
+  provider: LLMProvider,
+  model: string,
+  apiKey: string,
+  systemPrompt: string | undefined,
+  prompt: string,
+  options?: GenerateOptions,
+  signal?: AbortSignal
+): AsyncGenerator<string, void, unknown> {
+  return yield* generateStream(provider, prompt, model, apiKey, systemPrompt, options, signal);
+}
