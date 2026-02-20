@@ -6,6 +6,7 @@ import type {
   ForeshadowEntry,
 } from './consistency-types';
 import type { RunStatus, RunStepId } from './run-types';
+import type { LoreCard } from './lorebook-types';
 import type {
   GenerationParams,
   LLMProvider,
@@ -157,6 +158,7 @@ export class NovelDatabase extends Dexie {
   novels!: Table<NovelMetaRecord>;
   novelBlobs!: Table<NovelBlobEntry>;
   settings!: Table<SettingsEntry>;
+  lorebook!: Table<LoreCard, string>;
 
   constructor() {
     super('NovelContinuationDB');
@@ -457,6 +459,12 @@ export class NovelDatabase extends Dexie {
           };
         }
       });
+    });
+    this.version(13).stores({
+      novels: '++id, sessionId, updatedAt, createdAt',
+      settings: 'id, updatedAt',
+      novelBlobs: 'sessionId, updatedAt',
+      lorebook: 'id, novelId, type'
     });
   }
 }
