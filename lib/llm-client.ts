@@ -150,13 +150,14 @@ function parseContextOverflowError(message: string): {
   requestedOutputTokens?: number;
 } | null {
   const maxMatch = message.match(
-    /(?:maximum context length is|context length is(?: only)?)\s*([\d,]+)\s*tokens/i
+    /(?:maximum context length is|context length is(?: only)?)\s*([\d,]+)\s*tokens|context length\s*\(([\d,]+)\s*tokens\)/i
   );
   if (!maxMatch) {
     return null;
   }
 
-  const maxContextTokens = Number.parseInt(maxMatch[1].replace(/,/g, ''), 10);
+  const maxContextTokensRaw = maxMatch[1] ?? maxMatch[2];
+  const maxContextTokens = Number.parseInt(maxContextTokensRaw.replace(/,/g, ''), 10);
   if (!Number.isFinite(maxContextTokens) || maxContextTokens <= 0) {
     return null;
   }
@@ -177,6 +178,12 @@ function parseContextOverflowError(message: string): {
   if (!Number.isFinite(inputTokens)) {
     const passedInputMatch = message.match(/passed\s*([\d,]+)\s*input tokens/i);
     inputTokens = passedInputMatch ? Number.parseInt(passedInputMatch[1].replace(/,/g, ''), 10) : undefined;
+  }
+  if (!Number.isFinite(inputTokens)) {
+    const bracketedInputMatch = message.match(/input\s*\(([\d,]+)\s*tokens\)/i);
+    inputTokens = bracketedInputMatch
+      ? Number.parseInt(bracketedInputMatch[1].replace(/,/g, ''), 10)
+      : undefined;
   }
 
   if (!Number.isFinite(requestedOutputTokens)) {
@@ -659,6 +666,15 @@ export async function* generateStream(
       ) {
         const hint = parseContextOverflowError(normalizedError.message);
         if (hint) {
+          if (
+            typeof hint.inputTokens === 'number' &&
+            hint.inputTokens >= hint.maxContextTokens
+          ) {
+            throw new Error(
+              `${provider.toUpperCase()} context overflow: input ${hint.inputTokens} tokens exceeds model context ${hint.maxContextTokens}. Reduce input chunk size or use a larger-context model.`
+            );
+          }
+
           const currentMaxTokens = clampMaxTokensToModelLimits(
             resolveRequestedMaxTokens(attemptOptions ?? options),
             estimatedPromptTokens,

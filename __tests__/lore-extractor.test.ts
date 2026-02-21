@@ -336,6 +336,35 @@ describe('Lore Extraction Pipeline', () => {
     expect(result.map((card) => card.name).sort()).toEqual(['Bran', 'Elara']);
   });
 
+  it('should split CJK-heavy input conservatively when context metadata is low', async () => {
+    mockStreamedResponse([
+      JSON.stringify([
+        {
+          name: '安娜',
+          type: 'character',
+          description: 'chunk result',
+          mes_example: '<START>\n{{user}}: hi\n{{char}}: hi'
+        }
+      ])
+    ]);
+
+    const longCjk = '測試文本'.repeat(6000);
+    await extractLoreFromText(
+      longCjk,
+      'nim',
+      'meta/llama3-70b-instruct',
+      'mock-key',
+      'multipleCharacters',
+      {
+        params: { maxTokens: 4096 },
+        maxContextTokens: 8192,
+        maxCompletionTokens: 4096,
+      }
+    );
+
+    expect(vi.mocked(streamToAsyncIterable).mock.calls.length).toBeGreaterThan(1);
+  });
+
   it('should filter extracted cards by manual character list in manual mode', async () => {
     mockStreamedResponse([
       JSON.stringify([

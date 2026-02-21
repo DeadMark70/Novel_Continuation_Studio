@@ -244,4 +244,27 @@ describe('llm-client parameter filtering', () => {
     expect(firstPayload.max_tokens).toBe(256000);
     expect(secondPayload.max_tokens).toBe(241534);
   });
+
+  it('surfaces actionable error when input alone exceeds model context length', async () => {
+    (global.fetch as unknown as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+      ok: false,
+      status: 400,
+      text: async () =>
+        '{"error":{"message":"The input (20024 tokens) is longer than the model\'s context length (8192 tokens)."}}',
+    });
+
+    await expect(
+      collect(generateStream(
+        'openrouter',
+        'hello',
+        'openai/gpt-4o-mini',
+        'key',
+        undefined,
+        {
+          maxTokens: 4096,
+          maxRetries: 1,
+        }
+      ))
+    ).rejects.toThrow('input 20024 tokens exceeds model context 8192');
+  });
 });

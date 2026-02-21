@@ -1,6 +1,7 @@
 import { streamToAsyncIterable } from './llm-client';
 import { type GenerateOptions, type GenerationParams } from './llm-types';
 import { getLoreExtractionPrompt, getLoreJsonRepairPrompt } from './prompts';
+import { estimateTokenCountHeuristic } from './token-estimator';
 import {
   type ExtractedLoreItem,
   type LoreCard,
@@ -202,13 +203,37 @@ function truncateToMax(value: string | undefined, max: number): string | undefin
   return value.slice(0, max);
 }
 
-function splitLoreContextIntoChunks(contextText: string, maxTokens: number): string[] {
+function splitLoreContextIntoChunks(
+  contextText: string,
+  maxTokens: number,
+  maxContextTokens?: number,
+  maxCompletionTokens?: number
+): string[] {
   const normalized = contextText.trim();
   if (!normalized) {
     return [];
   }
 
-  const approxChunkChars = Math.max(1500, Math.min(20000, Math.floor(maxTokens * 6)));
+  const reservedPromptTokens = 512;
+  const outputTokenBudget = typeof maxCompletionTokens === 'number' && maxCompletionTokens > 0
+    ? Math.min(maxTokens, Math.floor(maxCompletionTokens))
+    : maxTokens;
+
+  const contextBoundInputBudget = typeof maxContextTokens === 'number' && maxContextTokens > 0
+    ? Math.max(512, Math.floor(maxContextTokens) - outputTokenBudget - reservedPromptTokens)
+    : undefined;
+
+  const fallbackInputBudget = Math.max(512, Math.min(3500, Math.floor(maxTokens * 2)));
+  const inputTokenBudget = contextBoundInputBudget
+    ? Math.min(contextBoundInputBudget, fallbackInputBudget)
+    : fallbackInputBudget;
+
+  const estimatedTokens = estimateTokenCountHeuristic(normalized);
+  const tokenPerChar = estimatedTokens > 0 ? estimatedTokens / normalized.length : 0.25;
+  const approxChunkChars = Math.max(
+    1200,
+    Math.min(16000, Math.floor(inputTokenBudget / Math.max(tokenPerChar, 0.1)))
+  );
   if (normalized.length <= approxChunkChars) {
     return [normalized];
   }
@@ -733,7 +758,12 @@ export async function extractLoreFromText(
   const sourceMode = options?.sourceMode ?? 'autoDetect';
   const manualNames = normalizeManualNames(options?.manualNames);
   const params = resolveExtractionParams(options?.params);
-  const chunks = splitLoreContextIntoChunks(contextText, params.maxTokens);
+  const chunks = splitLoreContextIntoChunks(
+    contextText,
+    params.maxTokens,
+    options?.maxContextTokens,
+    options?.maxCompletionTokens
+  );
 
   if (chunks.length === 0) {
     return [];
