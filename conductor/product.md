@@ -6,11 +6,14 @@
 - Goal: Continue long-form novels using a structured Phase 0-5 workflow with per-phase provider/model control.
 - Core principle: high control and reproducibility without clutter.
 
-## Current Product Shape (2026-02-12)
+## Current Product Shape (2026-02-21)
 1. Provider architecture
 - Dual provider support: NVIDIA NIM + OpenRouter.
 - Per-phase routing: each phase can select its own `{ provider, model }`.
 - Generation config supports provider defaults plus per-model overrides.
+- Lore extraction now uses dedicated phases:
+  - `loreExtractor` for initial extraction
+  - `loreJsonRepair` for optional second-pass JSON repair.
 
 2. Workflow
 - Phase 0: optional compression pipeline for long novels.
@@ -25,9 +28,21 @@
   - Model parameter defaults and per-model override controls
   - Prompt template editor with grouped navigation
   - Context/compression controls
+  - Lore extraction and JSON-repair phase routing/parameters
 - Save behavior uses single snapshot persistence to improve performance and reduce long save latency.
 
-4. History & Reading
+4. Lorebook Extraction
+- `/lorebook` supports character/world card creation and editing.
+- "Extract from Text" supports:
+  - Extraction target selection: single character, multiple characters, world/lore.
+  - Character source mode:
+    - `autoDetect`
+    - `manualList` (strictly keep only requested names and preserve user order).
+- Parse resilience:
+  - local JSON auto-repair for malformed punctuation/escapes,
+  - retry parse workflow with editable raw output,
+  - optional LLM JSON repair phase (`loreJsonRepair`) when parsing fails.
+5. History & Reading
 - `/history` provides reading room, version history, and TXT export.
 - User can return to studio directly from history.
 
@@ -67,7 +82,7 @@
   - `thinkingEnabled`, `thinkingBudget` (provider/model dependent)
 
 ## Persistence
-- IndexedDB (Dexie) schema v11 stores:
+- IndexedDB (Dexie) schema v13 stores:
   - Active provider
   - Provider-scoped settings (apiKey, selectedModel, recentModels, parameter support)
   - Phase config
@@ -75,6 +90,7 @@
   - Model overrides
   - Custom prompts
   - Context/compression settings
+  - Lorebook cards (`character`/`world`) per novel session
 
 ## Environment & Cost Safety
 - Env keys:

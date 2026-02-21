@@ -11,6 +11,20 @@
   - Added `/lorebook` page for managing character and world cards.
   - Implemented SillyTavern V2 and V3 PNG Steganography Export (`lib/sillytavern-export.ts`).
   - Added UI manual trigger for AI Card Extraction parsing from plain text via `loreExtractor` phase routing.
+  - Added extraction target selection: `Single Character`, `Multiple Characters`, `World/Lore`.
+  - Added character source mode: `autoDetect` / `manualList`.
+  - Added strict manual-list behavior for multi-character extraction:
+    - only requested names are kept,
+    - output order follows user list,
+    - alias-aware matching for parenthetical names.
+  - Added resilient JSON parsing pipeline:
+    - local JSON repair for CJK/full-width punctuation and bad escapes,
+    - optional second-pass LLM JSON repair phase (`loreJsonRepair`) wired through Settings.
+  - Added Retry Parse fallback in Lorebook UI using the same repair pipeline.
+  - Added extraction safety constraints:
+    - field length limits aligned with prompt contracts,
+    - auto-detect multi-character output capped to 3 cards,
+    - generation param clamping for `temperature` and `topP`.
 - Dual-provider support is implemented: NVIDIA NIM + OpenRouter.
 - Full pages are active:
   - `/settings` for provider config, phase routing, model params, prompt editing, and context controls.
@@ -47,7 +61,7 @@
 - Framework: Next.js App Router (`next@16.1.6`)
 - UI: React 19, Tailwind CSS v4, shadcn/ui, Radix primitives
 - State: Zustand (`useWorkflowStore`, `useNovelStore`, `useSettingsStore`)
-- Persistence: Dexie/IndexedDB (`lib/db.ts`, schema v11)
+- Persistence: Dexie/IndexedDB (`lib/db.ts`, schema v13)
 - LLM providers:
   - NIM routes: `app/api/nim/*`
   - OpenRouter routes: `app/api/openrouter/*`
@@ -69,6 +83,9 @@
 - Provider settings + routing resolution: `store/useSettingsStore.ts`
 - DB schema/migration: `lib/db.ts`
 - OpenRouter guard: `lib/openrouter-guard.ts`
+- Lore extraction core: `lib/lore-extractor.ts`
+- Lore extraction prompts: `lib/prompts.ts` (`getLoreExtractionPrompt`, `getLoreJsonRepairPrompt`)
+- Lorebook editor UI: `components/lorebook/CardEditor.tsx`
 - E2E smoke tests: `e2e/smoke.spec.js`
 
 ## 5. State Model (Important)

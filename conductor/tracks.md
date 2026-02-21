@@ -4,6 +4,19 @@ This file records major project tracks and their documentation anchors.
 
 ## Latest Track
 
+- `lorebook_extraction_reliability_20260221` (implemented)
+  - Scope:
+    - Add extraction target modes for lore extraction (`singleCharacter`, `multipleCharacters`, `worldLore`).
+    - Add manual character-list guided extraction and strict post-parse filtering.
+    - Add resilient JSON parsing (CJK punctuation/escape repair) and LLM repair fallback phase.
+    - Add batch lore card insertion for multi-character extraction and UI recovery flow (`Retry Parse`).
+    - Add coverage for new extraction logic and settings phase expansion (`loreJsonRepair`).
+  - Outcome:
+    - Lore extraction now routes through configurable phases: `loreExtractor` + `loreJsonRepair`.
+    - Manual-list mode returns only requested characters in user-defined order.
+    - Auto-detect multiple-character output is capped to top 3 by completeness.
+    - Lore field length and generation parameter bounds are enforced in extraction pipeline.
+
 - `next_wave_optimization_plan_20260217` (implemented)
   - Path: `conductor/next_wave_optimization_plan_20260217.md`
   - Scope:

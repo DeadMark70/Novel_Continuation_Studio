@@ -53,9 +53,11 @@ Compression → Analysis → Outline → Breakdown → Drafting (Chapter 1 / Con
 
 ### Hybrid AI Engine / 混合 AI 引擎
 
-- **OpenRouter**: Primary provider for high-intelligence models (Claude 3.5 Sonnet, GPT-4o, etc.)
-- **NVIDIA NIM**: Optional provider for low-latency, cost-effective inference
-- **Phase Routing**: Each pipeline phase can be individually assigned to a different provider + model combination
+- **NVIDIA NIM** + **OpenRouter** dual-provider routing
+- **Phase Routing**: Each generation phase can be individually assigned to a provider + model
+- **Lore Extraction Routing**:
+  - `loreExtractor`: primary extraction
+  - `loreJsonRepair`: second-pass JSON repair when extraction parse fails
 
 ### Key Features / 核心功能
 
@@ -69,6 +71,11 @@ Compression → Analysis → Outline → Breakdown → Drafting (Chapter 1 / Con
 - **Run Scheduler** — Queue-based execution engine with abort control and concurrent run management.
 - **Streaming** — Real-time Server-Sent Events (SSE) streaming with configurable throttle control.
 - **Prompt Engine** — Template-based prompt injection system supporting pacing ratios, dramatic curve control, and structured section contracts.
+- **Dynamic Lorebook Studio** — Character/World card management with:
+  - extraction target modes (`Single Character`, `Multiple Characters`, `World/Lore`)
+  - manual character-list extraction (strict filtering + user-order output)
+  - resilient JSON recovery (local repair + optional LLM repair pass)
+  - SillyTavern V2/V3 PNG export
 
 ## Technical Stack / 技術棧
 
@@ -77,8 +84,8 @@ Compression → Analysis → Outline → Breakdown → Drafting (Chapter 1 / Con
 | Framework   | [Next.js 16](https://nextjs.org/) (App Router)                |
 | Language    | TypeScript / React 19                                         |
 | Styling     | TailwindCSS v4                                                |
-| State       | `zustand` (4 stores: Settings, Novel, Workflow, RunScheduler) |
-| Persistence | `Dexie.js` (IndexedDB) — local-first, no backend              |
+| State       | `zustand` (Settings, Novel, Workflow, RunScheduler, Lorebook) |
+| Persistence | `Dexie.js` (IndexedDB, schema v13) — local-first, no backend  |
 | Tokenizer   | Web Worker–based token estimator                              |
 | Unit Tests  | `Vitest`                                                      |
 | E2E Tests   | `Playwright`                                                  |
@@ -92,8 +99,10 @@ Novel_Continuation_Studio/
 │   ├── api/                #   ├── nim/        (NVIDIA NIM proxy)
 │   │                       #   └── openrouter/  (OpenRouter proxy)
 │   ├── history/            # Reading room & export page
+│   ├── lorebook/           # Lorebook studio page
 │   └── settings/           # Provider, model, prompt configuration
 ├── components/
+│   ├── lorebook/           # Card editor/list and extraction UI
 │   ├── ui/                 # Radix-based design system (Button, Dialog, etc.)
 │   └── workflow/           # Pipeline step components & AutoModeControl
 ├── conductor/              # Orchestration logic & archived iterations
@@ -102,6 +111,7 @@ Novel_Continuation_Studio/
 │   ├── consistency-checker.ts   # Rule + LLM hybrid consistency engine
 │   ├── prompt-engine.ts         # Template injection & pacing control
 │   ├── llm-client.ts            # Unified LLM client (streaming, retry)
+│   ├── lore-extractor.ts        # Lore extraction + JSON repair pipeline
 │   ├── db.ts                    # Dexie.js database schema & operations
 │   └── prompts.ts               # Default prompt templates (Chinese)
 ├── store/                  # Zustand state stores
@@ -132,13 +142,17 @@ npm install
 Create `.env.local`:
 
 ```bash
-# Required / 必填
+# Server-side keys (used by API routes) / 伺服器端金鑰
+NIM_API_KEY=nvapi-your-key-here
 OPENROUTER_API_KEY=sk-or-your-key-here
 
-# Optional / 選填
-NIM_API_KEY=nvapi-your-key-here
+# Optional OpenRouter metadata / OpenRouter 額外標頭
 OPENROUTER_SITE_URL=http://localhost:3000
 OPENROUTER_SITE_NAME=NovelContinuationStudio
+
+# Optional client fallback keys (used when Settings is empty) / 前端回退金鑰
+NEXT_PUBLIC_NIM_API_KEY=nvapi-your-key-here
+NEXT_PUBLIC_OPENROUTER_API_KEY=sk-or-your-key-here
 ```
 
 ### Run / 啟動
@@ -174,8 +188,8 @@ npm run e2e
 | **Context Window**  | Very long novels may degrade if compression misses key details. / 極長小說若壓縮遺漏關鍵細節，品質會下降。                                                                       |
 | **English Prompts** | System prompts are Chinese-only. English novels produce mixed-language or degraded output. / 系統 Prompt 僅中文，英文小說會產生混語或品質下降的輸出。                            |
 | **Mobile**          | Desktop-only UI. Mobile experience is broken. / 僅支援桌面瀏覽器，手機體驗不佳。                                                                                                 |
-| **Bugs**            | This is an alpha prototype. Expect frequent UI glitches, edge-case crashes, and incomplete error handling. / 此為 Alpha 原型，預期會有 UI 問題、邊界情況崩潰及不完整的錯誤處理。 |
+| **Bugs**            | This is an alpha prototype. Expect occasional UI glitches, edge-case crashes, and iterative error-handling updates. / 此為 Alpha 原型，仍可能出現 UI 問題、邊界情況崩潰與持續迭代中的錯誤處理。 |
 
 ---
 
-_Last verified locally on Windows 11 / Node v20.11.0 — 2026-02-18_
+_Last verified locally on Windows 11 / Node v20.11.0 — 2026-02-21_
