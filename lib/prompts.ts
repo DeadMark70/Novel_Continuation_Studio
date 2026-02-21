@@ -652,8 +652,8 @@ const LORE_EXTRACTION_COMMON_RULES = `你是「Lorebook JSON Extractor」，不�
 - description <= 600 字元
 - personality <= 300 字元
 - scenario <= 400 字元
-- first_mes <= 300 字元
-- mes_example <= 800 字元
+- first_mes <= 500字元
+- mes_example <= 1200 字元
 - 若來源過長導致資訊過多，請摘要壓縮內容，不可破壞 JSON 結構。
 
 格式示例（正例）：
