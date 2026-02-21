@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useLorebookStore } from '@/store/useLorebookStore';
-import { useNovelStore } from '@/store/useNovelStore';
 import { useSettingsStore } from '@/store/useSettingsStore';
 import {
   extractLoreFromText,
@@ -14,7 +13,12 @@ import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Save, Trash2, Image as ImageIcon, Wand2 } from 'lucide-react';
-import { LoreCard, LoreCharacterSourceMode, LoreExtractionTarget } from '@/lib/lorebook-types';
+import {
+  GLOBAL_LOREBOOK_NOVEL_ID,
+  LoreCard,
+  LoreCharacterSourceMode,
+  LoreExtractionTarget,
+} from '@/lib/lorebook-types';
 
 interface CardEditorProps {
   cardId: string | null;
@@ -24,7 +28,6 @@ interface CardEditorProps {
 
 export function CardEditor({ cardId, onClose, onSelectCard }: CardEditorProps) {
   const { cards, addCard, addCards, updateCard, deleteCard } = useLorebookStore();
-  const { currentSessionId } = useNovelStore();
   const { getResolvedGenerationConfig } = useSettingsStore();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -61,11 +64,9 @@ export function CardEditor({ cardId, onClose, onSelectCard }: CardEditorProps) {
   }, [cardId, cards]);
 
   const handleSave = async () => {
-    if (!currentSessionId) return;
-    
     if (cardId === 'new') {
       const newId = await addCard({
-        novelId: currentSessionId,
+        novelId: GLOBAL_LOREBOOK_NOVEL_ID,
         type: formData.type as 'character' | 'world',
         name: formData.name || 'Unnamed',
         avatarDataUri: formData.avatarDataUri,
@@ -142,14 +143,9 @@ export function CardEditor({ cardId, onClose, onSelectCard }: CardEditorProps) {
     }
 
     if (extractionTarget === 'multipleCharacters') {
-      if (!currentSessionId) {
-        alert('Please create or load a novel first.');
-        return;
-      }
-
       const insertedIds = await addCards(
         outputCards.map((card) => ({
-          novelId: currentSessionId,
+          novelId: GLOBAL_LOREBOOK_NOVEL_ID,
           type: card.type,
           name: card.name,
           avatarDataUri: card.avatarDataUri,

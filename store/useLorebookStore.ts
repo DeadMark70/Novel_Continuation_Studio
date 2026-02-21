@@ -1,13 +1,13 @@
 import { create } from 'zustand';
 import { db } from '../lib/db';
-import { LoreCard } from '../lib/lorebook-types';
+import { GLOBAL_LOREBOOK_NOVEL_ID, LoreCard } from '../lib/lorebook-types';
 import { v4 as uuidv4 } from 'uuid';
 
 interface LorebookState {
   cards: LoreCard[];
   isLoading: boolean;
   error: string | null;
-  loadCards: (novelId: string) => Promise<void>;
+  loadCards: () => Promise<void>;
   addCard: (cardData: Omit<LoreCard, 'id' | 'createdAt' | 'updatedAt'>) => Promise<string>;
   addCards: (cardDataList: Array<Omit<LoreCard, 'id' | 'createdAt' | 'updatedAt'>>) => Promise<string[]>;
   updateCard: (id: string, updates: Partial<Omit<LoreCard, 'id' | 'novelId' | 'createdAt'>>) => Promise<void>;
@@ -20,10 +20,10 @@ export const useLorebookStore = create<LorebookState>((set, get) => ({
   isLoading: false,
   error: null,
 
-  loadCards: async (novelId) => {
+  loadCards: async () => {
     set({ isLoading: true, error: null });
     try {
-      const loadedCards = await db.lorebook.where('novelId').equals(novelId).toArray();
+      const loadedCards = await db.lorebook.toArray();
       set({ cards: loadedCards, isLoading: false });
     } catch (err: any) {
       set({ error: err.message || 'Failed to load lorebook cards.', isLoading: false });
@@ -37,6 +37,7 @@ export const useLorebookStore = create<LorebookState>((set, get) => ({
       const now = Date.now();
       const newCard: LoreCard = {
         ...cardData,
+        novelId: GLOBAL_LOREBOOK_NOVEL_ID,
         id: uuidv4(),
         createdAt: now,
         updatedAt: now,
@@ -65,6 +66,7 @@ export const useLorebookStore = create<LorebookState>((set, get) => ({
       const now = Date.now();
       const newCards: LoreCard[] = cardDataList.map((cardData, index) => ({
         ...cardData,
+        novelId: GLOBAL_LOREBOOK_NOVEL_ID,
         id: uuidv4(),
         createdAt: now + index,
         updatedAt: now + index,

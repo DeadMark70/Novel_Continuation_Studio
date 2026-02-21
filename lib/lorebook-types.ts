@@ -32,6 +32,8 @@ export interface LoreExtractionDebugResult {
   parseError?: string;
 }
 
+export const GLOBAL_LOREBOOK_NOVEL_ID = '__global_lorebook__';
+
 // Database Entity
 export interface LoreCard {
   id: string;          // UUID

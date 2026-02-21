@@ -1,23 +1,15 @@
 import React, { useEffect } from 'react';
 import { useLorebookStore } from '@/store/useLorebookStore';
-import { useNovelStore } from '@/store/useNovelStore';
 import { Button } from '@/components/ui/button';
 import { Card, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Plus, User, Globe } from 'lucide-react';
 
 export function CardList({ onSelectCard }: { onSelectCard: (id: string) => void }) {
   const { cards, loadCards, isLoading } = useLorebookStore();
-  const { currentSessionId } = useNovelStore();
 
   useEffect(() => {
-    if (currentSessionId) {
-      loadCards(currentSessionId);
-    }
-  }, [currentSessionId, loadCards]);
-
-  if (!currentSessionId) {
-    return <div className="text-sm text-muted-foreground p-4">Please create or load a novel first.</div>;
-  }
+    loadCards();
+  }, [loadCards]);
 
   return (
     <div className="space-y-4">

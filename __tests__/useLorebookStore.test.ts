@@ -1,13 +1,14 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { useLorebookStore } from '@/store/useLorebookStore';
 import { db } from '@/lib/db';
-import { LoreCard } from '@/lib/lorebook-types';
+import { GLOBAL_LOREBOOK_NOVEL_ID, LoreCard } from '@/lib/lorebook-types';
 
 // Mock the dexie db
 vi.mock('../lib/db', () => ({
   db: {
     lorebook: {
       where: vi.fn(),
+      toArray: vi.fn(),
       add: vi.fn(),
       bulkAdd: vi.fn(),
       put: vi.fn(),
@@ -31,19 +32,19 @@ describe('useLorebookStore', () => {
     expect(state.error).toBeNull();
   });
 
-  it('should load cards from dexie for a given novelId', async () => {
+  it('should load cards from dexie globally (not scoped by novelId)', async () => {
     const mockCards: LoreCard[] = [{
       id: '123', novelId: 'novel-1', type: 'character', name: 'Test', coreData: { description: '', personality: '', scenario: '', first_mes: '', mes_example: '' }, createdAt: 0, updatedAt: 0
     }];
 
-    const toArrayMock = vi.fn().mockResolvedValue(mockCards);
-    (db.lorebook.where as any).mockReturnValue({ equals: () => ({ toArray: toArrayMock }) });
+    (db.lorebook.toArray as any).mockResolvedValue(mockCards);
 
-    await useLorebookStore.getState().loadCards('novel-1');
+    await useLorebookStore.getState().loadCards();
 
     const state = useLorebookStore.getState();
     expect(state.cards).toEqual(mockCards);
     expect(state.isLoading).toBe(false);
+    expect(db.lorebook.toArray).toHaveBeenCalledTimes(1);
   });
 
   it('should add a new card to dexie and state', async () => {
@@ -59,6 +60,7 @@ describe('useLorebookStore', () => {
     const state = useLorebookStore.getState();
     expect(state.cards.length).toBe(1);
     expect(state.cards[0].name).toBe('New Character');
+    expect(state.cards[0].novelId).toBe(GLOBAL_LOREBOOK_NOVEL_ID);
     expect(db.lorebook.add).toHaveBeenCalled();
   });
 
@@ -103,6 +105,7 @@ describe('useLorebookStore', () => {
     expect(ids).toHaveLength(2);
     expect(state.cards).toHaveLength(2);
     expect(state.cards.map(card => card.name)).toEqual(['Alpha', 'Beta']);
+    expect(state.cards.every((card) => card.novelId === GLOBAL_LOREBOOK_NOVEL_ID)).toBe(true);
     expect(db.lorebook.bulkAdd).toHaveBeenCalledTimes(1);
   });
 
