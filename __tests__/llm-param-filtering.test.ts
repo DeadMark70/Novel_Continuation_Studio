@@ -267,4 +267,43 @@ describe('llm-client parameter filtering', () => {
       ))
     ).rejects.toThrow('input 20024 tokens exceeds model context 8192');
   });
+
+  it('retries with reduced max_tokens for generic context-length error format', async () => {
+    const successBody = new ReadableStream({
+      start(controller) {
+        const encoder = new TextEncoder();
+        controller.enqueue(encoder.encode('data: {"choices":[{"delta":{"content":"ok"}}]}\n\n'));
+        controller.enqueue(encoder.encode('data: [DONE]\n\n'));
+        controller.close();
+      },
+    });
+
+    (global.fetch as unknown as ReturnType<typeof vi.fn>)
+      .mockResolvedValueOnce({
+        ok: false,
+        status: 400,
+        text: async () =>
+          '{"error":{"message":"Requested token count exceeds the model\'s maximum context length of 8192 tokens. You requested a total of 10262 tokens: 6166 tokens from the input messages and 4096 tokens for the completion."}}',
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        body: successBody,
+      });
+
+    await collect(generateStream(
+      'openrouter',
+      'hello',
+      'openai/gpt-4o-mini',
+      'key',
+      undefined,
+      {
+        maxTokens: 4096,
+      }
+    ));
+
+    const firstPayload = JSON.parse((global.fetch as unknown as ReturnType<typeof vi.fn>).mock.calls[0][1].body);
+    const secondPayload = JSON.parse((global.fetch as unknown as ReturnType<typeof vi.fn>).mock.calls[1][1].body);
+    expect(firstPayload.max_tokens).toBe(4096);
+    expect(secondPayload.max_tokens).toBe(1770);
+  });
 });

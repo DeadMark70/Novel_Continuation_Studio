@@ -150,7 +150,7 @@ function parseContextOverflowError(message: string): {
   requestedOutputTokens?: number;
 } | null {
   const maxMatch = message.match(
-    /(?:maximum context length is|context length is(?: only)?)\s*([\d,]+)\s*tokens|context length\s*\(([\d,]+)\s*tokens\)/i
+    /(?:maximum context length is|maximum context length of|context length is(?: only)?)\s*([\d,]+)\s*tokens|context length\s*\(([\d,]+)\s*tokens\)/i
   );
   if (!maxMatch) {
     return null;
@@ -185,6 +185,12 @@ function parseContextOverflowError(message: string): {
       ? Number.parseInt(bracketedInputMatch[1].replace(/,/g, ''), 10)
       : undefined;
   }
+  if (!Number.isFinite(inputTokens)) {
+    const inputMessagesMatch = message.match(/([\d,]+)\s*tokens?\s*from the input messages/i);
+    inputTokens = inputMessagesMatch
+      ? Number.parseInt(inputMessagesMatch[1].replace(/,/g, ''), 10)
+      : undefined;
+  }
 
   if (!Number.isFinite(requestedOutputTokens)) {
     const tooLargeMatch = message.match(/too large:\s*([\d,]+)/i);
@@ -196,6 +202,12 @@ function parseContextOverflowError(message: string): {
     const requestedMatch = message.match(/requested\s*([\d,]+)\s*output tokens/i);
     requestedOutputTokens = requestedMatch
       ? Number.parseInt(requestedMatch[1].replace(/,/g, ''), 10)
+      : undefined;
+  }
+  if (!Number.isFinite(requestedOutputTokens)) {
+    const completionMatch = message.match(/([\d,]+)\s*tokens?\s*for the completion/i);
+    requestedOutputTokens = completionMatch
+      ? Number.parseInt(completionMatch[1].replace(/,/g, ''), 10)
       : undefined;
   }
 
@@ -489,9 +501,10 @@ export async function* generateStream(
 
   let lastError: unknown = null;
   let attemptOptions: GenerateOptions | undefined = options ? { ...options } : undefined;
+  const promptForEstimate = systemPrompt ? `${systemPrompt}\n\n${prompt}` : prompt;
   const estimatedPromptTokens = provider === 'openrouter'
-    ? await estimateTokenCount(prompt)
-    : estimateTokenCountHeuristic(prompt);
+    ? await estimateTokenCount(promptForEstimate)
+    : estimateTokenCountHeuristic(promptForEstimate);
 
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
     const controller = new AbortController();
