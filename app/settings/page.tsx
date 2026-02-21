@@ -34,7 +34,7 @@ import type { CompressionMode } from '@/lib/compression';
 type PromptKey = keyof typeof DEFAULT_PROMPTS;
 
 const PROVIDERS: LLMProvider[] = ['nim', 'openrouter'];
-const PHASES: GenerationPhaseId[] = ['compression', 'analysis', 'outline', 'breakdown', 'chapter1', 'continuation', 'sensoryHarvest', 'loreExtractor'];
+const PHASES: GenerationPhaseId[] = ['compression', 'analysis', 'outline', 'breakdown', 'chapter1', 'continuation', 'sensoryHarvest', 'loreExtractor', 'loreJsonRepair'];
 const PHASE_LABELS: Record<GenerationPhaseId, string> = {
   compression: 'Phase 0 Compression',
   analysis: 'Phase 1 Analysis',
@@ -43,7 +43,8 @@ const PHASE_LABELS: Record<GenerationPhaseId, string> = {
   chapter1: 'Phase 4 Chapter 1',
   continuation: 'Phase 5 Continuation',
   sensoryHarvest: 'Sensory Template Harvest',
-  loreExtractor: 'Lorebook Extractor'
+  loreExtractor: 'Lorebook Extractor',
+  loreJsonRepair: 'Lore JSON Repair',
 };
 const PROMPT_KEYS = Object.keys(DEFAULT_PROMPTS) as PromptKey[];
 const PROMPT_GROUPS: Array<{ title: string; keys: PromptKey[] }> = [

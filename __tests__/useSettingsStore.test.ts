@@ -54,6 +54,13 @@ describe('useSettingsStore', () => {
     expect(resolved.params.maxTokens).toBe(2048);
   });
 
+  it('includes loreJsonRepair phase in resolved generation config', () => {
+    const resolved = useSettingsStore.getState().getResolvedGenerationConfig('loreJsonRepair');
+    expect(resolved.provider).toBe('nim');
+    expect(resolved.model).toBeTruthy();
+    expect(resolved.params.maxTokens).toBeGreaterThan(0);
+  });
+
   it('applies model override over provider default for resolved config', async () => {
     await act(async () => {
       await useSettingsStore.getState().setProviderSelectedModel('nim', 'nim-model-a');
@@ -77,6 +84,21 @@ describe('useSettingsStore', () => {
     expect(resolved.params.maxTokens).toBe(1200);
     expect(resolved.params.temperature).toBe(0.2);
     expect(resolved.params.topP).toBe(0.9);
+  });
+
+  it('clamps provider default numeric params to valid ranges', async () => {
+    await act(async () => {
+      await useSettingsStore.getState().setProviderDefaultParams('nim', {
+        temperature: 99,
+        topP: -3,
+        topK: -4,
+      });
+    });
+
+    const resolved = useSettingsStore.getState().getResolvedGenerationConfig('analysis');
+    expect(resolved.params.temperature).toBe(2);
+    expect(resolved.params.topP).toBe(0);
+    expect(resolved.params.topK).toBe(1);
   });
 
   it('fetchProviderModels stores model ids in recentModels', async () => {

@@ -22,7 +22,9 @@ type WorkflowPhaseId =
   | 'breakdown'
   | 'chapter1'
   | 'continuation'
-  | 'sensoryHarvest';
+  | 'sensoryHarvest'
+  | 'loreExtractor'
+  | 'loreJsonRepair';
 
 const DEFAULT_PHASE_IDS: WorkflowPhaseId[] = [
   'compression',
@@ -32,6 +34,8 @@ const DEFAULT_PHASE_IDS: WorkflowPhaseId[] = [
   'chapter1',
   'continuation',
   'sensoryHarvest',
+  'loreExtractor',
+  'loreJsonRepair',
 ];
 
 const DEFAULT_MODEL_PARAMS: GenerationParams = {

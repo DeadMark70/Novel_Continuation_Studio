@@ -149,7 +149,9 @@ function parseContextOverflowError(message: string): {
   inputTokens?: number;
   requestedOutputTokens?: number;
 } | null {
-  const maxMatch = message.match(/maximum context length is\s*([\d,]+)\s*tokens/i);
+  const maxMatch = message.match(
+    /(?:maximum context length is|context length is(?: only)?)\s*([\d,]+)\s*tokens/i
+  );
   if (!maxMatch) {
     return null;
   }
@@ -172,11 +174,21 @@ function parseContextOverflowError(message: string): {
     const nimInputMatch = message.match(/request has\s*([\d,]+)\s*input/i);
     inputTokens = nimInputMatch ? Number.parseInt(nimInputMatch[1].replace(/,/g, ''), 10) : undefined;
   }
+  if (!Number.isFinite(inputTokens)) {
+    const passedInputMatch = message.match(/passed\s*([\d,]+)\s*input tokens/i);
+    inputTokens = passedInputMatch ? Number.parseInt(passedInputMatch[1].replace(/,/g, ''), 10) : undefined;
+  }
 
   if (!Number.isFinite(requestedOutputTokens)) {
     const tooLargeMatch = message.match(/too large:\s*([\d,]+)/i);
     requestedOutputTokens = tooLargeMatch
       ? Number.parseInt(tooLargeMatch[1].replace(/,/g, ''), 10)
+      : undefined;
+  }
+  if (!Number.isFinite(requestedOutputTokens)) {
+    const requestedMatch = message.match(/requested\s*([\d,]+)\s*output tokens/i);
+    requestedOutputTokens = requestedMatch
+      ? Number.parseInt(requestedMatch[1].replace(/,/g, ''), 10)
       : undefined;
   }
 

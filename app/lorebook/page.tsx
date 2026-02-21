@@ -45,7 +45,11 @@ export default function LorebookPage() {
                <CardList onSelectCard={setSelectedCardId} />
             </div>
             <div className="xl:col-span-2 border rounded bg-card/10 p-6 min-h-[600px] shadow-sm">
-               <CardEditor cardId={selectedCardId} onClose={() => setSelectedCardId(null)} />
+               <CardEditor
+                 cardId={selectedCardId}
+                 onClose={() => setSelectedCardId(null)}
+                 onSelectCard={setSelectedCardId}
+               />
             </div>
           </div>
         </section>

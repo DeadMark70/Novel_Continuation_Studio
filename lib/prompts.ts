@@ -1,3 +1,5 @@
+import type { LoreCharacterSourceMode, LoreExtractionTarget } from './lorebook-types';
+
 const ADULT_FICTION_GUARDRAILS = `**成人創作前提（硬性）**
 - 所有角色必須將其視為 18 歲以上虛構成年人。
 - 若原文存在年齡模糊描述，續寫時需明確以成年人方式表述。`;
@@ -634,33 +636,211 @@ const COMPRESSION_EROTIC_PACK_PROMPT = `你是長篇成人小說壓縮流程中�
 - 成人證據片段 6-10 筆（每筆包含：摘錄 + 為何有效 + 可沿用元素）
 - 所有角色皆為成年虛構人物，不得引入未成年要素`;
 
-export const LORE_EXTRACTION_PROMPT = `你是設定集（Lorebook）與角色卡片的自動萃取器。
-請分析以下文本，提取出最關鍵的角色與世界觀設定，並嚴格按照 JSON 格式回傳。
+const LORE_EXTRACTION_COMMON_RULES = `你是「Lorebook JSON Extractor」，不是小說創作者。
+你的唯一任務是：從輸入文本萃取角色/世界觀卡片，並輸出可機器解析的 JSON。
 
-提取規則：
-1. 分析文本中出現的主要實體（角色 Character 或世界觀/地點/勢力 World）。
-2. 為每個實體建立詳細的設定資料，包含：name, description, personality, scenario, first_mes, mes_example。
-3. mes_example 必須包含對話範例，並強制使用 \`<START>\` 標籤開頭，並且使用 \`{{user}}\` 與 \`{{char}}\` 作為對話巨集替換原名。
+輸出契約（硬性）：
+1. 回傳內容必須是純 JSON，不可包含 markdown code fences，不可包含任何前後說明文字。
+2. 回應必須以 \`{\` 或 \`[\` 開頭，並以 \`}\` 或 \`]\` 結尾。
+3. 嚴禁使用舊格式 \`{ "cards": [...] }\`。
+4. JSON 內字串如需換行，必須使用轉義字元 \`\\n\`。
+5. 每筆資料都必須包含：\`type\`, \`name\`, \`description\`, \`personality\`, \`scenario\`, \`first_mes\`, \`mes_example\`。
+6. \`mes_example\` 必須包含對話，使用 \`<START>\` 起始，並使用 \`{{user}}\` 與 \`{{char}}\` 巨集。
 
-輸出格式要求：
-- 必須是純 JSON，最外層為 \`{ "cards": [...] }\`。
-- 如果系統包裝了 Markdown 區塊 (例如 \`\`\`json)，請確保內容仍然是合法的 JSON。
+欄位長度上限（硬性）：
+- name <= 80 字元
+- description <= 600 字元
+- personality <= 300 字元
+- scenario <= 400 字元
+- first_mes <= 300 字元
+- mes_example <= 800 字元
+- 若來源過長導致資訊過多，請摘要壓縮內容，不可破壞 JSON 結構。
 
-範例格式：
+格式示例（正例）：
 {
-  "cards": [
-    {
-      "type": "character",
-      "name": "實體名稱",
-      "description": "外貌、背景與核心設定介紹",
-      "personality": "性格特徵",
-      "scenario": "角色目前所處情境或世界觀前提",
-      "first_mes": "角色的第一句開場白",
-      "mes_example": "<START>\\n{{user}}: 你好\\n{{char}}: 嗨，請問有什麼事嗎？"
-    }
-  ]
+  "type": "character",
+  "name": "Elara",
+  "description": "敏捷盜賊，擅長滲透。",
+  "personality": "警戒心高但可靠。",
+  "scenario": "受雇潛入貴族宅邸。",
+  "first_mes": "先別出聲。",
+  "mes_example": "<START>\\n{{user}}: 你看到什麼？\\n{{char}}: 守衛在東側巡邏。"
 }
-`;
+
+禁止示例（反例）：
+- 任何「這是你要的結果：」等前言/後記
+- \`\`\`json ... \`\`\`
+- \`{ "cards": [...] }\`
+- JSON 後面再接補充文字`;
+
+const LORE_EXTRACTION_SINGLE_CHARACTER_PROMPT = `${LORE_EXTRACTION_COMMON_RULES}
+
+任務目標：Single Character
+- 聚焦單一角色卡。
+- 輸出必須是「單一 JSON Object」，不可輸出 Array。
+- 若偵測到多名角色，僅輸出最核心的一名。
+
+輸出格式（Object）：
+{
+  "type": "character",
+  "name": "角色名稱",
+  "description": "外貌、背景與核心設定",
+  "personality": "性格特徵",
+  "scenario": "角色目前所處情境",
+  "first_mes": "角色第一句開場白",
+  "mes_example": "<START>\\n{{user}}: ...\\n{{char}}: ..."
+}`;
+
+const LORE_EXTRACTION_MULTIPLE_CHARACTERS_PROMPT = `${LORE_EXTRACTION_COMMON_RULES}
+
+任務目標：Multiple Characters
+- 聚焦文本中的多位角色。
+- 輸出必須是「JSON Array」格式：[{...}, {...}]。
+- 嚴禁回傳單一 Object。
+- 最多輸出 3 筆；若可提取超過 3 名，僅保留資訊最完整且最關鍵的 3 名。
+
+輸出格式（Array）：
+[
+  {
+    "type": "character",
+    "name": "角色A",
+    "description": "...",
+    "personality": "...",
+    "scenario": "...",
+    "first_mes": "...",
+    "mes_example": "<START>\\n{{user}}: ...\\n{{char}}: ..."
+  }
+]`;
+
+const LORE_EXTRACTION_WORLD_LORE_PROMPT = `${LORE_EXTRACTION_COMMON_RULES}
+
+任務目標：World/Lore
+- 聚焦世界觀、勢力、地點、規則、歷史背景。
+- 輸出以單一世界觀卡為主。
+- 輸出必須是「單一 JSON Object」，不可輸出 Array。
+- type 應為 "world"。
+- 若文本同時包含角色資訊，優先保留世界觀主幹並忽略角色細節。
+
+輸出格式（Object）：
+{
+  "type": "world",
+  "name": "世界觀/勢力/地點名稱",
+  "description": "核心世界觀設定",
+  "personality": "",
+  "scenario": "目前世界狀態與衝突前提",
+  "first_mes": "",
+  "mes_example": "<START>\\n{{user}}: 請介紹這個世界\\n{{char}}: ..."
+}`;
+
+export const LORE_EXTRACTION_PROMPT = LORE_EXTRACTION_SINGLE_CHARACTER_PROMPT;
+
+function buildCharacterScopeInstruction(
+  target: LoreExtractionTarget,
+  sourceMode?: LoreCharacterSourceMode,
+  characterNames?: string[]
+): string {
+  const normalizedNames = Array.isArray(characterNames)
+    ? characterNames.map((name) => name.trim()).filter((name) => name.length > 0)
+    : [];
+
+  if (target === 'worldLore') {
+    return '';
+  }
+
+  if (sourceMode === 'manualList' && normalizedNames.length > 0) {
+    return [
+      '',
+      '角色範圍（硬性）:',
+      `- 僅允許輸出以下角色：${normalizedNames.join('、')}`,
+      '- 不可輸出名單外角色。',
+      '- 名稱需盡量與名單一致（保留同一角色的常見別名時，仍以名單名稱為主）。',
+      '- 若名單角色未在文本中出現，該角色不要憑空捏造。',
+      '- 若任務是 Multiple Characters，輸出順序請盡量依照名單順序。',
+    ].join('\n');
+  }
+
+  return [
+    '',
+    '角色範圍:',
+    '- 可依文本自動識別主要角色，但避免輸出次要路人角色。',
+  ].join('\n');
+}
+
+export function getLoreExtractionPrompt(
+  target: LoreExtractionTarget,
+  options?: {
+    sourceMode?: LoreCharacterSourceMode;
+    characterNames?: string[];
+  }
+): string {
+  const scopeInstruction = buildCharacterScopeInstruction(
+    target,
+    options?.sourceMode,
+    options?.characterNames
+  );
+
+  if (target === 'multipleCharacters') {
+    return `${LORE_EXTRACTION_MULTIPLE_CHARACTERS_PROMPT}${scopeInstruction}`;
+  }
+  if (target === 'worldLore') {
+    return `${LORE_EXTRACTION_WORLD_LORE_PROMPT}${scopeInstruction}`;
+  }
+  return `${LORE_EXTRACTION_SINGLE_CHARACTER_PROMPT}${scopeInstruction}`;
+}
+
+const LORE_JSON_REPAIR_COMMON_RULES = `你是「Lorebook JSON 修復器」。
+你的唯一任務是把「可能壞掉的輸出」修成可被 JSON.parse 成功解析的純 JSON。
+
+硬性規則：
+1. 只能輸出 JSON；禁止 markdown、禁止前後說明。
+2. 若原文使用全形符號（例如「」『』：，｛｝［］），必須轉為標準 JSON 符號。
+3. 所有 key 必須使用英文雙引號包住。
+4. 字串內的非法反斜線要修復（例如 "\\ n" -> "\\\\n"）。
+5. 欄位名稱統一為：type, name, description, personality, scenario, first_mes, mes_example。
+6. 若遇到 _mes / _example，分別映射到 first_mes / mes_example。
+7. 嚴禁輸出 { "cards": [...] } 包裝格式。`;
+
+const LORE_JSON_REPAIR_SINGLE_CHARACTER_PROMPT = `${LORE_JSON_REPAIR_COMMON_RULES}
+
+目標：Single Character
+- 輸出必須是單一 JSON Object（非 Array）。
+- 若輸入含多筆資料，只保留資訊最完整的一筆。`;
+
+const LORE_JSON_REPAIR_MULTIPLE_CHARACTERS_PROMPT = `${LORE_JSON_REPAIR_COMMON_RULES}
+
+目標：Multiple Characters
+- 輸出必須是 JSON Array [{...}, {...}]。
+- 即使輸入只有單一角色，也要輸出陣列格式。
+- 最多保留 3 筆資料。`;
+
+const LORE_JSON_REPAIR_WORLD_LORE_PROMPT = `${LORE_JSON_REPAIR_COMMON_RULES}
+
+目標：World/Lore
+- 輸出必須是單一 JSON Object（非 Array）。
+- type 必須是 "world"。
+- 若輸入混有角色資料，優先保留世界觀主體。`;
+
+export function getLoreJsonRepairPrompt(
+  target: LoreExtractionTarget,
+  options?: {
+    sourceMode?: LoreCharacterSourceMode;
+    characterNames?: string[];
+  }
+): string {
+  const scopeInstruction = buildCharacterScopeInstruction(
+    target,
+    options?.sourceMode,
+    options?.characterNames
+  );
+
+  if (target === 'multipleCharacters') {
+    return `${LORE_JSON_REPAIR_MULTIPLE_CHARACTERS_PROMPT}${scopeInstruction}`;
+  }
+  if (target === 'worldLore') {
+    return `${LORE_JSON_REPAIR_WORLD_LORE_PROMPT}${scopeInstruction}`;
+  }
+  return `${LORE_JSON_REPAIR_SINGLE_CHARACTER_PROMPT}${scopeInstruction}`;
+}
 
 const COMPRESSION_SYNTHESIS_PROMPT = `你是壓縮流程的最終彙整器。請將以下五份子結果整編成可直接給續寫模型使用的最終上下文。
 

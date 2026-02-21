@@ -7,6 +7,31 @@ export interface CoreLoreData {
   mes_example: string;
 }
 
+export type LoreExtractionTarget = 'singleCharacter' | 'multipleCharacters' | 'worldLore';
+export type LoreCharacterSourceMode = 'autoDetect' | 'manualList';
+
+export interface ExtractedLoreItem {
+  type?: 'character' | 'world' | string;
+  name: string;
+  description?: string;
+  personality?: string;
+  scenario?: string;
+  first_mes?: string;
+  mes_example?: string;
+}
+
+export interface LoreExtractionRequest {
+  contextText: string;
+  target: LoreExtractionTarget;
+  sourceMode?: LoreCharacterSourceMode;
+  manualNames?: string[];
+}
+
+export interface LoreExtractionDebugResult {
+  rawOutput: string;
+  parseError?: string;
+}
+
 // Database Entity
 export interface LoreCard {
   id: string;          // UUID

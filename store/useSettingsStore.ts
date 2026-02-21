@@ -40,6 +40,7 @@ const DEFAULT_PHASES: GenerationPhaseId[] = [
   'continuation',
   'sensoryHarvest',
   'loreExtractor',
+  'loreJsonRepair',
 ];
 const MAX_SENSORY_TAGS = 8;
 
@@ -67,6 +68,10 @@ function sanitizePositiveInt(value: number, fallback: number): number {
 function sanitizeResumeRounds(value: number, fallback: number): number {
   const normalized = sanitizePositiveInt(value, fallback);
   return Math.max(1, Math.min(4, normalized));
+}
+
+function clampNumber(value: number, min: number, max: number): number {
+  return Math.min(max, Math.max(min, value));
 }
 
 function createDefaultProviderSettings(): Record<LLMProvider, ProviderScopedSettings> {
@@ -218,6 +223,7 @@ function createDefaultPhaseConfig(): PhaseConfigMap {
     continuation: { provider: 'nim', model: DEFAULT_NIM_MODEL },
     sensoryHarvest: { provider: 'nim', model: DEFAULT_NIM_MODEL },
     loreExtractor: { provider: 'nim', model: DEFAULT_NIM_MODEL },
+    loreJsonRepair: { provider: 'nim', model: DEFAULT_NIM_MODEL },
   };
 }
 
@@ -230,8 +236,12 @@ function normalizeGenerationParams(
     ...params,
     maxTokens: sanitizePositiveInt(params?.maxTokens ?? fallback.maxTokens, fallback.maxTokens),
     autoMaxTokens: Boolean(params?.autoMaxTokens),
-    temperature: Number.isFinite(params?.temperature) ? Number(params?.temperature) : fallback.temperature,
-    topP: Number.isFinite(params?.topP) ? Number(params?.topP) : fallback.topP,
+    temperature: Number.isFinite(params?.temperature)
+      ? clampNumber(Number(params?.temperature), 0, 2)
+      : fallback.temperature,
+    topP: Number.isFinite(params?.topP)
+      ? clampNumber(Number(params?.topP), 0, 1)
+      : fallback.topP,
     topK: Number.isFinite(params?.topK)
       ? Math.max(1, Math.floor(Number(params?.topK)))
       : fallback.topK,

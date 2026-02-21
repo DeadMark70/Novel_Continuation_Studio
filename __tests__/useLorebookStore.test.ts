@@ -2,7 +2,6 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { useLorebookStore } from '@/store/useLorebookStore';
 import { db } from '@/lib/db';
 import { LoreCard } from '@/lib/lorebook-types';
-import { v4 as uuidv4 } from 'uuid';
 
 // Mock the dexie db
 vi.mock('../lib/db', () => ({
@@ -10,6 +9,7 @@ vi.mock('../lib/db', () => ({
     lorebook: {
       where: vi.fn(),
       add: vi.fn(),
+      bulkAdd: vi.fn(),
       put: vi.fn(),
       update: vi.fn(),
       delete: vi.fn()
@@ -77,6 +77,33 @@ describe('useLorebookStore', () => {
     const state = useLorebookStore.getState();
     expect(state.cards[0].name).toBe('Updated');
     expect(db.lorebook.update).toHaveBeenCalled();
+  });
+
+  it('should add multiple new cards to dexie and state in one call', async () => {
+    const cardsData = [
+      {
+        novelId: 'novel-1',
+        type: 'character' as const,
+        name: 'Alpha',
+        coreData: { description: 'A', personality: '', scenario: '', first_mes: '', mes_example: '' }
+      },
+      {
+        novelId: 'novel-1',
+        type: 'character' as const,
+        name: 'Beta',
+        coreData: { description: 'B', personality: '', scenario: '', first_mes: '', mes_example: '' }
+      }
+    ];
+
+    (db.lorebook.bulkAdd as any).mockResolvedValue(undefined);
+
+    const ids = await useLorebookStore.getState().addCards(cardsData);
+
+    const state = useLorebookStore.getState();
+    expect(ids).toHaveLength(2);
+    expect(state.cards).toHaveLength(2);
+    expect(state.cards.map(card => card.name)).toEqual(['Alpha', 'Beta']);
+    expect(db.lorebook.bulkAdd).toHaveBeenCalledTimes(1);
   });
 
   it('should delete a card from dexie and state', async () => {

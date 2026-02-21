@@ -76,7 +76,11 @@ export interface PhaseModelSelection {
   model?: string;
 }
 
-export type GenerationPhaseId = WorkflowStepId | 'sensoryHarvest' | 'loreExtractor';
+export type GenerationPhaseId =
+  | WorkflowStepId
+  | 'sensoryHarvest'
+  | 'loreExtractor'
+  | 'loreJsonRepair';
 
 export type PhaseConfigMap = Record<GenerationPhaseId, PhaseModelSelection>;
 

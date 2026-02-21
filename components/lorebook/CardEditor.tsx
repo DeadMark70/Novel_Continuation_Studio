@@ -2,7 +2,11 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useLorebookStore } from '@/store/useLorebookStore';
 import { useNovelStore } from '@/store/useNovelStore';
 import { useSettingsStore } from '@/store/useSettingsStore';
-import { extractLoreFromText } from '@/lib/lore-extractor';
+import {
+  extractLoreFromText,
+  isLoreExtractionParseError,
+  parseLoreCardsFromRawJsonWithLlmRepair,
+} from '@/lib/lore-extractor';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -10,15 +14,16 @@ import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Save, Trash2, Image as ImageIcon, Wand2 } from 'lucide-react';
-import { LoreCard } from '@/lib/lorebook-types';
+import { LoreCard, LoreCharacterSourceMode, LoreExtractionTarget } from '@/lib/lorebook-types';
 
 interface CardEditorProps {
   cardId: string | null;
   onClose: () => void;
+  onSelectCard?: (id: string) => void;
 }
 
-export function CardEditor({ cardId, onClose }: CardEditorProps) {
-  const { cards, addCard, updateCard, deleteCard } = useLorebookStore();
+export function CardEditor({ cardId, onClose, onSelectCard }: CardEditorProps) {
+  const { cards, addCard, addCards, updateCard, deleteCard } = useLorebookStore();
   const { currentSessionId } = useNovelStore();
   const { getResolvedGenerationConfig } = useSettingsStore();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -30,6 +35,13 @@ export function CardEditor({ cardId, onClose }: CardEditorProps) {
   });
 
   const [extractText, setExtractText] = useState('');
+  const [extractionTarget, setExtractionTarget] = useState<LoreExtractionTarget>('singleCharacter');
+  const [characterSourceMode, setCharacterSourceMode] = useState<LoreCharacterSourceMode>('autoDetect');
+  const [manualCharacterListText, setManualCharacterListText] = useState('');
+  const [extractionError, setExtractionError] = useState<string | null>(null);
+  const [rawExtractionOutput, setRawExtractionOutput] = useState('');
+  const [editableRawOutput, setEditableRawOutput] = useState('');
+  const [retryParseError, setRetryParseError] = useState<string | null>(null);
   const [isExtracting, setIsExtracting] = useState(false);
   const [isExtractDialogOpen, setIsExtractDialogOpen] = useState(false);
 
@@ -93,6 +105,81 @@ export function CardEditor({ cardId, onClose }: CardEditorProps) {
     }
   };
 
+  const parseManualNames = () => (
+    manualCharacterListText
+      .split('\n')
+      .map((line) => line.trim())
+      .filter((line) => line.length > 0)
+  );
+
+  const resolveRepairConfig = () => {
+    const repair = getResolvedGenerationConfig('loreJsonRepair');
+    if (repair.apiKey.trim()) {
+      return repair;
+    }
+    // Fallback to loreExtractor config so Retry Parse still works out-of-the-box.
+    return getResolvedGenerationConfig('loreExtractor');
+  };
+
+  const resetExtractionRecovery = () => {
+    setExtractionError(null);
+    setRawExtractionOutput('');
+    setEditableRawOutput('');
+    setRetryParseError(null);
+  };
+
+  const handleExtractDialogOpenChange = (open: boolean) => {
+    setIsExtractDialogOpen(open);
+    if (!open) {
+      resetExtractionRecovery();
+    }
+  };
+
+  const applyExtractedCards = async (outputCards: LoreCard[]) => {
+    if (!outputCards || outputCards.length === 0) {
+      alert("No clear lore data was extracted.");
+      return;
+    }
+
+    if (extractionTarget === 'multipleCharacters') {
+      if (!currentSessionId) {
+        alert('Please create or load a novel first.');
+        return;
+      }
+
+      const insertedIds = await addCards(
+        outputCards.map((card) => ({
+          novelId: currentSessionId,
+          type: card.type,
+          name: card.name,
+          avatarDataUri: card.avatarDataUri,
+          coreData: card.coreData,
+        }))
+      );
+
+      if (insertedIds.length > 0) {
+        onSelectCard?.(insertedIds[0]);
+      }
+
+      setIsExtractDialogOpen(false);
+      resetExtractionRecovery();
+      return;
+    }
+
+    const first = outputCards[0];
+    setFormData(prev => ({
+      ...prev,
+      type: first.type,
+      name: first.name,
+      coreData: {
+        ...prev.coreData,
+        ...first.coreData
+      }
+    }));
+    setIsExtractDialogOpen(false);
+    resetExtractionRecovery();
+  };
+
   if (!cardId) {
     return (
       <div className="flex h-full items-center justify-center text-sm text-muted-foreground border border-dashed rounded-lg bg-card/10 p-8">
@@ -104,29 +191,77 @@ export function CardEditor({ cardId, onClose }: CardEditorProps) {
   const handleExtract = async () => {
     if (!extractText.trim()) return;
     setIsExtracting(true);
+    resetExtractionRecovery();
     try {
       const config = getResolvedGenerationConfig('loreExtractor');
+      const repairConfig = resolveRepairConfig();
+      const manualNames = parseManualNames();
 
-      const outputCards = await extractLoreFromText(extractText, config.provider, config.model, config.apiKey);
-      if (outputCards && outputCards.length > 0) {
-        const first = outputCards[0];
-        setFormData(prev => ({
-          ...prev,
-          type: first.type,
-          name: first.name,
-          coreData: {
-            ...prev.coreData,
-            ...first.coreData
-          }
-        }));
-        setIsExtractDialogOpen(false);
-      } else {
-        alert("No clear lore data was extracted.");
+      const outputCards = await extractLoreFromText(
+        extractText,
+        config.provider,
+        config.model,
+        config.apiKey,
+        extractionTarget,
+        {
+          sourceMode: characterSourceMode,
+          manualNames,
+          params: config.params,
+          supportedParameters: config.supportedParameters,
+          maxContextTokens: config.maxContextTokens,
+          maxCompletionTokens: config.maxCompletionTokens,
+          repairConfig: {
+            provider: repairConfig.provider,
+            model: repairConfig.model,
+            apiKey: repairConfig.apiKey,
+            params: repairConfig.params,
+            supportedParameters: repairConfig.supportedParameters,
+            maxContextTokens: repairConfig.maxContextTokens,
+            maxCompletionTokens: repairConfig.maxCompletionTokens,
+          },
+        }
+      );
+      await applyExtractedCards(outputCards);
+    } catch (err: unknown) {
+      if (isLoreExtractionParseError(err)) {
+        setExtractionError(err.message);
+        setRawExtractionOutput(err.rawOutput);
+        setEditableRawOutput(err.rawOutput);
+        return;
       }
-    } catch (err: any) {
-      alert(`Extraction failed: ${err.message}`);
+      const message = err instanceof Error ? err.message : 'Unknown extraction error';
+      alert(`Extraction failed: ${message}`);
     } finally {
       setIsExtracting(false);
+    }
+  };
+
+  const handleRetryParse = async () => {
+    if (!editableRawOutput.trim()) {
+      setRetryParseError('Please provide JSON output before retrying parse.');
+      return;
+    }
+
+    setRetryParseError(null);
+    try {
+      const repairConfig = resolveRepairConfig();
+      const outputCards = await parseLoreCardsFromRawJsonWithLlmRepair(editableRawOutput, extractionTarget, {
+        sourceMode: characterSourceMode,
+        manualNames: parseManualNames(),
+        repairConfig: {
+          provider: repairConfig.provider,
+          model: repairConfig.model,
+          apiKey: repairConfig.apiKey,
+          params: repairConfig.params,
+          supportedParameters: repairConfig.supportedParameters,
+          maxContextTokens: repairConfig.maxContextTokens,
+          maxCompletionTokens: repairConfig.maxCompletionTokens,
+        },
+      });
+      await applyExtractedCards(outputCards);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Unknown parse error';
+      setRetryParseError(message);
     }
   };
 
@@ -162,7 +297,7 @@ export function CardEditor({ cardId, onClose }: CardEditorProps) {
            <Button variant="outline" size="sm" onClick={handleExport} className="gap-2">
              Export PNG
            </Button>
-           <Dialog open={isExtractDialogOpen} onOpenChange={setIsExtractDialogOpen}>
+           <Dialog open={isExtractDialogOpen} onOpenChange={handleExtractDialogOpenChange}>
              <DialogTrigger asChild>
                <Button variant="outline" size="sm" className="gap-2">
                  <Wand2 className="size-4" /> Extract from Text
@@ -173,15 +308,81 @@ export function CardEditor({ cardId, onClose }: CardEditorProps) {
                  <DialogTitle>AI Lore Extraction</DialogTitle>
                </DialogHeader>
                <div className="space-y-4">
-                 <Label>Paste background, story intro, or dialog snippet:</Label>
-                 <Textarea 
-                   value={extractText} 
+                <Label>Paste background, story intro, or dialog snippet:</Label>
+                <Textarea 
+                  value={extractText} 
                    onChange={e => setExtractText(e.target.value)} 
                    className="h-40" 
                    placeholder="e.g. Elara is a thief with green eyes. She loves to say 'Hands off!'..."
                  />
+                 <div className="space-y-2">
+                   <Label>Extraction Target</Label>
+                   <Select
+                     value={extractionTarget}
+                     onValueChange={(value) => setExtractionTarget(value as LoreExtractionTarget)}
+                   >
+                     <SelectTrigger>
+                       <SelectValue placeholder="Select extraction target" />
+                     </SelectTrigger>
+                     <SelectContent>
+                       <SelectItem value="singleCharacter">Single Character</SelectItem>
+                       <SelectItem value="multipleCharacters">Multiple Characters</SelectItem>
+                       <SelectItem value="worldLore">World / Lore</SelectItem>
+                     </SelectContent>
+                   </Select>
+                 </div>
+                 <div className="space-y-2">
+                   <Label>Character Source</Label>
+                   <Select
+                     value={characterSourceMode}
+                     onValueChange={(value) => setCharacterSourceMode(value as LoreCharacterSourceMode)}
+                   >
+                     <SelectTrigger>
+                       <SelectValue placeholder="Select character source mode" />
+                     </SelectTrigger>
+                     <SelectContent>
+                       <SelectItem value="autoDetect">Auto Detect</SelectItem>
+                       <SelectItem value="manualList">Manual List</SelectItem>
+                     </SelectContent>
+                   </Select>
+                 </div>
+                 {characterSourceMode === 'manualList' && (
+                   <div className="space-y-2">
+                     <Label>Character List (one per line)</Label>
+                     <Textarea
+                       value={manualCharacterListText}
+                       onChange={(e) => setManualCharacterListText(e.target.value)}
+                       className="h-24"
+                       placeholder={'Elara\nBran\nLina'}
+                     />
+                   </div>
+                 )}
+                 {extractionError && (
+                   <div className="space-y-2 border rounded-md p-3 bg-card/40">
+                     <p className="text-sm text-destructive">{extractionError}</p>
+                     <Label>Raw LLM Output (Editable)</Label>
+                     <Textarea
+                       value={editableRawOutput}
+                       onChange={(e) => setEditableRawOutput(e.target.value)}
+                       className="h-36 font-mono text-xs"
+                     />
+                     {retryParseError && (
+                       <p className="text-xs text-destructive">{retryParseError}</p>
+                     )}
+                     <div className="flex justify-end gap-2">
+                       <Button variant="secondary" onClick={handleRetryParse}>
+                         Retry Parse
+                       </Button>
+                     </div>
+                     {rawExtractionOutput && (
+                       <p className="text-xs text-muted-foreground">
+                         Original output length: {rawExtractionOutput.length} chars
+                       </p>
+                     )}
+                   </div>
+                 )}
                  <div className="flex justify-end gap-2">
-                   <Button variant="outline" onClick={() => setIsExtractDialogOpen(false)}>Cancel</Button>
+                   <Button variant="outline" onClick={() => handleExtractDialogOpenChange(false)}>Cancel</Button>
                    <Button onClick={handleExtract} disabled={isExtracting || !extractText.trim()}>
                      {isExtracting ? 'Extracting...' : 'Extract & Parse'}
                    </Button>
