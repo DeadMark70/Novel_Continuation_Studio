@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { CoreLoreData, LoreCard, V2CardData, V3CardData } from '@/lib/lorebook-types';
+import { LoreCard, V2CardData, V3CardData } from '@/lib/lorebook-types';
 
 describe('Lorebook Types Compliance', () => {
   it('should validate a complete V2CardData structure', () => {

@@ -2,7 +2,7 @@
 
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { useSettingsStore } from '@/store/useSettingsStore';
+import { useSettingsStore, type PhaseMetadataSyncResult } from '@/store/useSettingsStore';
 import { useShallow } from 'zustand/react/shallow';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -196,6 +196,7 @@ export default function SettingsPage() {
       fetchProviderModels: state.fetchProviderModels,
       applySettingsSnapshot: state.applySettingsSnapshot,
       getResolvedGenerationConfig: state.getResolvedGenerationConfig,
+      ensurePhaseMetadata: state.ensurePhaseMetadata,
     }))
   );
   const [isInitialized, setIsInitialized] = useState(false);
@@ -203,6 +204,10 @@ export default function SettingsPage() {
   const [saveMessage, setSaveMessage] = useState('');
   const [showLeaveConfirm, setShowLeaveConfirm] = useState(false);
   const [lastSaveDurationMs, setLastSaveDurationMs] = useState<number | null>(null);
+  const [phaseMetadataSyncStatus, setPhaseMetadataSyncStatus] = useState<{
+    loreExtractor?: string;
+    loreJsonRepair?: string;
+  }>({});
   const [showDebug, setShowDebug] = useState(false);
   const [errors, setErrors] = useState<string[]>([]);
   const [promptSearch, setPromptSearch] = useState('');
@@ -466,9 +471,26 @@ export default function SettingsPage() {
         sensoryAutoTemplateByPhase: draftSensoryAutoTemplateByPhase,
         context: draftContext,
       });
+      setPhaseMetadataSyncStatus({
+        loreExtractor: 'Syncing...',
+        loreJsonRepair: 'Syncing...',
+      });
+      const syncResults = await Promise.all([
+        settings.ensurePhaseMetadata('loreExtractor'),
+        settings.ensurePhaseMetadata('loreJsonRepair'),
+      ]);
+      const toStatusText = (result: PhaseMetadataSyncResult) =>
+        result.synced
+          ? `Synced (${result.provider}/${result.model})`
+          : `Missing metadata (${result.provider}/${result.model})${result.reason ? `: ${result.reason}` : ''}`;
+      setPhaseMetadataSyncStatus({
+        loreExtractor: toStatusText(syncResults[0]),
+        loreJsonRepair: toStatusText(syncResults[1]),
+      });
 
       initialSignatureRef.current = signature;
-      setSaveMessage('Saved.');
+      const hasMetadataGaps = syncResults.some((result) => !result.synced);
+      setSaveMessage(hasMetadataGaps ? 'Saved. Lore metadata sync is partial; see status below.' : 'Saved.');
       const finishedAt =
         typeof performance !== 'undefined' && typeof performance.now === 'function'
           ? performance.now()
@@ -515,6 +537,12 @@ export default function SettingsPage() {
         <div className="rounded-lg border border-border p-3 text-xs font-mono" aria-live="polite">
           <p>Draft status: {isDirty ? 'Unsaved changes' : 'Up to date'}</p>
           {saveMessage && <p className="text-green-500">{saveMessage}</p>}
+          {phaseMetadataSyncStatus.loreExtractor ? (
+            <p className="text-muted-foreground">loreExtractor metadata: {phaseMetadataSyncStatus.loreExtractor}</p>
+          ) : null}
+          {phaseMetadataSyncStatus.loreJsonRepair ? (
+            <p className="text-muted-foreground">loreJsonRepair metadata: {phaseMetadataSyncStatus.loreJsonRepair}</p>
+          ) : null}
           {lastSaveDurationMs !== null && (
             <p className="text-muted-foreground">Last save: {Math.round(lastSaveDurationMs)} ms</p>
           )}
@@ -533,6 +561,8 @@ export default function SettingsPage() {
               <p>persistCount={settings.persistCount}</p>
               <p>lastPersistDurationMs={settings.lastPersistDurationMs ? Math.round(settings.lastPersistDurationMs) : 'n/a'}</p>
               <p>lastPersistAt={settings.lastPersistAt ? new Date(settings.lastPersistAt).toLocaleString() : 'n/a'}</p>
+              {phaseMetadataSyncStatus.loreExtractor ? <p>loreExtractor.metadata={phaseMetadataSyncStatus.loreExtractor}</p> : null}
+              {phaseMetadataSyncStatus.loreJsonRepair ? <p>loreJsonRepair.metadata={phaseMetadataSyncStatus.loreJsonRepair}</p> : null}
             </div>
           )}
         </div>
@@ -1055,6 +1085,7 @@ export default function SettingsPage() {
                     <p>
                       max_tokens={resolved.params.autoMaxTokens ? 'auto' : resolved.params.maxTokens} temperature={resolved.params.temperature} top_p={resolved.params.topP} top_k={resolved.params.topK ?? 'n/a'}
                     </p>
+                    <p>max_context_tokens={resolved.maxContextTokens ?? 'n/a'} max_completion_tokens={resolved.maxCompletionTokens ?? 'n/a'}</p>
                     <p>frequency_penalty={resolved.params.frequencyPenalty ?? 'n/a'} presence_penalty={resolved.params.presencePenalty ?? 'n/a'}</p>
                     <p>thinking_enabled={resolved.params.thinkingEnabled ? 'true' : 'false'} thinking_budget={resolved.params.thinkingBudget ?? 'n/a'}</p>
                   </div>

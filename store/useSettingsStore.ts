@@ -31,6 +31,7 @@ const CAPABILITY_CACHE_TTL_MS = 10 * 60 * 1000;
 const DEFAULT_NIM_MODEL = 'meta/llama3-70b-instruct';
 const DEFAULT_OPENROUTER_MODEL = 'openai/gpt-4o-mini';
 const DEFAULT_SENSORY_TEMPLATE_ID = 'sensory_default';
+let settingsInitializePromise: Promise<void> | null = null;
 const DEFAULT_PHASES: GenerationPhaseId[] = [
   'compression',
   'analysis',
@@ -104,6 +105,7 @@ function ensureProviderSelectedModel(
   return {
     ...providerState,
     selectedModel,
+    modelParameterSupport: providerState.modelParameterSupport || {},
     modelTokenLimits: providerState.modelTokenLimits || {},
   };
 }
@@ -274,7 +276,40 @@ function resolveCompatibilityFields(state: Pick<
   };
 }
 
+function hasOwnKey(record: object, key: string): boolean {
+  return Object.prototype.hasOwnProperty.call(record, key);
+}
+
+function hasModelMetadata(
+  providerState: ProviderScopedSettings,
+  model: string
+): boolean {
+  const modelId = model.trim();
+  if (!modelId) {
+    return false;
+  }
+
+  const hasParameterSupport = hasOwnKey(providerState.modelParameterSupport || {}, modelId);
+  const tokenLimits = providerState.modelTokenLimits?.[modelId];
+  const hasTokenLimits = Boolean(
+    tokenLimits && (
+      typeof tokenLimits.contextLength === 'number' ||
+      typeof tokenLimits.maxCompletionTokens === 'number'
+    )
+  );
+
+  return hasParameterSupport && hasTokenLimits;
+}
+
+export interface PhaseMetadataSyncResult {
+  synced: boolean;
+  provider: LLMProvider;
+  model: string;
+  reason?: string;
+}
+
 interface SettingsState {
+  isInitialized: boolean;
   activeProvider: LLMProvider;
   providers: Record<LLMProvider, ProviderScopedSettings>;
   phaseConfig: PhaseConfigMap;
@@ -368,6 +403,12 @@ interface SettingsState {
   upsertModelCapability: (model: string, capability: ModelCapability, provider?: LLMProvider) => Promise<void>;
   probeModelCapability: (model: string, apiKey?: string, provider?: LLMProvider) => Promise<ModelCapability>;
   fetchProviderModels: (provider: LLMProvider, apiKey?: string) => Promise<string[]>;
+  ensureModelMetadata: (
+    provider: LLMProvider,
+    model: string,
+    apiKey?: string
+  ) => Promise<PhaseMetadataSyncResult>;
+  ensurePhaseMetadata: (phaseId: GenerationPhaseId) => Promise<PhaseMetadataSyncResult>;
   updateContextSettings: (settings: Partial<Pick<
     SettingsState,
     | 'truncationThreshold'
@@ -388,6 +429,7 @@ interface SettingsState {
 }
 
 export const useSettingsStore = create<SettingsState>((set, get) => ({
+  isInitialized: false,
   activeProvider: 'nim',
   providers: createDefaultProviderSettings(),
   phaseConfig: createDefaultPhaseConfig(),
@@ -824,6 +866,51 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     return ids;
   },
 
+  ensureModelMetadata: async (provider, model, apiKey) => {
+    const modelId = model.trim();
+    if (!modelId) {
+      return {
+        synced: false,
+        provider,
+        model: modelId,
+        reason: 'Model ID is empty.',
+      };
+    }
+
+    const providerState = get().providers[provider];
+    if (hasModelMetadata(providerState, modelId)) {
+      return { synced: true, provider, model: modelId };
+    }
+
+    try {
+      await get().fetchProviderModels(provider, apiKey ?? providerState.apiKey);
+    } catch (error) {
+      return {
+        synced: false,
+        provider,
+        model: modelId,
+        reason: error instanceof Error ? error.message : 'Failed to sync provider model metadata.',
+      };
+    }
+
+    const refreshedProviderState = get().providers[provider];
+    if (hasModelMetadata(refreshedProviderState, modelId)) {
+      return { synced: true, provider, model: modelId };
+    }
+
+    return {
+      synced: false,
+      provider,
+      model: modelId,
+      reason: 'Model metadata unavailable after refresh.',
+    };
+  },
+
+  ensurePhaseMetadata: async (phaseId) => {
+    const resolved = get().getResolvedGenerationConfig(phaseId);
+    return get().ensureModelMetadata(resolved.provider, resolved.model, resolved.apiKey);
+  },
+
   updateContextSettings: async (settings) => {
     set((state) => ({
       ...state,
@@ -866,8 +953,18 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   },
 
   initialize: async () => {
+    if (get().isInitialized) {
+      return;
+    }
+    if (settingsInitializePromise) {
+      await settingsInitializePromise;
+      return;
+    }
+
+    settingsInitializePromise = (async () => {
     const settings = await getSettings();
     if (!settings) {
+      set({ isInitialized: true });
       return;
     }
 
@@ -948,8 +1045,15 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     };
     set((state) => {
       const merged = { ...state, ...nextPartial };
-      return { ...merged, ...resolveCompatibilityFields(merged) };
+      return { ...merged, ...resolveCompatibilityFields(merged), isInitialized: true };
     });
+    })();
+
+    try {
+      await settingsInitializePromise;
+    } finally {
+      settingsInitializePromise = null;
+    }
   },
 
   persist: async () => {

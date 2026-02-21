@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterAll } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { db } from '@/lib/db';
 import 'fake-indexeddb/auto';
 import { LoreCard } from '@/lib/lorebook-types';

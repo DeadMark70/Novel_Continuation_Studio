@@ -1,8 +1,24 @@
 import extractChunks from 'png-chunks-extract';
 import encodeChunks from 'png-chunks-encode';
 import textChunk from 'png-chunk-text';
-import { Buffer } from 'buffer';
 import { LoreCard, V2CardData, V3CardData } from './lorebook-types';
+
+interface PngChunk {
+  name: string;
+  data: Uint8Array;
+}
+
+interface DecodedTextChunk {
+  keyword: string;
+  text: string;
+}
+
+const extractPngChunks = extractChunks as unknown as (data: Uint8Array) => PngChunk[];
+const encodePngChunks = encodeChunks as unknown as (chunks: PngChunk[]) => Uint8Array;
+const textChunkCodec = textChunk as unknown as {
+  encode: (keyword: string, text: string) => PngChunk;
+  decode: (chunk: PngChunk) => DecodedTextChunk;
+};
 
 export function buildV2Payload(card: LoreCard): V2CardData {
   return {
@@ -63,30 +79,32 @@ export async function exportLorebookCardToPNG(card: LoreCard): Promise<Blob> {
   const v3Base64 = encodeBase64(v3String);
 
   // 3. Extract PNG chunks
-  const chunks = (extractChunks as any)(uint8Array);
+  const chunks = extractPngChunks(uint8Array);
 
   // 4. Remove any existing chara / ccv3 text chunks to avoid duplication
-  const cleanChunks = chunks.filter((chunk: any) => {
+  const cleanChunks = chunks.filter((chunk) => {
     if (chunk.name !== 'tEXt') return true;
     try {
-      const text = (textChunk.decode as any)(chunk);
+      const text = textChunkCodec.decode(chunk);
       if (text.keyword === 'chara' || text.keyword === 'ccv3') return false;
-    } catch (e) {
+    } catch {
       // Ignore invalid chunks
     }
     return true;
   });
 
   // 5. Append new metadata chunks
-  const endChunkIndex = cleanChunks.findIndex((c: any) => c.name === 'IEND');
+  const endChunkIndex = cleanChunks.findIndex((chunk) => chunk.name === 'IEND');
   const tailIndex = endChunkIndex > -1 ? endChunkIndex : cleanChunks.length;
 
-  cleanChunks.splice(tailIndex, 0, (textChunk.encode as any)('chara', v2Base64));
-  cleanChunks.splice(tailIndex + 1, 0, (textChunk.encode as any)('ccv3', v3Base64));
+  cleanChunks.splice(tailIndex, 0, textChunkCodec.encode('chara', v2Base64));
+  cleanChunks.splice(tailIndex + 1, 0, textChunkCodec.encode('ccv3', v3Base64));
 
   // 6. Encode chunks back to PNG
-  const finalBuffer = (encodeChunks as any)(cleanChunks);
+  const finalBuffer = encodePngChunks(cleanChunks);
+  const pngBytes = finalBuffer instanceof Uint8Array ? finalBuffer : new Uint8Array(finalBuffer);
+  const blobSafeBytes = Uint8Array.from(pngBytes);
 
   // 7. Create Blob
-  return new Blob([finalBuffer as any], { type: 'image/png' });
+  return new Blob([blobSafeBytes], { type: 'image/png' });
 }

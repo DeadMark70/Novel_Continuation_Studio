@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, type Mock } from 'vitest';
 import { useLorebookStore } from '@/store/useLorebookStore';
 import { db } from '@/lib/db';
 import { GLOBAL_LOREBOOK_NOVEL_ID, LoreCard } from '@/lib/lorebook-types';
@@ -37,7 +37,8 @@ describe('useLorebookStore', () => {
       id: '123', novelId: 'novel-1', type: 'character', name: 'Test', coreData: { description: '', personality: '', scenario: '', first_mes: '', mes_example: '' }, createdAt: 0, updatedAt: 0
     }];
 
-    (db.lorebook.toArray as any).mockResolvedValue(mockCards);
+    const toArrayMock = db.lorebook.toArray as unknown as Mock;
+    toArrayMock.mockResolvedValue(mockCards);
 
     await useLorebookStore.getState().loadCards();
 
@@ -53,7 +54,8 @@ describe('useLorebookStore', () => {
       coreData: { description: 'Desc', personality: 'Pers', scenario: '', first_mes: '', mes_example: '' }
     };
 
-    (db.lorebook.add as any).mockResolvedValue('new-id');
+    const addMock = db.lorebook.add as unknown as Mock;
+    addMock.mockResolvedValue('new-id');
 
     await useLorebookStore.getState().addCard(newCardData);
 
@@ -72,7 +74,8 @@ describe('useLorebookStore', () => {
     // Set initial state manually
     useLorebookStore.setState({ cards: [initialCard] });
 
-    (db.lorebook.update as any).mockResolvedValue(1); // update usually returns count
+    const updateMock = db.lorebook.update as unknown as Mock;
+    updateMock.mockResolvedValue(1); // update usually returns count
 
     await useLorebookStore.getState().updateCard('123', { name: 'Updated' });
 
@@ -97,7 +100,8 @@ describe('useLorebookStore', () => {
       }
     ];
 
-    (db.lorebook.bulkAdd as any).mockResolvedValue(undefined);
+    const bulkAddMock = db.lorebook.bulkAdd as unknown as Mock;
+    bulkAddMock.mockResolvedValue(undefined);
 
     const ids = await useLorebookStore.getState().addCards(cardsData);
 
@@ -117,7 +121,8 @@ describe('useLorebookStore', () => {
     // Set initial state manually
     useLorebookStore.setState({ cards: [initialCard] });
 
-    (db.lorebook.delete as any).mockResolvedValue(undefined);
+    const deleteMock = db.lorebook.delete as unknown as Mock;
+    deleteMock.mockResolvedValue(undefined);
 
     await useLorebookStore.getState().deleteCard('123');
 

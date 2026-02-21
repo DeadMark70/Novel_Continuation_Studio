@@ -33,6 +33,7 @@ const LORE_FIELD_LIMITS = {
 } as const;
 
 const MAX_AUTO_MULTIPLE_RESULTS = 3;
+const MAX_LLM_REPAIR_ATTEMPTS = 2;
 
 export interface LoreExtractionOptions {
   params?: Partial<GenerationParams>;
@@ -299,15 +300,151 @@ function buildParseCandidates(candidate: string): string[] {
   return options;
 }
 
+function replaceOutsideQuotedStrings(
+  input: string,
+  replacer: (char: string) => string
+): string {
+  let output = '';
+  let inString = false;
+  let escaped = false;
+
+  for (let i = 0; i < input.length; i += 1) {
+    const char = input[i];
+
+    if (inString) {
+      output += char;
+      if (escaped) {
+        escaped = false;
+      } else if (char === '\\') {
+        escaped = true;
+      } else if (char === '"') {
+        inString = false;
+      }
+      continue;
+    }
+
+    if (char === '"') {
+      inString = true;
+      output += char;
+      continue;
+    }
+
+    output += replacer(char);
+  }
+
+  return output;
+}
+
+function normalizeJsonPunctuationOutsideStrings(input: string): string {
+  const punctuationMap: Record<string, string> = {
+    '｛': '{',
+    '｝': '}',
+    '［': '[',
+    '］': ']',
+    '：': ':',
+    '，': ',',
+    '＂': '"',
+  };
+
+  return replaceOutsideQuotedStrings(input, (char) => punctuationMap[char] ?? char);
+}
+
+function normalizeQuotedObjectKeys(input: string): string {
+  return input
+    .replace(/([{\[,]\s*)[「『]([^「」『』:\n\r]+?)[」』]\s*:/g, '$1"$2":')
+    .replace(/"\*{1,2}\s*([A-Za-z_][A-Za-z0-9_]*)\s*\*{1,2}"\s*:/g, '"$1":')
+    .replace(/([{\[,]\s*)([A-Za-z_][A-Za-z0-9_]*)"\s*:/g, '$1"$2":');
+}
+
+function mergeConcatenatedJsonStrings(input: string): string {
+  const concatPattern = /"((?:\\.|[^"\\])*)"\s*\+\s*"((?:\\.|[^"\\])*)"/g;
+  let output = input;
+
+  for (let i = 0; i < 20; i += 1) {
+    const next = output.replace(concatPattern, (_, left: string, right: string) => {
+      let leftValue = left;
+      let rightValue = right;
+      try {
+        leftValue = JSON.parse(`"${left}"`) as string;
+      } catch {}
+      try {
+        rightValue = JSON.parse(`"${right}"`) as string;
+      } catch {}
+      return JSON.stringify(`${leftValue}${rightValue}`);
+    });
+
+    if (next === output) {
+      break;
+    }
+    output = next;
+  }
+
+  return output;
+}
+
+function normalizeKnownStringFieldValues(input: string): string {
+  const fields = [
+    'type',
+    'name',
+    'description',
+    'personality',
+    'scenario',
+    'first_mes',
+    'mes_example',
+    '_mes',
+    '_example',
+  ];
+  const fieldPattern = new RegExp(
+    `("(${fields.join('|')})"\\s*:\\s*)([^"\\[{][^,}\\]]*)(?=\\s*[,}\\]])`,
+    'gi'
+  );
+
+  return input.replace(fieldPattern, (_, prefix: string, __: string, rawValue: string) => {
+    let value = rawValue.trim();
+
+    if (!value) {
+      return `${prefix}${JSON.stringify('')}`;
+    }
+
+    if (value.startsWith('"') || value.startsWith('{') || value.startsWith('[')) {
+      return `${prefix}${value}`;
+    }
+
+    const cjkWrappedWithNoteMatch = value.match(/^[「『](.*?)[」』]\s*[\(（]([^()\n\r]*?)[\)）]$/);
+    if (cjkWrappedWithNoteMatch) {
+      value = `${cjkWrappedWithNoteMatch[1]}（${cjkWrappedWithNoteMatch[2]}）`;
+      return `${prefix}${JSON.stringify(value)}`;
+    }
+
+    const cjkWrappedMatch = value.match(/^[「『](.*?)[」』]$/);
+    if (cjkWrappedMatch) {
+      value = cjkWrappedMatch[1];
+      return `${prefix}${JSON.stringify(value)}`;
+    }
+
+    return `${prefix}${JSON.stringify(value)}`;
+  });
+}
+
+function removeStandaloneNoteEntries(input: string): string {
+  return input.replace(/,\s*"[*_]*註[^"\n\r]*"\s*,/g, ',');
+}
+
+function removeDanglingStandaloneQuoteLines(input: string): string {
+  // Common malformed pattern from LLM output:
+  // a stray standalone `"` line before `},` / `]`.
+  return input.replace(/^\s*"\s*$(?:\r?\n)?/gm, '');
+}
+
 function repairJsonLikeText(input: string): string {
-  let output = input
-    .replace(/[「」『』＂“”]/g, '"')
-    .replace(/[｛]/g, '{')
-    .replace(/[｝]/g, '}')
-    .replace(/[［]/g, '[')
-    .replace(/[］]/g, ']')
-    .replace(/[：]/g, ':')
-    .replace(/[，]/g, ',');
+  let output = normalizeJsonPunctuationOutsideStrings(input)
+    .replace(/[“”]/g, '"');
+
+  output = normalizeQuotedObjectKeys(output);
+  output = normalizeKnownStringFieldValues(output);
+  output = mergeConcatenatedJsonStrings(output);
+  output = removeStandaloneNoteEntries(output);
+  output = removeDanglingStandaloneQuoteLines(output);
 
   // Normalize patterns like: "name": "XXX"（備註）,
   output = output.replace(
@@ -730,20 +867,44 @@ export async function parseLoreCardsFromRawJsonWithLlmRepair(
 
     const sourceMode = options?.sourceMode ?? 'autoDetect';
     const manualNames = normalizeManualNames(options?.manualNames);
-    const repaired = await repairJsonWithLlm(
-      rawOutput,
-      target,
-      err.parseError,
-      sourceMode,
-      manualNames,
-      options?.repairConfig
-    );
-
-    if (!repaired) {
-      throw err;
+    if (!hasUsableRepairConfig(options?.repairConfig)) {
+      throw new LoreExtractionParseError(
+        `${err.parseError} (LLM repair unavailable: missing provider/model/apiKey)`,
+        rawOutput
+      );
     }
 
-    return parseLoreCardsFromRawJson(repaired, target, options);
+    let currentRawOutput = rawOutput;
+    let currentParseError = err.parseError;
+    let lastParseError: LoreExtractionParseError = err;
+
+    for (let attempt = 1; attempt <= MAX_LLM_REPAIR_ATTEMPTS; attempt += 1) {
+      const repaired = await repairJsonWithLlm(
+        currentRawOutput,
+        target,
+        `${currentParseError} (retry parse repair attempt ${attempt}/${MAX_LLM_REPAIR_ATTEMPTS})`,
+        sourceMode,
+        manualNames,
+        options?.repairConfig
+      );
+
+      if (!repaired) {
+        break;
+      }
+
+      try {
+        return parseLoreCardsFromRawJson(repaired, target, options);
+      } catch (repairErr: unknown) {
+        if (!isLoreExtractionParseError(repairErr)) {
+          throw repairErr;
+        }
+        lastParseError = repairErr;
+        currentParseError = repairErr.parseError;
+        currentRawOutput = repaired;
+      }
+    }
+
+    throw lastParseError;
   }
 }
 

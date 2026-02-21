@@ -1,6 +1,7 @@
 import { act } from '@testing-library/react';
 import { vi } from 'vitest';
 import { db } from '../lib/db';
+import * as dbModule from '../lib/db';
 import { useSettingsStore } from '../store/useSettingsStore';
 
 describe('useSettingsStore', () => {
@@ -357,5 +358,68 @@ describe('useSettingsStore', () => {
     expect(added).toBeDefined();
     expect(added?.name.startsWith('收割-')).toBe(true);
     expect(added?.tags?.every((tag) => /[\u3400-\u9FFF]/.test(tag))).toBe(true);
+  });
+
+  it('initialize is idempotent across concurrent calls', async () => {
+    const getSettingsSpy = vi.spyOn(dbModule, 'getSettings').mockImplementation(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 20));
+      return undefined;
+    });
+
+    await act(async () => {
+      await Promise.all([
+        useSettingsStore.getState().initialize(),
+        useSettingsStore.getState().initialize(),
+        useSettingsStore.getState().initialize(),
+      ]);
+    });
+
+    expect(getSettingsSpy).toHaveBeenCalledTimes(1);
+    expect(useSettingsStore.getState().isInitialized).toBe(true);
+    getSettingsSpy.mockRestore();
+  });
+
+  it('ensurePhaseMetadata syncs model token metadata for lore extractor phase', async () => {
+    await act(async () => {
+      await useSettingsStore.getState().setProviderApiKey('openrouter', 'or-key');
+      await useSettingsStore.getState().setPhaseSelection('loreExtractor', {
+        provider: 'openrouter',
+        model: 'qwen/qwen3-235b-a22b',
+      });
+    });
+
+    const fetchSpy = vi.spyOn(global, 'fetch').mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        data: [
+          {
+            id: 'qwen/qwen3-235b-a22b',
+            supportedParameters: ['temperature', 'top_p'],
+            contextLength: 262144,
+            maxCompletionTokens: 8192,
+          },
+        ],
+      }),
+    } as Response);
+
+    let result: { synced: boolean; provider: string; model: string; reason?: string } | null = null;
+    await act(async () => {
+      result = await useSettingsStore.getState().ensurePhaseMetadata('loreExtractor');
+    });
+
+    expect(result).toEqual(
+      expect.objectContaining({
+        synced: true,
+        provider: 'openrouter',
+        model: 'qwen/qwen3-235b-a22b',
+      })
+    );
+
+    const resolved = useSettingsStore.getState().getResolvedGenerationConfig('loreExtractor');
+    expect(resolved.maxContextTokens).toBe(262144);
+    expect(resolved.maxCompletionTokens).toBe(8192);
+    expect(resolved.supportedParameters).toContain('temperature');
+
+    fetchSpy.mockRestore();
   });
 });

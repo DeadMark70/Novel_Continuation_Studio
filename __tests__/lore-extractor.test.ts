@@ -578,6 +578,42 @@ describe('Lore Extraction Pipeline', () => {
     expect(parsed[0].name).toBe('RetryRecovered');
   });
 
+  it('should retry LLM repair more than once when first repair is still invalid', async () => {
+    const streamMock = vi.mocked(streamToAsyncIterable);
+    streamMock
+      .mockImplementationOnce(async function* () {
+        yield '{ "type": "character", "name": "still-broken" "description": "oops" }';
+      })
+      .mockImplementationOnce(async function* () {
+        yield JSON.stringify({
+          type: 'character',
+          name: 'RetrySecondPass',
+          description: 'Recovered on second retry',
+          personality: '',
+          scenario: '',
+          first_mes: '',
+          mes_example: '<START>\n{{user}}: hi\n{{char}}: hi',
+        });
+      });
+
+    const parsed = await parseLoreCardsFromRawJsonWithLlmRepair(
+      '{ "type": "character", "name": "Broken" "description": "oops" }',
+      'singleCharacter',
+      {
+        repairConfig: {
+          provider: 'nim',
+          model: 'repair-model',
+          apiKey: 'repair-key',
+          params: { maxTokens: 512 },
+        },
+      }
+    );
+
+    expect(parsed).toHaveLength(1);
+    expect(parsed[0].name).toBe('RetrySecondPass');
+    expect(streamMock).toHaveBeenCalledTimes(2);
+  });
+
   it('should repair CJK punctuation and alias fields in JSON-like output', () => {
     const raw = `[
       {
@@ -605,6 +641,34 @@ describe('Lore Extraction Pipeline', () => {
     expect(parsed[1].name).toBe('乳膠魔物（未命名實體）');
     expect(parsed[1].coreData.first_mes).toBe('腦內低語');
     expect(parsed[1].coreData.mes_example).toContain('<START>');
+  });
+
+  it('should preserve CJK quotes inside valid string values while repairing malformed keys/values', () => {
+    const raw = `[
+      {
+        "type": "character",
+        "name": "安娜麗瑟",
+        "description": "頂尖冒險者",
+        "personality": "冷靜自持",
+        "scenario": "工會大廳",
+        "first_mes": "「先別出聲……我會處理。」她低聲警告。",
+        "mes_example": "<START>\\\\n{{user}}: hi\\\\n{{char}}: ok"
+      },
+      {
+        「type」: "character",
+        "name": 「乳膠魔物」（未命名實體）,
+        personality": "狡詐惡毒",
+        "scenario": "遺跡深處",
+        "_mes": "腦內低語",
+        "_example": "<START>\\\\n{{user}}: ...\\\\n{{char}}: ..."
+      }
+    ]`;
+
+    const parsed = parseLoreCardsFromRawJson(raw, 'multipleCharacters');
+    expect(parsed).toHaveLength(2);
+    expect(parsed[0].coreData.first_mes).toContain('「先別出聲……我會處理。」');
+    expect(parsed[1].name).toBe('乳膠魔物（未命名實體）');
+    expect(parsed[1].coreData.personality).toBe('狡詐惡毒');
   });
 
   it('should truncate oversized lore fields to configured limits', () => {
@@ -676,5 +740,44 @@ describe('Lore Extraction Pipeline', () => {
     const parsed = parseLoreCardsFromRawJson(raw, 'singleCharacter');
     expect(parsed).toHaveLength(1);
     expect(parsed[0].name).toBe('EscapeCase');
+  });
+
+  it('should repair dangling standalone quote lines in malformed JSON arrays', () => {
+    const raw = `[
+      {
+        "type": "character",
+        "name": "歌蕾蒂娅",
+        "description": "阿戈爾人",
+        "personality": "果決",
+        "scenario": "鐘樓",
+        "first_mes": "早上好",
+        "mes_example": "<START>\\\\n{{user}}: hi\\\\n{{char}}: ok"
+      "
+      },
+      {
+        "type": "character",
+        "name": "幽靈鯊（修女）",
+        "description": "神秘女子",
+        "personality": "冷漠",
+        "scenario": "教堂",
+        "first_mes": "不要油嘴滑舌",
+        "mes_example": "<START>\\\\n{{user}}: hi\\\\n{{char}}: ok"
+      "
+      }
+    ]`;
+
+    const parsed = parseLoreCardsFromRawJson(raw, 'multipleCharacters');
+    expect(parsed).toHaveLength(2);
+    expect(parsed[0].name).toBe('歌蕾蒂娅');
+    expect(parsed[1].name).toBe('幽靈鯊（修女）');
+  });
+
+  it('should clearly indicate when retry parse cannot invoke LLM repair config', async () => {
+    await expect(
+      parseLoreCardsFromRawJsonWithLlmRepair(
+        '{ "type": "character", "name": "Broken" "description": "oops" }',
+        'singleCharacter'
+      )
+    ).rejects.toThrow('LLM repair unavailable');
   });
 });

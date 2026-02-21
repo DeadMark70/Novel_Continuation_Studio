@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import Image from 'next/image';
 import { useLorebookStore } from '@/store/useLorebookStore';
 import { useSettingsStore } from '@/store/useSettingsStore';
 import {
@@ -28,7 +29,7 @@ interface CardEditorProps {
 
 export function CardEditor({ cardId, onClose, onSelectCard }: CardEditorProps) {
   const { cards, addCard, addCards, updateCard, deleteCard } = useLorebookStore();
-  const { getResolvedGenerationConfig } = useSettingsStore();
+  const { getResolvedGenerationConfig, initialize, ensurePhaseMetadata } = useSettingsStore();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [formData, setFormData] = useState<Partial<LoreCard>>({
@@ -45,6 +46,7 @@ export function CardEditor({ cardId, onClose, onSelectCard }: CardEditorProps) {
   const [rawExtractionOutput, setRawExtractionOutput] = useState('');
   const [editableRawOutput, setEditableRawOutput] = useState('');
   const [retryParseError, setRetryParseError] = useState<string | null>(null);
+  const [extractionWarning, setExtractionWarning] = useState<string | null>(null);
   const [isExtracting, setIsExtracting] = useState(false);
   const [isExtractDialogOpen, setIsExtractDialogOpen] = useState(false);
 
@@ -63,9 +65,13 @@ export function CardEditor({ cardId, onClose, onSelectCard }: CardEditorProps) {
     }
   }, [cardId, cards]);
 
+  const getErrorMessage = (error: unknown, fallback: string) => (
+    error instanceof Error && error.message ? error.message : fallback
+  );
+
   const handleSave = async () => {
     if (cardId === 'new') {
-      const newId = await addCard({
+      await addCard({
         novelId: GLOBAL_LOREBOOK_NOVEL_ID,
         type: formData.type as 'character' | 'world',
         name: formData.name || 'Unnamed',
@@ -127,6 +133,7 @@ export function CardEditor({ cardId, onClose, onSelectCard }: CardEditorProps) {
     setRawExtractionOutput('');
     setEditableRawOutput('');
     setRetryParseError(null);
+    setExtractionWarning(null);
   };
 
   const handleExtractDialogOpenChange = (open: boolean) => {
@@ -189,6 +196,20 @@ export function CardEditor({ cardId, onClose, onSelectCard }: CardEditorProps) {
     setIsExtracting(true);
     resetExtractionRecovery();
     try {
+      await initialize();
+      const metadataResults = await Promise.all([
+        ensurePhaseMetadata('loreExtractor'),
+        ensurePhaseMetadata('loreJsonRepair'),
+      ]);
+      const metadataWarnings = metadataResults
+        .filter((result) => !result.synced)
+        .map((result) => `${result.provider}/${result.model}: ${result.reason ?? 'metadata unavailable'}`);
+      if (metadataWarnings.length > 0) {
+        setExtractionWarning(
+          `Model metadata is incomplete; extraction will continue with conservative fallbacks. ${metadataWarnings.join(' | ')}`
+        );
+      }
+
       const config = getResolvedGenerationConfig('loreExtractor');
       const repairConfig = resolveRepairConfig();
       const manualNames = parseManualNames();
@@ -240,6 +261,14 @@ export function CardEditor({ cardId, onClose, onSelectCard }: CardEditorProps) {
 
     setRetryParseError(null);
     try {
+      await initialize();
+      const metadata = await ensurePhaseMetadata('loreJsonRepair');
+      if (!metadata.synced) {
+        setExtractionWarning(
+          `Lore JSON repair metadata is incomplete; retry parse will continue with conservative fallbacks. ${metadata.provider}/${metadata.model}: ${metadata.reason ?? 'metadata unavailable'}`
+        );
+      }
+
       const repairConfig = resolveRepairConfig();
       const outputCards = await parseLoreCardsFromRawJsonWithLlmRepair(editableRawOutput, extractionTarget, {
         sourceMode: characterSourceMode,
@@ -278,8 +307,8 @@ export function CardEditor({ cardId, onClose, onSelectCard }: CardEditorProps) {
       a.click();
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
-    } catch (err: any) {
-      alert(`Export failed: ${err.message}`);
+    } catch (err: unknown) {
+      alert(`Export failed: ${getErrorMessage(err, 'Unknown export error')}`);
     }
   };
 
@@ -353,6 +382,11 @@ export function CardEditor({ cardId, onClose, onSelectCard }: CardEditorProps) {
                      />
                    </div>
                  )}
+                 {extractionWarning && (
+                   <div className="rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2">
+                     <p className="text-xs text-amber-300">{extractionWarning}</p>
+                   </div>
+                 )}
                  {extractionError && (
                    <div className="space-y-2 border rounded-md p-3 bg-card/40">
                      <p className="text-sm text-destructive">{extractionError}</p>
@@ -404,7 +438,7 @@ export function CardEditor({ cardId, onClose, onSelectCard }: CardEditorProps) {
             <Label>Type</Label>
             <Select 
               value={formData.type} 
-              onValueChange={(v) => setFormData(prev => ({ ...prev, type: v as any }))}
+              onValueChange={(v) => setFormData(prev => ({ ...prev, type: v as 'character' | 'world' }))}
             >
               <SelectTrigger>
                 <SelectValue />
@@ -433,7 +467,14 @@ export function CardEditor({ cardId, onClose, onSelectCard }: CardEditorProps) {
                   onClick={() => fileInputRef.current?.click()}
                 >
                   {formData.avatarDataUri ? (
-                    <img src={formData.avatarDataUri} alt="Avatar" className="w-full h-full object-cover" />
+                    <Image
+                      src={formData.avatarDataUri}
+                      alt="Avatar"
+                      width={80}
+                      height={80}
+                      className="w-full h-full object-cover"
+                      unoptimized
+                    />
                   ) : (
                     <ImageIcon className="size-8 text-muted-foreground/30" />
                   )}
