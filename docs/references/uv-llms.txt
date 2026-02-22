@@ -1,0 +1,10 @@
+UV Reference (LLM-readable)
+
+Status: Python `uv` workflow is not currently part of this project's build/test path.
+
+Node workflow remains canonical:
+- npm run lint
+- npm test
+- npm run build
+- npm run e2e
+

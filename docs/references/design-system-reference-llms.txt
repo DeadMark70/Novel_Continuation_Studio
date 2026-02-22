@@ -1,0 +1,12 @@
+Design System Reference (LLM-readable)
+
+UI primitives:
+- components/ui/*
+- Radix-based controls with Tailwind styling
+
+Key guidance:
+1. Keep semantics and keyboard behavior intact when composing wrappers.
+2. Require labels for icon-only controls.
+3. Use consistent variant and sizing patterns in workflow components.
+4. Prefer reusable components over one-off inline markup for repeated patterns.
+

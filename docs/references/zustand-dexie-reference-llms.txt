@@ -1,0 +1,25 @@
+Zustand + Dexie Reference (LLM-readable)
+
+Canonical state files:
+- store/useWorkflowStore.ts
+- store/useNovelStore.ts
+- store/useSettingsStore.ts
+- store/useRunSchedulerStore.ts
+
+Canonical persistence file:
+- lib/db.ts
+
+Principles:
+1) Keep stores domain-separated:
+   workflow / novel / settings / scheduler
+2) Use narrow selectors in UI components.
+3) Avoid high-frequency global updates for stream text.
+4) Persist significant milestones, not every token.
+5) Keep schema migrations additive and explicit.
+
+Scheduler rules:
+- queue per session
+- bounded concurrent runs
+- abortable active runs
+- explicit status transitions: queued/running/idle/error/interrupted
+

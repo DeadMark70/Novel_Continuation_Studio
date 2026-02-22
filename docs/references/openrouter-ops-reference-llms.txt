@@ -1,0 +1,22 @@
+OpenRouter Ops Reference (LLM-readable)
+
+Canonical files:
+- app/api/openrouter/generate/route.ts
+- lib/llm-client.ts
+- lib/openrouter-guard.ts
+
+Important behaviors:
+1) Route is gated by internal secret:
+   header: X-API-Secret
+   env: INTERNAL_API_SECRET
+2) Local bypass is allowed only when:
+   ALLOW_UNSAFE_LOCAL=true and NODE_ENV != production
+3) OpenRouter route supports SSE proxy streaming.
+4) Optional metadata headers:
+   HTTP-Referer from OPENROUTER_SITE_URL
+   X-Title from OPENROUTER_SITE_NAME
+5) Network guard may block OpenRouter calls server-side.
+
+Security TODO:
+- replace internal secret gate with session/cookie auth for production multi-user deployments.
+

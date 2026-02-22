@@ -1,0 +1,32 @@
+Prompt Contract Reference (LLM-readable)
+
+Canonical files:
+- lib/prompts.ts
+- lib/prompt-engine.ts
+- lib/prompt-section-contracts.ts
+- lib/section-retry.ts
+- lib/analysis-output.ts
+- lib/outline-phase2.ts
+
+Rules:
+1) Analysis must support:
+   <analysis_detail>...</analysis_detail>
+   <executive_summary>...</executive_summary>
+2) Outline Phase 2A/2B are skeleton-only:
+   - no dialogue
+   - no prose draft
+   - fixed hierarchy depth
+3) 2B input must consume sanitized 2A section.
+4) Contract-enabled prompts require all mandatory headers.
+5) Retry cap is bounded (typically maxAttempts=2).
+
+Common failures:
+- preamble before actual section
+- fenced code block wrappers
+- missing mandatory headers
+
+Mitigations:
+- sanitizeOutlineSectionContent
+- validatePromptSections
+- appendMissingSectionsRetryInstruction
+

@@ -1,0 +1,9 @@
+Nixpacks Reference (LLM-readable)
+
+Status: not currently used in this repository.
+
+If introduced later:
+1. document build/start commands
+2. document env var requirements
+3. align with Next.js production runtime expectations
+

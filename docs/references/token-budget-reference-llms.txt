@@ -1,0 +1,26 @@
+Token Budget Reference (LLM-readable)
+
+Canonical files:
+- lib/llm-client.ts
+- lib/token-estimator.ts
+- workers/tokenizer.worker.ts
+
+Budget flow:
+1) Build prompt text estimate input.
+2) Estimate prompt tokens:
+   - OpenRouter path: worker/tokenizer estimate
+   - fallback: heuristic estimate
+3) Resolve requested max tokens.
+4) Clamp max tokens to model limits:
+   - maxCompletionTokens
+   - maxContextTokens with reserved tail
+5) Run preflight context budget gate.
+
+Current guardrails:
+- PREFLIGHT_CONTEXT_RATIO_LIMIT = 0.9
+- CJK_SAFETY_MULTIPLIER = 1.2 for CJK-heavy input
+- gate throws explicit error when budget exceeds threshold
+
+Operational note:
+- show "Estimating Context Window..." before streaming starts.
+
