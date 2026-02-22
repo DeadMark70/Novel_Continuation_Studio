@@ -21,6 +21,14 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { DEFAULT_PROMPTS } from '@/lib/prompts';
+import {
+  getPromptDescription,
+  getPromptLabel,
+  PROMPT_GROUPS,
+  PROMPT_KEYS,
+  type PromptKey,
+  validateSettingsPromptCatalog,
+} from '@/lib/settings-prompt-catalog';
 import type {
   GenerationPhaseId,
   GenerationParams,
@@ -30,8 +38,6 @@ import type {
   SensoryAnchorTemplate,
 } from '@/lib/llm-types';
 import type { CompressionMode } from '@/lib/compression';
-
-type PromptKey = keyof typeof DEFAULT_PROMPTS;
 
 const PROVIDERS: LLMProvider[] = ['nim', 'openrouter'];
 const PHASES: GenerationPhaseId[] = ['compression', 'analysis', 'outline', 'breakdown', 'chapter1', 'continuation', 'sensoryHarvest', 'loreExtractor', 'loreJsonRepair'];
@@ -46,66 +52,10 @@ const PHASE_LABELS: Record<GenerationPhaseId, string> = {
   loreExtractor: 'Lorebook Extractor',
   loreJsonRepair: 'Lore JSON Repair',
 };
-const PROMPT_KEYS = Object.keys(DEFAULT_PROMPTS) as PromptKey[];
-const PROMPT_GROUPS: Array<{ title: string; keys: PromptKey[] }> = [
-  { title: 'Workflow Core', keys: ['analysisCompressed', 'analysisRaw', 'outlineCompressed', 'outlineRaw', 'breakdown', 'chapter1Compressed', 'chapter1Raw', 'continuationCompressed', 'continuationRaw'] },
-  { title: 'Compression Pipeline', keys: ['compression', 'compressionRoleCards', 'compressionStyleGuide', 'compressionPlotLedger', 'compressionEvidencePack', 'compressionEroticPack'] },
-  { title: 'Consistency', keys: ['consistency'] },
-];
-const PROMPT_LABELS: Partial<Record<PromptKey, string>> = {
-  analysisCompressed: 'Analysis (Compressed)',
-  analysisRaw: 'Analysis (Raw)',
-  compression: 'Compression Orchestrator',
-  compressionRoleCards: 'Compression Role Cards',
-  compressionStyleGuide: 'Compression Style Guide',
-  compressionPlotLedger: 'Compression Plot Ledger',
-  compressionEvidencePack: 'Compression Evidence Pack',
-  compressionEroticPack: 'Compression Erotic Pack',
-  outlineCompressed: 'Outline (Compressed)',
-  outlineRaw: 'Outline (Raw)',
-  breakdown: 'Chapter Breakdown',
-  chapter1Compressed: 'Chapter 1 (Compressed)',
-  chapter1Raw: 'Chapter 1 (Raw)',
-  continuationCompressed: 'Continuation (Compressed)',
-  continuationRaw: 'Continuation (Raw)',
-  consistency: 'Consistency Check',
-};
-const PROMPT_DESCRIPTIONS: Partial<Record<PromptKey, string>> = {
-  analysisCompressed: 'Phase 1 analysis using compressed context.',
-  analysisRaw: 'Phase 1 analysis using original novel context.',
-  compression: 'Coordinates Phase 0 compression pipeline.',
-  compressionRoleCards: 'Extract character cards for compressed memory.',
-  compressionStyleGuide: 'Extract style profile for writing consistency.',
-  compressionPlotLedger: 'Extract plot ledger summary for continuity.',
-  compressionEvidencePack: 'Extract factual evidence pack for grounding.',
-  compressionEroticPack: 'Extract adult-theme style, dynamics, and reusable erotic evidence.',
-  outlineCompressed: 'Generate outline with compressed context.',
-  outlineRaw: 'Generate outline with full raw context.',
-  breakdown: 'Convert outline into chapter-level framework.',
-  chapter1Compressed: 'Generate chapter 1 with compressed context.',
-  chapter1Raw: 'Generate chapter 1 with raw context.',
-  continuationCompressed: 'Generate continuation chapter using compressed context.',
-  continuationRaw: 'Generate continuation chapter using raw context.',
-  consistency: 'Run consistency checks for timeline and character logic.',
-};
 const FALLBACK_PHASE_PROVIDER: LLMProvider = 'nim';
 
 function clone<T>(value: T): T {
   return JSON.parse(JSON.stringify(value));
-}
-
-function humanizePromptKey(key: PromptKey): string {
-  return key
-    .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
-    .replace(/^./, (s) => s.toUpperCase());
-}
-
-function getPromptLabel(key: PromptKey): string {
-  return PROMPT_LABELS[key] ?? humanizePromptKey(key);
-}
-
-function getPromptDescription(key: PromptKey): string {
-  return PROMPT_DESCRIPTIONS[key] ?? `Prompt template: ${key}`;
 }
 
 function normalizeParams(params: GenerationParams): GenerationParams {
@@ -216,6 +166,7 @@ export default function SettingsPage() {
   const [overrideModel, setOverrideModel] = useState('');
   const [allowCustomModelId, setAllowCustomModelId] = useState(true);
   const [loadingModels, setLoadingModels] = useState<Record<LLMProvider, boolean>>({ nim: false, openrouter: false });
+  const promptCatalogErrors = useMemo(() => validateSettingsPromptCatalog(), []);
 
   const [draftProvider, setDraftProvider] = useState<LLMProvider>(settings.activeProvider);
   const [draftProviders, setDraftProviders] = useState<Record<LLMProvider, ProviderScopedSettings>>(
@@ -388,6 +339,7 @@ export default function SettingsPage() {
 
   const validate = (): string[] => {
     const next: string[] = [];
+    next.push(...promptCatalogErrors);
     for (const phase of PHASES) {
       const selection = draftPhaseConfig[phase];
       const provider = selection?.provider ?? FALLBACK_PHASE_PROVIDER;

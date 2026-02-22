@@ -1,4 +1,5 @@
 import { injectPrompt } from '../lib/prompt-engine';
+import { serializeOutlinePhase2Content } from '../lib/outline-phase2';
 
 describe('Prompt Engine', () => {
   it('injects original novel', () => {
@@ -17,6 +18,24 @@ describe('Prompt Engine', () => {
     const template = 'Outline: [插入提示詞2的輸出]';
     const result = injectPrompt(template, { outline: 'Act 1...' });
     expect(result).toBe('Outline: Act 1...');
+  });
+
+  it('injects outline phase 2A/2B placeholders from structured outline', () => {
+    const template = 'A={{OUTLINE_PHASE2A_RESULT}} | B={{OUTLINE_PHASE2B_RESULT}}';
+    const outline = serializeOutlinePhase2Content({
+      part2A: '2A content',
+      part2B: '2B content',
+      missing2A: [],
+      missing2B: [],
+    });
+    const result = injectPrompt(template, { outline });
+    expect(result).toBe('A=2A content | B=2B content');
+  });
+
+  it('falls back to legacy outline content for 2A placeholder', () => {
+    const template = 'A={{OUTLINE_PHASE2A_RESULT}} | B={{OUTLINE_PHASE2B_RESULT}}';
+    const result = injectPrompt(template, { outline: 'legacy outline text' });
+    expect(result).toBe('A=legacy outline text | B=');
   });
 
   it('injects chapter breakdown', () => {

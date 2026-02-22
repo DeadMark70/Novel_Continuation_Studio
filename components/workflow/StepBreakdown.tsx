@@ -33,6 +33,8 @@ export const StepBreakdown: React.FC = () => {
   const step = steps.breakdown;
   const isStreaming = step.status === 'streaming';
   const isCompleted = step.status === 'completed';
+  const hasContent = step.content.trim().length > 0;
+  const isTruncated = step.truncation.isTruncated;
   const modeMeta = resolveWorkflowMode({
     stepId: 'breakdown',
     compressionMode,
@@ -70,6 +72,14 @@ export const StepBreakdown: React.FC = () => {
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
+        <div className={`rounded-md border px-3 py-2 text-xs ${isTruncated ? 'border-amber-400/40 bg-amber-500/10 text-amber-200' : 'border-border/60 bg-card/30 text-muted-foreground'}`}>
+          {isTruncated
+            ? 'Detected length truncation in Phase 3. Auto-resume is disabled; click Regenerate to retry this step manually.'
+            : hasContent
+              ? 'Auto-resume is disabled. If output looks incomplete, rerun this step manually.'
+              : 'Breakdown output status will appear here after generation.'}
+        </div>
+
         <div className="space-y-2 rounded-lg border border-amber-500/20 bg-card/30 p-3">
           <Label className="text-xs font-mono text-amber-500 font-bold">
             TARGET CHAPTER COUNT (FROM PHASE 2)

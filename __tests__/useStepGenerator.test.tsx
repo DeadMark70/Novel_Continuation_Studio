@@ -2,6 +2,7 @@ import React, { useEffect } from 'react';
 import { act, render } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { useStepGenerator } from '../hooks/useStepGenerator';
+import { parseOutlinePhase2Content, serializeOutlinePhase2Content } from '../lib/outline-phase2';
 
 const runSchedulerState = {
   runExecutor: null as null | ((ctx: {
@@ -23,8 +24,17 @@ const runSchedulerState = {
   getSessionRunState: vi.fn(() => undefined),
 };
 
-const createEmptyStep = () => ({
-  status: 'idle' as const,
+const createEmptyStep = (): {
+  status: 'idle' | 'streaming' | 'completed' | 'error';
+  content: string;
+  truncation: {
+    isTruncated: boolean;
+    lastFinishReason: 'unknown';
+    autoResumeRoundsUsed: number;
+    lastTruncatedOutlineTask: undefined;
+  };
+} => ({
+  status: 'idle',
   content: '',
   truncation: {
     isTruncated: false,
@@ -61,6 +71,7 @@ const workflowState = {
 
 const createSessionSnapshot = (sessionId: string, overrides?: Partial<{
   content: string;
+  outline: string;
   chapters: string[];
   targetChapterCount: number;
   runStatus: 'idle' | 'queued' | 'running' | 'interrupted' | 'error';
@@ -71,7 +82,7 @@ const createSessionSnapshot = (sessionId: string, overrides?: Partial<{
   wordCount: 128,
   currentStep: 1,
   analysis: 'analysis output',
-  outline: 'outline output',
+  outline: overrides?.outline ?? 'outline output',
   outlineDirection: '',
   breakdown: 'breakdown output',
   chapters: overrides?.chapters ?? ['Chapter 1'],
@@ -158,6 +169,10 @@ const settingsState = {
 };
 
 const generateStreamByProviderMock = vi.fn();
+const validatePromptSectionsMock = vi.fn(() => ({
+  ok: true,
+  missing: [] as string[],
+}));
 
 vi.mock('../store/useRunSchedulerStore', () => {
   const useRunSchedulerStore = ((selector?: (state: typeof runSchedulerState) => unknown) => {
@@ -201,7 +216,7 @@ vi.mock('../lib/prompt-engine', () => ({
 
 vi.mock('../lib/prompt-section-contracts', () => ({
   applyPromptSectionContract: (template: string) => template,
-  validatePromptSections: () => ({ ok: true, missing: [] as string[] }),
+  validatePromptSections: () => validatePromptSectionsMock(),
 }));
 
 vi.mock('../lib/consistency-checker', () => ({
@@ -290,6 +305,8 @@ const compressionTaskOutputByKind = {
 describe('useStepGenerator', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    validatePromptSectionsMock.mockReset();
+    validatePromptSectionsMock.mockReturnValue({ ok: true, missing: [] as string[] });
     runSchedulerState.runExecutor = null;
     runSchedulerState.enqueueRun.mockReturnValue('queued_run_id');
     runSchedulerState.getSessionRunState.mockReturnValue(undefined);
@@ -298,7 +315,9 @@ describe('useStepGenerator', () => {
     workflowState.isPaused = false;
     workflowState.steps.compression = createEmptyStep();
     workflowState.steps.analysis = createEmptyStep();
+    workflowState.steps.outline = createEmptyStep();
     workflowState.steps.breakdown = createEmptyStep();
+    workflowState.steps.chapter1 = createEmptyStep();
     workflowState.steps.continuation = createEmptyStep();
     novelState.currentSessionId = 'session_active';
     novelState.getSessionSnapshot.mockImplementation(async (sessionId: string) => createSessionSnapshot(sessionId));
@@ -347,6 +366,91 @@ describe('useStepGenerator', () => {
         recoverableStepId: 'analysis',
       })
     );
+  });
+
+  it('keeps analysis output only and does not inject format notice into content', async () => {
+    novelState.currentSessionId = 'session_active';
+    validatePromptSectionsMock.mockReturnValueOnce({
+      ok: false,
+      missing: ['角色動機地圖'],
+    });
+    generateStreamByProviderMock.mockImplementation(
+      async function* (
+        _provider: string,
+        _prompt: string,
+        _model: string,
+        _apiKey: string,
+        _systemPrompt: unknown,
+        options?: { onFinish?: (meta: { finishReason: 'stop' | 'length' | 'unknown' }) => void }
+      ) {
+        options?.onFinish?.({ finishReason: 'stop' });
+        yield 'analysis body content';
+      }
+    );
+
+    await expect(
+      getRunExecutor()({
+        runId: 'run_analysis_validation_fail',
+        sessionId: 'session_active',
+        stepId: 'analysis',
+        source: 'manual',
+        signal: new AbortController().signal,
+        onProgress: vi.fn(),
+      })
+    ).rejects.toThrow(/格式檢查提醒/i);
+
+    const analysisContentUpdates = (
+      workflowState.updateStepContent.mock.calls as Array<[string, string]>
+    ).filter(([stepId]) => stepId === 'analysis');
+    expect(analysisContentUpdates.length).toBeGreaterThan(0);
+    const lastAnalysisUpdate = analysisContentUpdates[analysisContentUpdates.length - 1][1];
+    expect(lastAnalysisUpdate).toContain('analysis body content');
+    expect(lastAnalysisUpdate).not.toContain('【格式檢查提醒】');
+    expect(workflowState.setStepError).toHaveBeenCalledWith(
+      'analysis',
+      expect.stringContaining('【格式檢查提醒】')
+    );
+  });
+
+  it('falls back to pre-run analysis content when new run has no output and validation fails', async () => {
+    workflowState.steps.analysis.status = 'completed';
+    workflowState.steps.analysis.content = 'previous analysis content';
+    novelState.currentSessionId = 'session_active';
+    validatePromptSectionsMock.mockReturnValueOnce({
+      ok: false,
+      missing: ['角色動機地圖'],
+    });
+    generateStreamByProviderMock.mockImplementation(
+      async function* (
+        _provider: string,
+        _prompt: string,
+        _model: string,
+        _apiKey: string,
+        _systemPrompt: unknown,
+        options?: { onFinish?: (meta: { finishReason: 'stop' | 'length' | 'unknown' }) => void }
+      ) {
+        options?.onFinish?.({ finishReason: 'stop' });
+        // Intentionally no chunks.
+      }
+    );
+
+    await expect(
+      getRunExecutor()({
+        runId: 'run_analysis_validation_fail_empty_output',
+        sessionId: 'session_active',
+        stepId: 'analysis',
+        source: 'manual',
+        signal: new AbortController().signal,
+        onProgress: vi.fn(),
+      })
+    ).rejects.toThrow(/格式檢查提醒/i);
+
+    const analysisContentUpdates = (
+      workflowState.updateStepContent.mock.calls as Array<[string, string]>
+    ).filter(([stepId]) => stepId === 'analysis');
+    expect(analysisContentUpdates.length).toBeGreaterThan(0);
+    const lastAnalysisUpdate = analysisContentUpdates[analysisContentUpdates.length - 1][1];
+    expect(lastAnalysisUpdate).toBe('previous analysis content');
   });
 
   it('queues next continuation run when continuation is full-auto and target chapters not reached', async () => {
@@ -417,6 +521,125 @@ describe('useStepGenerator', () => {
     );
     expect(warnSpy).toHaveBeenCalled();
     warnSpy.mockRestore();
+  });
+
+  it('preserves existing 2A content when retrying only 2B', async () => {
+    const existingOutline = serializeOutlinePhase2Content({
+      part2A: 'Phase 2A baseline',
+      part2B: 'Phase 2B baseline',
+      missing2A: [],
+      missing2B: [],
+    });
+    workflowState.steps.outline.status = 'completed';
+    workflowState.steps.outline.content = existingOutline;
+    novelState.currentSessionId = 'session_active';
+    novelState.getSessionSnapshot.mockImplementation(async (sessionId: string) => (
+      createSessionSnapshot(sessionId, { outline: '' })
+    ));
+
+    generateStreamByProviderMock.mockImplementation(
+      async function* (
+        _provider: string,
+        _prompt: string,
+        _model: string,
+        _apiKey: string,
+        _systemPrompt: unknown,
+        options?: { onFinish?: (meta: { finishReason: 'stop' | 'length' | 'unknown' }) => void }
+      ) {
+        options?.onFinish?.({ finishReason: 'stop' });
+        yield '【權力與張力機制】\nRetry 2B tension\n\n【伏筆回收與新埋規劃】\nRetry 2B foreshadow';
+      }
+    );
+
+    vi.useFakeTimers();
+    try {
+      const runPromise = getRunExecutor()({
+        runId: 'run_outline_retry_2b',
+        sessionId: 'session_active',
+        stepId: 'outline',
+        source: 'manual',
+        userNotes: 'keep pacing\n[[OUTLINE_TASK:2B]]',
+        signal: new AbortController().signal,
+        onProgress: vi.fn(),
+      });
+      await vi.advanceTimersByTimeAsync(3500);
+      await runPromise;
+    } finally {
+      vi.useRealTimers();
+    }
+
+    const outlinePersistCall = (
+      novelState.applyStepResultBySession.mock.calls as unknown as Array<[string, string, string]>
+    ).find((call) => call[1] === 'outline');
+    expect(outlinePersistCall).toBeDefined();
+    const parsed = parseOutlinePhase2Content(outlinePersistCall?.[2] ?? '');
+    expect(parsed.part2A).toContain('Phase 2A baseline');
+    expect(parsed.part2B).toContain('Retry 2B tension');
+    expect(workflowState.updateStepContent).toHaveBeenCalledWith('outline', existingOutline);
+  });
+
+  it('does not auto-resume outline phase on length truncation and keeps manual reminder path', async () => {
+    settingsState.autoResumeOnLength = true;
+    settingsState.autoResumePhaseOutline = true;
+    novelState.currentSessionId = 'session_active';
+    novelState.getSessionSnapshot.mockImplementation(async (sessionId: string) => (
+      createSessionSnapshot(sessionId, { outline: '' })
+    ));
+
+    let phase2ACalls = 0;
+    generateStreamByProviderMock.mockImplementation(
+      async function* (
+        _provider: string,
+        prompt: string,
+        _model: string,
+        _apiKey: string,
+        _systemPrompt: unknown,
+        options?: { onFinish?: (meta: { finishReason: 'stop' | 'length' | 'unknown' }) => void }
+      ) {
+        if (prompt.includes('Phase 2A')) {
+          phase2ACalls += 1;
+          options?.onFinish?.({ finishReason: 'length' });
+          yield '【續寫總目標與篇幅配置】\nPartial 2A';
+          return;
+        }
+        if (prompt.includes('Phase 2B')) {
+          options?.onFinish?.({ finishReason: 'stop' });
+          yield '【權力與張力機制】\n2B tension\n\n【伏筆回收與新埋規劃】\n2B hooks';
+          return;
+        }
+        options?.onFinish?.({ finishReason: 'stop' });
+        yield 'Generated content';
+      }
+    );
+
+    vi.useFakeTimers();
+    try {
+      const runPromise = getRunExecutor()({
+        runId: 'run_outline_no_auto_resume',
+        sessionId: 'session_active',
+        stepId: 'outline',
+        source: 'manual',
+        signal: new AbortController().signal,
+        onProgress: vi.fn(),
+      });
+      await vi.advanceTimersByTimeAsync(3500);
+      await runPromise;
+    } finally {
+      vi.useRealTimers();
+    }
+
+    expect(phase2ACalls).toBe(1);
+    expect(
+      generateStreamByProviderMock.mock.calls.some((call) => String(call[1]).includes('【已輸出內容（禁止重複）】'))
+    ).toBe(false);
+    expect(workflowState.updateStepTruncation).toHaveBeenCalledWith(
+      'outline',
+      expect.objectContaining({
+        isTruncated: true,
+        autoResumeRoundsUsed: 0,
+        lastTruncatedOutlineTask: '2A',
+      })
+    );
   });
 
   it('forwards sensory anchors when manually queuing chapter generation', () => {
@@ -658,7 +881,7 @@ describe('useStepGenerator', () => {
     );
   });
 
-  it('auto-resumes breakdown chunk when length finish reason is returned', async () => {
+  it('does not auto-resume breakdown chunk when length finish reason is returned', async () => {
     settingsState.compressionMode = 'off';
     settingsState.autoResumeOnLength = true;
     settingsState.autoResumeMaxRounds = 2;
@@ -717,16 +940,16 @@ describe('useStepGenerator', () => {
       vi.useRealTimers();
     }
 
-    expect(chunkAttempts).toBe(2);
+    expect(chunkAttempts).toBe(1);
     expect(workflowState.updateStepTruncation).toHaveBeenCalledWith(
       'breakdown',
       expect.objectContaining({
-        autoResumeRoundsUsed: 1,
+        autoResumeRoundsUsed: 0,
       })
     );
     expect(
       generateStreamByProviderMock.mock.calls.some((call) => String(call[1]).includes('【已輸出內容（禁止重複）】'))
-    ).toBe(true);
+    ).toBe(false);
   });
 
   it('composes final breakdown output from meta and chunk content', async () => {

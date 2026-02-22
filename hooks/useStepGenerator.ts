@@ -299,10 +299,22 @@ export function useStepGenerator() {
     signal: AbortSignal;
     onProgress: (preview: string) => void;
   }) => {
-    if (isActiveSession(sessionId)) {
+    const activeSession = isActiveSession(sessionId);
+    const preRunStepContent = activeSession
+      ? useWorkflowStore.getState().steps[stepId].content
+      : '';
+    const shouldPreserveOutlineContent = (
+      stepId === 'outline' &&
+      Boolean(preRunStepContent.trim())
+    );
+
+    if (activeSession) {
       const workflow = useWorkflowStore.getState();
       workflow.setIsGenerating(true);
       workflow.startStep(stepId);
+      if (shouldPreserveOutlineContent) {
+        workflow.updateStepContent(stepId, preRunStepContent);
+      }
     }
 
     await useNovelStore.getState().setSessionRunMeta(sessionId, {
@@ -327,9 +339,6 @@ export function useStepGenerator() {
         compressionEvidenceSegments,
         sensoryAnchorTemplates = [],
         sensoryAutoTemplateByPhase = {},
-        autoResumeOnLength,
-        autoResumePhaseAnalysis,
-        autoResumePhaseOutline,
         autoResumeMaxRounds,
       } = settingsState;
 
@@ -833,14 +842,7 @@ export function useStepGenerator() {
 
         const manualResumeRequested = hasResumeLastOutputDirective(userNotes);
         const normalizedUserNotes = stripResumeLastOutputDirective(userNotes);
-        const autoResumeEnabledForStep = Boolean(
-          autoResumeOnLength &&
-          (
-            (stepId === 'analysis' && autoResumePhaseAnalysis) ||
-            (stepId === 'outline' && autoResumePhaseOutline) ||
-            stepId === 'breakdown'
-          )
-        );
+        const autoResumeEnabledForStep = false;
 
         const buildPrompt = (template: string, notes?: string) => injectPrompt(
           applyPromptSectionContract(template, resolvedPromptTemplateKey),
@@ -874,22 +876,44 @@ export function useStepGenerator() {
 
         if (stepId === 'outline') {
           const outlineDirective = parseOutlineTaskDirective(userNotes);
-          const parsedOutline = parseOutlinePhase2Content(outline);
+          const parsedOutlineFromSession = parseOutlinePhase2Content(outline);
+          const parsedOutlineFromWorkflow = parseOutlinePhase2Content(preRunStepContent);
+
+          const workflowLegacy2A = !parsedOutlineFromWorkflow.structured
+            ? parsedOutlineFromWorkflow.rawLegacyContent
+            : '';
+          const sessionLegacy2A = !parsedOutlineFromSession.structured
+            ? parsedOutlineFromSession.rawLegacyContent
+            : '';
+
+          const seedPart2A = (
+            parsedOutlineFromWorkflow.part2A ||
+            parsedOutlineFromSession.part2A ||
+            workflowLegacy2A ||
+            sessionLegacy2A
+          ).trim();
+          const seedPart2B = (
+            parsedOutlineFromWorkflow.part2B ||
+            parsedOutlineFromSession.part2B
+          ).trim();
+          const seedMissing2A = parsedOutlineFromWorkflow.missing2A.length > 0
+            ? parsedOutlineFromWorkflow.missing2A
+            : parsedOutlineFromSession.missing2A;
+          const seedMissing2B = parsedOutlineFromWorkflow.missing2B.length > 0
+            ? parsedOutlineFromWorkflow.missing2B
+            : parsedOutlineFromSession.missing2B;
+
           const outlineState: {
             part2A: string;
             part2B: string;
             missing2A: string[];
             missing2B: string[];
           } = {
-            part2A: parsedOutline.part2A,
-            part2B: parsedOutline.part2B,
-            missing2A: [...parsedOutline.missing2A],
-            missing2B: [...parsedOutline.missing2B],
+            part2A: seedPart2A,
+            part2B: seedPart2B,
+            missing2A: [...seedMissing2A],
+            missing2B: [...seedMissing2B],
           };
-
-          if (!parsedOutline.structured && parsedOutline.rawLegacyContent && !outlineState.part2A) {
-            outlineState.part2A = parsedOutline.rawLegacyContent;
-          }
 
           const lastTruncatedOutlineTask = isActiveSession(sessionId)
             ? useWorkflowStore.getState().steps.outline.truncation.lastTruncatedOutlineTask
@@ -1250,10 +1274,14 @@ export function useStepGenerator() {
             const validation = validatePromptSections(resolvedPromptTemplateKey, content);
             if (!validation.ok) {
               const notice = buildFormatNotice(resolvedPromptTemplateKey, validation.missing);
-              if (isActiveSession(sessionId)) {
-                useWorkflowStore.getState().updateStepContent(stepId, notice);
+              if (
+                isActiveSession(sessionId) &&
+                !content.trim() &&
+                preRunStepContent.trim()
+              ) {
+                // Keep the previous successful output when this run returns empty content.
+                useWorkflowStore.getState().updateStepContent(stepId, preRunStepContent);
               }
-              onProgress(toProgressPreview(notice));
               throw new Error(notice);
             }
           }

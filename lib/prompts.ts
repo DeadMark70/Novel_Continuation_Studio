@@ -305,8 +305,12 @@ ${ADULT_FICTION_GUARDRAILS}`;
 
 const BREAKDOWN_META_PROMPT = `你是章節框架規劃器。先輸出章節總覽與升級守則，不要展開逐章細節。
 
-**續寫大綱：**
-{{OUTLINE_RESULT}}
+**續寫大綱（Phase 2A / 2B）：**
+【Phase 2A】
+{{OUTLINE_PHASE2A_RESULT}}
+
+【Phase 2B】
+{{OUTLINE_PHASE2B_RESULT}}
 
 **壓縮大綱（Phase 0）：**
 {{COMPRESSION_OUTLINE}}
@@ -325,8 +329,12 @@ const BREAKDOWN_META_PROMPT = `你是章節框架規劃器。先輸出章節總�
 
 const BREAKDOWN_CHUNK_PROMPT = `你是章節框架規劃器。請只為指定章節範圍輸出逐章內容。
 
-**續寫大綱：**
-{{OUTLINE_RESULT}}
+**續寫大綱（Phase 2A / 2B）：**
+【Phase 2A】
+{{OUTLINE_PHASE2A_RESULT}}
+
+【Phase 2B】
+{{OUTLINE_PHASE2B_RESULT}}
 
 **壓縮大綱（Phase 0）：**
 {{COMPRESSION_OUTLINE}}
@@ -362,8 +370,12 @@ const CHAPTER1_COMPRESSED_PROMPT = `基於所有前置資訊，撰寫續寫的�
 **故事分析：**
 {{ANALYSIS_RESULT}}
 
-**續寫大綱：**
-{{OUTLINE_RESULT}}
+**續寫大綱（Phase 2A / 2B）：**
+【Phase 2A】
+{{OUTLINE_PHASE2A_RESULT}}
+
+【Phase 2B】
+{{OUTLINE_PHASE2B_RESULT}}
 
 **章節框架：**
 {{CHAPTER_BREAKDOWN}}
@@ -394,8 +406,12 @@ const CHAPTER1_RAW_PROMPT = `基於原文與前置分析，撰寫續寫的第一
 **故事分析：**
 {{ANALYSIS_RESULT}}
 
-**續寫大綱：**
-{{OUTLINE_RESULT}}
+**續寫大綱（Phase 2A / 2B）：**
+【Phase 2A】
+{{OUTLINE_PHASE2A_RESULT}}
+
+【Phase 2B】
+{{OUTLINE_PHASE2B_RESULT}}
 
 **章節框架：**
 {{CHAPTER_BREAKDOWN}}
@@ -438,8 +454,12 @@ const CONTINUATION_COMPRESSED_PROMPT = `基於所有資訊和已生成章節，�
 **故事分析：**
 {{ANALYSIS_RESULT}}
 
-**續寫大綱：**
-{{OUTLINE_RESULT}}
+**續寫大綱（Phase 2A / 2B）：**
+【Phase 2A】
+{{OUTLINE_PHASE2A_RESULT}}
+
+【Phase 2B】
+{{OUTLINE_PHASE2B_RESULT}}
 
 **章節框架：**
 {{CHAPTER_BREAKDOWN}}
@@ -473,8 +493,12 @@ const CONTINUATION_RAW_PROMPT = `基於原文與已生成章節，撰寫下一�
 **故事分析：**
 {{ANALYSIS_RESULT}}
 
-**續寫大綱：**
-{{OUTLINE_RESULT}}
+**續寫大綱（Phase 2A / 2B）：**
+【Phase 2A】
+{{OUTLINE_PHASE2A_RESULT}}
+
+【Phase 2B】
+{{OUTLINE_PHASE2B_RESULT}}
 
 **章節框架：**
 {{CHAPTER_BREAKDOWN}}
@@ -950,7 +974,7 @@ export const DEFAULT_PROMPTS = {
 **續寫大綱：**
 {{OUTLINE_RESULT}}
 
-**壓縮大綱（Phase 0）：**
+**壓縮小說原文（Phase 0）：**
 {{COMPRESSION_OUTLINE}}
 
 ---

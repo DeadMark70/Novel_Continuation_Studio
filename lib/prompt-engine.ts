@@ -1,4 +1,5 @@
 import { SENSORY_STYLE_GUIDE } from '@/lib/prompts';
+import { parseOutlinePhase2Content } from '@/lib/outline-phase2';
 
 export interface PromptContext {
   originalNovel?: string;
@@ -76,6 +77,25 @@ function buildPacingRatioSection(context: PromptContext): string {
   ].join('\n');
 }
 
+function resolveOutlinePhase2Sections(outline: string): {
+  phase2A: string;
+  phase2B: string;
+} {
+  const parsed = parseOutlinePhase2Content(outline);
+  if (!parsed.structured) {
+    const legacy = parsed.rawLegacyContent.trim() || outline.trim();
+    return {
+      phase2A: legacy,
+      phase2B: '',
+    };
+  }
+
+  return {
+    phase2A: parsed.part2A.trim(),
+    phase2B: parsed.part2B.trim(),
+  };
+}
+
 /**
  * Replaces placeholders in the format {{VARIABLE}} or [Legacy Placeholder] with actual content.
  */
@@ -120,6 +140,11 @@ export function injectPrompt(template: string, context: PromptContext): string {
     // Legacy support
     result = result.replace(/\x5B插入提示詞2的輸出\x5D/g, context.outline);
   }
+  const outlineSections = context.outline
+    ? resolveOutlinePhase2Sections(context.outline)
+    : { phase2A: '', phase2B: '' };
+  result = result.replace(/{{OUTLINE_PHASE2A_RESULT}}/g, outlineSections.phase2A);
+  result = result.replace(/{{OUTLINE_PHASE2B_RESULT}}/g, outlineSections.phase2B);
 
   if (context.breakdown) {
     result = result.replace(/{{CHAPTER_BREAKDOWN}}/g, context.breakdown);
