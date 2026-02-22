@@ -15,7 +15,12 @@ import { resolveWorkflowMode } from '@/lib/workflow-mode';
 import { mergeSensoryAnchorBlocks } from '@/lib/sensory-anchors';
 
 export const StepChapter1: React.FC = () => {
-  const { steps, startStep } = useWorkflowStore();
+  const { step, startStep } = useWorkflowStore(
+    useShallow((state) => ({
+      step: state.steps.chapter1,
+      startStep: state.startStep,
+    }))
+  );
   const {
     compressionMode,
     compressionAutoThreshold,
@@ -62,7 +67,6 @@ export const StepChapter1: React.FC = () => {
     ));
   }, []);
   
-  const step = steps.chapter1;
   const isStreaming = step.status === 'streaming';
   const isCompleted = step.status === 'completed';
   const modeMeta = resolveWorkflowMode({

@@ -21,7 +21,16 @@ export function AutoModeControl({ onStart }: AutoModeControlProps) {
     autoRangeEnd, 
     setAutoRange,
     setMaxAutoChapter
-  } = useWorkflowStore();
+  } = useWorkflowStore(
+    useShallow((state) => ({
+      autoMode: state.autoMode,
+      setAutoMode: state.setAutoMode,
+      autoRangeStart: state.autoRangeStart,
+      autoRangeEnd: state.autoRangeEnd,
+      setAutoRange: state.setAutoRange,
+      setMaxAutoChapter: state.setMaxAutoChapter,
+    }))
+  );
   const { targetChapterCount } = useNovelStore(
     useShallow((state) => ({
       targetChapterCount: state.targetChapterCount,

@@ -14,7 +14,7 @@ import { shouldRunCompression } from '@/lib/compression';
 import { resolveWorkflowMode } from '@/lib/workflow-mode';
 
 export const StepCompression: React.FC = () => {
-  const { steps } = useWorkflowStore();
+  const step = useWorkflowStore((state) => state.steps.compression);
   const { wordCount, compressedContext } = useNovelStore(
     useShallow((state) => ({
       wordCount: state.wordCount,
@@ -29,7 +29,6 @@ export const StepCompression: React.FC = () => {
   );
   const { generate, stop } = useStepGenerator();
 
-  const step = steps.compression;
   const isStreaming = step.status === 'streaming';
   const isCompleted = step.status === 'completed';
   const willRun = shouldRunCompression(compressionMode, wordCount, compressionAutoThreshold);

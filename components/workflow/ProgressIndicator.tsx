@@ -12,7 +12,7 @@ interface ProgressIndicatorProps {
 }
 
 export function ProgressIndicator({ current, total, onStop, stopDisabled = false }: ProgressIndicatorProps) {
-  const { pauseGeneration } = useWorkflowStore();
+  const pauseGeneration = useWorkflowStore((state) => state.pauseGeneration);
   const percentage = Math.min(100, Math.max(0, (current / total) * 100));
 
   const handleStop = () => {

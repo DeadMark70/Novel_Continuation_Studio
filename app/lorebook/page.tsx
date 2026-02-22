@@ -18,7 +18,7 @@ export default function LorebookPage() {
         <div className="container mx-auto px-4 h-16 flex items-center justify-between">
           <div className="flex items-center gap-4">
             <Button asChild variant="ghost" size="icon" className="shrink-0">
-              <Link href="/">
+              <Link href="/" aria-label="Back to studio home">
                 <ArrowLeft className="size-5" />
               </Link>
             </Button>

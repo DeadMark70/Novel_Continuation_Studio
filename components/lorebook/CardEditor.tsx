@@ -7,13 +7,14 @@ import {
   isLoreExtractionParseError,
   parseLoreCardsFromRawJsonWithLlmRepair,
 } from '@/lib/lore-extractor';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Save, Trash2, Image as ImageIcon, Wand2 } from 'lucide-react';
+import { useShallow } from 'zustand/react/shallow';
 import {
   GLOBAL_LOREBOOK_NOVEL_ID,
   LoreCard,
@@ -29,7 +30,13 @@ interface CardEditorProps {
 
 export function CardEditor({ cardId, onClose, onSelectCard }: CardEditorProps) {
   const { cards, addCard, addCards, updateCard, deleteCard } = useLorebookStore();
-  const { getResolvedGenerationConfig, initialize, ensurePhaseMetadata } = useSettingsStore();
+  const { getResolvedGenerationConfig, initialize, ensurePhaseMetadata } = useSettingsStore(
+    useShallow((state) => ({
+      getResolvedGenerationConfig: state.getResolvedGenerationConfig,
+      initialize: state.initialize,
+      ensurePhaseMetadata: state.ensurePhaseMetadata,
+    }))
+  );
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [formData, setFormData] = useState<Partial<LoreCard>>({
@@ -328,10 +335,13 @@ export function CardEditor({ cardId, onClose, onSelectCard }: CardEditorProps) {
                  <Wand2 className="size-4" /> Extract from Text
                </Button>
              </DialogTrigger>
-             <DialogContent>
-               <DialogHeader>
-                 <DialogTitle>AI Lore Extraction</DialogTitle>
-               </DialogHeader>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>AI Lore Extraction</DialogTitle>
+                  <DialogDescription>
+                    Paste a source passage and extract structured lore cards from it.
+                  </DialogDescription>
+                </DialogHeader>
                <div className="space-y-4">
                 <Label>Paste background, story intro, or dialog snippet:</Label>
                 <Textarea 

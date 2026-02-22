@@ -14,7 +14,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { resolveWorkflowMode } from '@/lib/workflow-mode';
 
 export const StepBreakdown: React.FC = () => {
-  const { steps } = useWorkflowStore();
+  const step = useWorkflowStore((state) => state.steps.breakdown);
   const { compressionMode, compressionAutoThreshold } = useSettingsStore(
     useShallow((state) => ({
       compressionMode: state.compressionMode,
@@ -30,7 +30,6 @@ export const StepBreakdown: React.FC = () => {
   );
   const { generate, stop } = useStepGenerator();
   
-  const step = steps.breakdown;
   const isStreaming = step.status === 'streaming';
   const isCompleted = step.status === 'completed';
   const hasContent = step.content.trim().length > 0;
