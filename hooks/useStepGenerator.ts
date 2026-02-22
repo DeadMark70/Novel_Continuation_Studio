@@ -13,6 +13,7 @@ import {
 import {
   parseOutlinePhase2Content,
   parseOutlineTaskDirective,
+  sanitizeOutlineSectionContent,
   serializeOutlinePhase2Content,
   type OutlinePhase2Task,
 } from '@/lib/outline-phase2';
@@ -34,6 +35,7 @@ import {
 } from '@/lib/compression';
 import { runConsistencyCheck } from '@/lib/consistency-checker';
 import { createThrottledUpdater } from '@/lib/streaming-throttle';
+import { parseAnalysisOutput } from '@/lib/analysis-output';
 import type { AutoContinuationPolicy, RunStepId } from '@/lib/run-types';
 import type { NovelEntry } from '@/lib/db';
 import type { GenerateFinishReason } from '@/lib/llm-types';
@@ -42,6 +44,7 @@ import {
   hasResumeLastOutputDirective,
   stripResumeLastOutputDirective,
 } from '@/lib/resume-directive';
+import { generateWithSectionRetry } from '@/lib/section-retry';
 
 type PromptTemplateKey = keyof typeof DEFAULT_PROMPTS;
 const activeAbortControllers = new Map<string, AbortController>();
@@ -51,13 +54,13 @@ const BREAKDOWN_CHUNK_SIZE = 4;
 
 const STEP_TRANSITIONS: Record<
   Exclude<WorkflowStepId, 'continuation'>,
-  { nextStep: WorkflowStepId; autoTrigger: WorkflowStepId | null; delayMs: number }
+  { nextStep: WorkflowStepId; autoTrigger: WorkflowStepId | null }
 > = {
-  compression: { nextStep: 'analysis', autoTrigger: 'analysis', delayMs: 1000 },
-  analysis: { nextStep: 'outline', autoTrigger: null, delayMs: 1500 },
-  outline: { nextStep: 'breakdown', autoTrigger: null, delayMs: 3500 },
-  breakdown: { nextStep: 'chapter1', autoTrigger: 'chapter1', delayMs: 3500 },
-  chapter1: { nextStep: 'continuation', autoTrigger: null, delayMs: 2000 },
+  compression: { nextStep: 'analysis', autoTrigger: 'analysis' },
+  analysis: { nextStep: 'outline', autoTrigger: null },
+  outline: { nextStep: 'breakdown', autoTrigger: null },
+  breakdown: { nextStep: 'chapter1', autoTrigger: 'chapter1' },
+  chapter1: { nextStep: 'continuation', autoTrigger: null },
 };
 
 interface CompressionPipelineTask {
@@ -65,10 +68,6 @@ interface CompressionPipelineTask {
   statusLabel: string;
   promptKey: PromptTemplateKey;
   labels: string[];
-}
-
-function wait(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 function isCancellationError(error: unknown): boolean {
@@ -206,8 +205,6 @@ async function onStepCompleted(
       return;
     }
 
-    await wait(transition.delayMs);
-
     if (transition.autoTrigger) {
       await useNovelStore.getState().setSessionRunMeta(sessionId, {
         runStatus: 'queued',
@@ -229,8 +226,6 @@ async function onStepCompleted(
     }
     return;
   }
-
-  await wait(1000);
 
   const latestSessionSnapshot = await getSessionSnapshot(sessionId);
   const currentChapterCount = latestSessionSnapshot.chapters.length;
@@ -328,23 +323,29 @@ export function useStepGenerator() {
     let content = '';
     try {
       const settingsState = useSettingsStore.getState();
-      const {
-        customPrompts,
-        truncationThreshold,
-        dualEndBuffer,
-        compressionMode,
+        const {
+          customPrompts,
+          truncationThreshold,
+          dualEndBuffer,
+          compressionMode,
         compressionAutoThreshold,
         compressionChunkSize,
-        compressionChunkOverlap,
-        compressionEvidenceSegments,
-        sensoryAnchorTemplates = [],
-        sensoryAutoTemplateByPhase = {},
-        autoResumeMaxRounds,
-      } = settingsState;
+          compressionChunkOverlap,
+          compressionEvidenceSegments,
+          sensoryAnchorTemplates = [],
+          sensoryAutoTemplateByPhase = {},
+          autoResumeOnLength,
+          autoResumePhaseAnalysis,
+          autoResumePhaseOutline,
+          autoResumeMaxRounds,
+        } = settingsState;
 
       const sessionSnapshot = await getSessionSnapshot(sessionId);
       const originalNovel = sessionSnapshot.content;
       const analysis = sessionSnapshot.analysis;
+      const parsedAnalysis = parseAnalysisOutput(analysis);
+      const analysisDetail = parsedAnalysis.detail.trim() || analysis.trim();
+      const analysisSummary = parsedAnalysis.executiveSummary.trim() || analysisDetail;
       const outline = sessionSnapshot.outline;
       const breakdown = sessionSnapshot.breakdown;
       const chapters = sessionSnapshot.chapters;
@@ -729,6 +730,13 @@ export function useStepGenerator() {
         ): Promise<StreamAttemptResult> => {
           let attemptContent = initialContent;
           let finishReason: GenerateFinishReason = UNKNOWN_FINISH_REASON;
+          if (!attemptContent.trim() && !onContentUpdate) {
+            const preflightMessage = '【Context Check】Estimating Context Window...';
+            if (isActiveSession(sessionId)) {
+              useWorkflowStore.getState().updateStepContent(stepId, preflightMessage);
+            }
+            onProgress(toProgressPreview(preflightMessage));
+          }
           const stream = generateStreamByProvider(
             selectedProvider,
             promptToRun,
@@ -842,13 +850,16 @@ export function useStepGenerator() {
 
         const manualResumeRequested = hasResumeLastOutputDirective(userNotes);
         const normalizedUserNotes = stripResumeLastOutputDirective(userNotes);
-        const autoResumeEnabledForStep = false;
+        const autoResumeEnabledForStep = autoResumeOnLength && (
+          (stepId === 'analysis' && autoResumePhaseAnalysis) ||
+          (stepId === 'outline' && autoResumePhaseOutline)
+        );
 
         const buildPrompt = (template: string, notes?: string) => injectPrompt(
           applyPromptSectionContract(template, resolvedPromptTemplateKey),
           {
             originalNovel: resolvedOriginalNovel,
-            analysis,
+            analysis: analysisDetail,
             outline,
             breakdown,
             previousChapters: chapters,
@@ -933,6 +944,14 @@ export function useStepGenerator() {
           let outlineFinishReason: GenerateFinishReason = UNKNOWN_FINISH_REASON;
 
           const runOutlineTask = async (task: OutlinePhase2Task): Promise<void> => {
+            if (task === '2B') {
+              const sanitized2A = sanitizeOutlineSectionContent(outlineState.part2A);
+              if (!sanitized2A) {
+                throw new Error('Phase 2B requires a non-empty Phase 2A skeleton. Please generate Phase 2A first.');
+              }
+              outlineState.part2A = sanitized2A;
+            }
+
             const promptKey: PromptTemplateKey = task === '2A'
               ? (canUseCompressedContext ? 'outlinePhase2ACompressed' : 'outlinePhase2ARaw')
               : (canUseCompressedContext ? 'outlinePhase2BCompressed' : 'outlinePhase2BRaw');
@@ -949,12 +968,19 @@ export function useStepGenerator() {
               throw new Error(`No prompt template found for outline subtask ${task}`);
             }
 
+            const outlineForPrompt = serializeOutlinePhase2Content({
+              part2A: sanitizeOutlineSectionContent(outlineState.part2A),
+              part2B: sanitizeOutlineSectionContent(outlineState.part2B),
+              missing2A: outlineState.missing2A,
+              missing2B: outlineState.missing2B,
+            });
+
             const prompt = injectPrompt(
               applyPromptSectionContract(template, promptKey),
               {
                 originalNovel: resolvedOriginalNovel,
-                analysis,
-                outline,
+                analysis: analysisSummary,
+                outline: outlineForPrompt,
                 breakdown,
                 previousChapters: chapters,
                 userNotes: outlineDirective.userNotes,
@@ -986,32 +1012,50 @@ export function useStepGenerator() {
               )
             );
 
-            const taskResult = await streamPromptAttempt(
-              prompt,
-              (next) => {
-                const previewState = {
-                  part2A: task === '2A' ? next : outlineState.part2A,
-                  part2B: task === '2B' ? next : outlineState.part2B,
-                  missing2A: task === '2A' ? [] : outlineState.missing2A,
-                  missing2B: task === '2B' ? [] : outlineState.missing2B,
-                };
-                const preview = [
-                  `【Phase 2 子任務 ${task} 生成中】`,
-                  '',
-                  serializeOutlinePhase2Content(previewState),
-                ].join('\n');
-                if (isActiveSession(sessionId)) {
-                  useWorkflowStore.getState().updateStepContent(stepId, preview);
-                }
-                onProgress(toProgressPreview(preview));
-              },
-              {
-                manualResume: shouldManualResumeTask,
-                initialContent: shouldManualResumeTask ? resumeSeed : '',
-                autoResumeEnabled: autoResumeEnabledForStep,
-              }
-            );
-            const taskOutput = taskResult.content;
+            let taskResultMeta: StreamAttemptWithResumeResult = {
+              content: '',
+              finishReason: UNKNOWN_FINISH_REASON,
+              autoResumeRoundsUsed: 0,
+            };
+            const taskOutput = (
+              await generateWithSectionRetry({
+                prompt,
+                promptKey,
+                maxAttempts: 2,
+                generate: async (attemptPrompt, attempt) => {
+                  const taskResult = await streamPromptAttempt(
+                    attemptPrompt,
+                    (next) => {
+                      const previewState = {
+                        part2A: task === '2A' ? sanitizeOutlineSectionContent(next) : outlineState.part2A,
+                        part2B: task === '2B' ? sanitizeOutlineSectionContent(next) : outlineState.part2B,
+                        missing2A: task === '2A' ? [] : outlineState.missing2A,
+                        missing2B: task === '2B' ? [] : outlineState.missing2B,
+                      };
+                      const preview = [
+                        `【Phase 2 子任務 ${task} 生成中】`,
+                        '',
+                        serializeOutlinePhase2Content(previewState),
+                      ].join('\n');
+                      if (isActiveSession(sessionId)) {
+                        useWorkflowStore.getState().updateStepContent(stepId, preview);
+                      }
+                      onProgress(toProgressPreview(preview));
+                    },
+                    {
+                      manualResume: attempt === 1 && shouldManualResumeTask,
+                      initialContent: attempt === 1 && shouldManualResumeTask ? resumeSeed : '',
+                      autoResumeEnabled: autoResumeEnabledForStep,
+                    }
+                  );
+                  taskResultMeta = taskResult;
+                  return taskResult.content;
+                },
+              })
+            ).content;
+
+            const taskResult = taskResultMeta;
+
             if (isLengthFinishReason(taskResult.finishReason)) {
               hadOutlineLengthTruncation = true;
               outlineTruncatedTask = task;
@@ -1024,12 +1068,13 @@ export function useStepGenerator() {
               taskResult.autoResumeRoundsUsed
             );
 
-            const validation = validatePromptSections(promptKey, taskOutput);
+            const normalizedTaskOutput = sanitizeOutlineSectionContent(taskOutput);
+            const validation = validatePromptSections(promptKey, normalizedTaskOutput);
             if (task === '2A') {
-              outlineState.part2A = taskOutput.trim();
+              outlineState.part2A = normalizedTaskOutput;
               outlineState.missing2A = validation.missing;
             } else {
-              outlineState.part2B = taskOutput.trim();
+              outlineState.part2B = normalizedTaskOutput;
               outlineState.missing2B = validation.missing;
             }
 
@@ -1098,7 +1143,7 @@ export function useStepGenerator() {
 
           const sharedPromptContext = {
             originalNovel: resolvedOriginalNovel,
-            analysis,
+            analysis: analysisDetail,
             outline,
             breakdown,
             previousChapters: chapters,
@@ -1138,17 +1183,33 @@ export function useStepGenerator() {
           metaState = 'running';
           publishBreakdownPreview();
           try {
-            const metaResult = await streamPromptAttempt(
-              metaPrompt,
-              (next) => {
-                metaRaw = next;
-                publishBreakdownPreview();
-              },
-              {
-                autoResumeEnabled: autoResumeEnabledForStep,
-              }
-            );
-            metaRaw = metaResult.content;
+            let metaResult: StreamAttemptWithResumeResult = {
+              content: '',
+              finishReason: UNKNOWN_FINISH_REASON,
+              autoResumeRoundsUsed: 0,
+            };
+            metaRaw = (
+              await generateWithSectionRetry({
+                prompt: metaPrompt,
+                promptKey: 'breakdownMeta',
+                maxAttempts: 2,
+                generate: async (attemptPrompt) => {
+                  const result = await streamPromptAttempt(
+                    attemptPrompt,
+                    (next) => {
+                      metaRaw = next;
+                      publishBreakdownPreview();
+                    },
+                    {
+                      autoResumeEnabled: autoResumeEnabledForStep,
+                    }
+                  );
+                  metaResult = result;
+                  return result.content;
+                },
+              })
+            ).content;
+
             if (isLengthFinishReason(metaResult.finishReason)) {
               hadBreakdownLengthTruncation = true;
               breakdownFinishReason = 'length';
@@ -1252,16 +1313,47 @@ export function useStepGenerator() {
             resolvedPromptTemplateKey === 'analysisCompressed'
           );
 
-          const stepResult = await streamPromptAttempt(
-            contractedPrompt,
-            undefined,
-            {
-              manualResume: manualResumeRequested,
-              initialContent: manualResumeRequested ? analysis : '',
-              autoResumeEnabled: autoResumeEnabledForStep,
-            }
-          );
-          content = stepResult.content;
+          let stepResultMeta: StreamAttemptWithResumeResult | null = null;
+          if (shouldCheckSections) {
+            content = (
+              await generateWithSectionRetry({
+                prompt: contractedPrompt,
+                promptKey: resolvedPromptTemplateKey,
+                maxAttempts: 2,
+                generate: async (attemptPrompt, attempt) => {
+                  const stepResult = await streamPromptAttempt(
+                    attemptPrompt,
+                    undefined,
+                    {
+                      manualResume: attempt === 1 && manualResumeRequested,
+                      initialContent: attempt === 1 && manualResumeRequested ? analysis : '',
+                      autoResumeEnabled: autoResumeEnabledForStep,
+                    }
+                  );
+                  stepResultMeta = stepResult;
+                  return stepResult.content;
+                },
+              })
+            ).content;
+          } else {
+            const stepResult = await streamPromptAttempt(
+              contractedPrompt,
+              undefined,
+              {
+                manualResume: manualResumeRequested,
+                initialContent: manualResumeRequested ? analysis : '',
+                autoResumeEnabled: autoResumeEnabledForStep,
+              }
+            );
+            stepResultMeta = stepResult;
+            content = stepResult.content;
+          }
+
+          const stepResult = stepResultMeta;
+          if (!stepResult) {
+            throw new Error(`Missing stream result metadata for ${stepId}`);
+          }
+
           if (isActiveSession(sessionId) && stepId === 'analysis') {
             useWorkflowStore.getState().updateStepTruncation(stepId, {
               isTruncated: isLengthFinishReason(stepResult.finishReason),
@@ -1270,20 +1362,9 @@ export function useStepGenerator() {
               lastTruncatedOutlineTask: undefined,
             });
           }
-          if (shouldCheckSections) {
-            const validation = validatePromptSections(resolvedPromptTemplateKey, content);
-            if (!validation.ok) {
-              const notice = buildFormatNotice(resolvedPromptTemplateKey, validation.missing);
-              if (
-                isActiveSession(sessionId) &&
-                !content.trim() &&
-                preRunStepContent.trim()
-              ) {
-                // Keep the previous successful output when this run returns empty content.
-                useWorkflowStore.getState().updateStepContent(stepId, preRunStepContent);
-              }
-              throw new Error(notice);
-            }
+          if (shouldCheckSections && !content.trim() && preRunStepContent.trim() && isActiveSession(sessionId)) {
+            // Keep the previous successful output when this run returns empty content.
+            useWorkflowStore.getState().updateStepContent(stepId, preRunStepContent);
           }
         }
 

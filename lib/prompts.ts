@@ -214,6 +214,11 @@ const OUTLINE_PHASE2A_COMPRESSED_PROMPT = `基於以下資訊，生成 Phase 2A�
 【三至四段情節藍圖】
 
 要求：
+- CRITICAL: 這是高層骨架，不是草稿。
+- 嚴禁輸出對話、內心獨白、完整場景描寫。
+- 固定層級：3 個主段；每個主段僅 2-3 個子項。
+- 每個子項最多 2 句且不超過 30 字。
+- 只描述：劇情推進、角色決策、狀態改變。
 - 清楚標出目標續寫小說總字數（{{TARGET_STORY_WORD_COUNT}} 字，預設 20000 字）
 - 每段情節藍圖必含：段落標題、推進目標、角色動機位移
 - 不可輸出其他章節，不可加前言結語
@@ -238,6 +243,11 @@ const OUTLINE_PHASE2A_RAW_PROMPT = `基於以下資訊，生成 Phase 2A（續�
 【三至四段情節藍圖】
 
 要求：
+- CRITICAL: 這是高層骨架，不是草稿。
+- 嚴禁輸出對話、內心獨白、完整場景描寫。
+- 固定層級：3 個主段；每個主段僅 2-3 個子項。
+- 每個子項最多 2 句且不超過 30 字。
+- 只描述：劇情推進、角色決策、狀態改變。
 - 清楚標出目標續寫小說總字數（{{TARGET_STORY_WORD_COUNT}} 字，預設 20000 字）
 - 每段情節藍圖必含：段落標題、推進目標、角色動機位移
 - 不可輸出其他章節，不可加前言結語
@@ -262,6 +272,9 @@ const OUTLINE_PHASE2B_COMPRESSED_PROMPT = `基於以下資訊，生成 Phase 2B�
 【故事分析】
 {{ANALYSIS_RESULT}}
 
+【Phase 2A 既有骨架（唯讀）】
+{{OUTLINE_PHASE2A_RESULT}}
+
 【使用者要求】
 {{USER_DIRECTION_SECTION}}
 
@@ -272,6 +285,11 @@ const OUTLINE_PHASE2B_COMPRESSED_PROMPT = `基於以下資訊，生成 Phase 2B�
 【伏筆回收與新埋規劃】
 
 要求：
+- CRITICAL: 這是高層骨架，不是草稿。
+- 嚴禁輸出對話、內心獨白、完整場景描寫。
+- 固定層級：3 個主段；每個主段僅 2-3 個子項。
+- 每個子項最多 2 句且不超過 30 字。
+- 只描述：劇情推進、角色決策、狀態改變。
 - 對應到前述情節藍圖，列出每段升溫點、釋放點、關係位移
 - 伏筆需區分：必回收 / 新埋設 / 風險點
 - 不可輸出其他章節，不可加前言結語
@@ -286,6 +304,9 @@ const OUTLINE_PHASE2B_RAW_PROMPT = `基於以下資訊，生成 Phase 2B（張�
 【故事分析】
 {{ANALYSIS_RESULT}}
 
+【Phase 2A 既有骨架（唯讀）】
+{{OUTLINE_PHASE2A_RESULT}}
+
 【使用者要求】
 {{USER_DIRECTION_SECTION}}
 
@@ -296,6 +317,11 @@ const OUTLINE_PHASE2B_RAW_PROMPT = `基於以下資訊，生成 Phase 2B（張�
 【伏筆回收與新埋規劃】
 
 要求：
+- CRITICAL: 這是高層骨架，不是草稿。
+- 嚴禁輸出對話、內心獨白、完整場景描寫。
+- 固定層級：3 個主段；每個主段僅 2-3 個子項。
+- 每個子項最多 2 句且不超過 30 字。
+- 只描述：劇情推進、角色決策、狀態改變。
 - 對應到前述情節藍圖，列出每段升溫點、釋放點、關係位移
 - 伏筆需區分：必回收 / 新埋設 / 風險點
 - 不可輸出其他章節，不可加前言結語
@@ -533,15 +559,23 @@ const ANALYSIS_RAW_PROMPT = `你是一位成人向長篇續寫分析師。請從
 4. 關鍵事件與伏筆 ledger（已回收/未回收/可深化）
 5. 續寫風險（最容易寫崩的人設與場景）
 
-請輸出六個段落：
+輸出格式（標籤名必須完全一致，且只輸出以下兩段）：
+<analysis_detail>
 【角色動機地圖】
 【權力與張力機制】
 【文風錨點（可執行規則）】
 【事件與伏筆 ledger】
 【續寫升級建議（穩定 + 大膽）】
 【禁止清單（避免重複與失真）】
+</analysis_detail>
 
-約 2000-2500 字。你的輸出是寫作作戰圖，不是文學評論。
+<executive_summary>
+- 用 8-12 條可執行 bullet，僅保留後續 Phase 2 需要的關鍵決策資訊。
+- 每條 bullet 聚焦：情節推進 / 角色決策 / 狀態改變 / 必回收伏筆。
+</executive_summary>
+
+analysis_detail 約 2000-2500 字；executive_summary 約 250-350 字。
+你的輸出是寫作作戰圖，不是文學評論。
 ${ADULT_FICTION_GUARDRAILS}
 
 ---
@@ -566,18 +600,25 @@ const ANALYSIS_COMPRESSED_PROMPT = `你是一位成人向長篇續寫分析師�
 【成人元素包】
 {{EROTIC_PACK}}
 
-請輸出六個段落：
+輸出格式（標籤名必須完全一致，且只輸出以下兩段）：
+<analysis_detail>
 【角色動機地圖】
 【權力與張力機制】
 【文風錨點（可執行規則）】
 【事件與伏筆 ledger】
 【續寫升級建議（穩定 + 大膽）】
 【禁止清單（避免重複與失真）】
+</analysis_detail>
+
+<executive_summary>
+- 用 8-12 條可執行 bullet，僅保留後續 Phase 2 需要的關鍵決策資訊。
+- 每條 bullet 聚焦：情節推進 / 角色決策 / 狀態改變 / 必回收伏筆。
+</executive_summary>
 
 要求：
 - 不可新增原文不存在的重大事件或人設。
 - 明確指出「下一章最應該先推進的 3 件事」。
-- 約 1800-2400 字，內容需可直接用於後續 prompt。
+- analysis_detail 約 1800-2400 字；executive_summary 約 250-350 字，內容需可直接用於後續 prompt。
 ${ADULT_FICTION_GUARDRAILS}`;
 
 const COMPRESSION_ROLE_CARDS_PROMPT = `你是長篇成人小說壓縮流程中的「角色卡抽取器」。

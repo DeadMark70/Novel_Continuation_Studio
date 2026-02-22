@@ -25,6 +25,7 @@ const PROMPT_SECTION_CONTRACTS: Partial<Record<PromptTemplateKey, PromptSectionC
   analysisRaw: {
     requirements: ANALYSIS_REQUIREMENTS,
     example: [
+      '<analysis_detail>',
       '【角色動機地圖】',
       '- 每位核心角色：慾望 / 底線 / 觸發點 / 同意邊界',
       '',
@@ -42,11 +43,17 @@ const PROMPT_SECTION_CONTRACTS: Partial<Record<PromptTemplateKey, PromptSectionC
       '',
       '【禁止清單（避免重複與失真）】',
       '- 避免人設漂移與重覆橋段',
+      '</analysis_detail>',
+      '',
+      '<executive_summary>',
+      '- 8-12 條可執行 bullet，聚焦後續 Phase 2 決策',
+      '</executive_summary>',
     ].join('\n'),
   },
   analysisCompressed: {
     requirements: ANALYSIS_REQUIREMENTS,
     example: [
+      '<analysis_detail>',
       '【角色動機地圖】',
       '- 每位核心角色：慾望 / 底線 / 觸發點 / 同意邊界',
       '',
@@ -64,6 +71,11 @@ const PROMPT_SECTION_CONTRACTS: Partial<Record<PromptTemplateKey, PromptSectionC
       '',
       '【禁止清單（避免重複與失真）】',
       '- 避免人設漂移與重覆橋段',
+      '</analysis_detail>',
+      '',
+      '<executive_summary>',
+      '- 8-12 條可執行 bullet，聚焦後續 Phase 2 決策',
+      '</executive_summary>',
     ].join('\n'),
   },
   outlineRaw: {

@@ -1,5 +1,8 @@
 import { SENSORY_STYLE_GUIDE } from '@/lib/prompts';
-import { parseOutlinePhase2Content } from '@/lib/outline-phase2';
+import {
+  parseOutlinePhase2Content,
+  sanitizeOutlineSectionContent,
+} from '@/lib/outline-phase2';
 
 export interface PromptContext {
   originalNovel?: string;
@@ -83,7 +86,9 @@ function resolveOutlinePhase2Sections(outline: string): {
 } {
   const parsed = parseOutlinePhase2Content(outline);
   if (!parsed.structured) {
-    const legacy = parsed.rawLegacyContent.trim() || outline.trim();
+    const legacy = sanitizeOutlineSectionContent(
+      parsed.rawLegacyContent.trim() || outline.trim()
+    );
     return {
       phase2A: legacy,
       phase2B: '',
@@ -91,8 +96,8 @@ function resolveOutlinePhase2Sections(outline: string): {
   }
 
   return {
-    phase2A: parsed.part2A.trim(),
-    phase2B: parsed.part2B.trim(),
+    phase2A: sanitizeOutlineSectionContent(parsed.part2A.trim()),
+    phase2B: sanitizeOutlineSectionContent(parsed.part2B.trim()),
   };
 }
 

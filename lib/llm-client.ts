@@ -25,6 +25,8 @@ class ProviderHttpError extends Error {
 }
 
 const MAX_CONCURRENT_GENERATE_REQUESTS = 3;
+const PREFLIGHT_CONTEXT_RATIO_LIMIT = 0.9;
+const CJK_SAFETY_MULTIPLIER = 1.2;
 
 interface GenerateRequestWaiter {
   resolve: (release: () => void) => void;
@@ -142,6 +144,52 @@ function resolveRequestedMaxTokens(options: GenerateOptions | undefined): number
 
   // Fallback when provider metadata is unavailable.
   return explicitCap ?? 4096;
+}
+
+function applyLanguageSafetyBuffer(tokens: number, text: string): number {
+  if (!text.trim()) {
+    return Math.max(0, Math.floor(tokens));
+  }
+  const cjkChars = text.match(/[\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff]/g)?.length ?? 0;
+  const ratio = cjkChars / Math.max(1, text.length);
+  if (ratio < 0.15) {
+    return Math.max(0, Math.floor(tokens));
+  }
+  return Math.max(0, Math.ceil(tokens * CJK_SAFETY_MULTIPLIER));
+}
+
+function assertPreflightContextBudget(params: {
+  estimatedPromptTokens: number;
+  promptText: string;
+  requestedMaxTokens: number;
+  maxContextTokens?: number;
+}): void {
+  const { maxContextTokens } = params;
+  if (!Number.isFinite(maxContextTokens) || !maxContextTokens || maxContextTokens <= 0) {
+    return;
+  }
+
+  const bufferedInput = applyLanguageSafetyBuffer(params.estimatedPromptTokens, params.promptText);
+  const estimatedTotal = bufferedInput + Math.max(1, Math.floor(params.requestedMaxTokens));
+  const ratio = estimatedTotal / maxContextTokens;
+  if (ratio < PREFLIGHT_CONTEXT_RATIO_LIMIT) {
+    return;
+  }
+
+  const ratioPercent = Math.round(ratio * 1000) / 10;
+  const limitPercent = Math.round(PREFLIGHT_CONTEXT_RATIO_LIMIT * 100);
+  throw new Error(
+    `Preflight token gate blocked request: estimated ${estimatedTotal}/${maxContextTokens} tokens (${ratioPercent}%) exceeds ${limitPercent}% budget. Reduce context or enable stronger compression.`
+  );
+}
+
+function getInternalApiSecretHeaderValue(): string | null {
+  const direct = process.env.NEXT_PUBLIC_INTERNAL_API_SECRET?.trim();
+  if (direct) {
+    return direct;
+  }
+  const serverFallback = process.env.INTERNAL_API_SECRET?.trim();
+  return serverFallback || null;
 }
 
 function parseContextOverflowError(message: string): {
@@ -505,6 +553,19 @@ export async function* generateStream(
   const estimatedPromptTokens = provider === 'openrouter'
     ? await estimateTokenCount(promptForEstimate)
     : estimateTokenCountHeuristic(promptForEstimate);
+  const requestedMaxTokens = resolveRequestedMaxTokens(options);
+  const effectiveMaxTokensForBudget = clampMaxTokensToModelLimits(
+    requestedMaxTokens,
+    estimatedPromptTokens,
+    options?.maxContextTokens,
+    options?.maxCompletionTokens
+  );
+  assertPreflightContextBudget({
+    estimatedPromptTokens,
+    promptText: promptForEstimate,
+    requestedMaxTokens: effectiveMaxTokensForBudget,
+    maxContextTokens: options?.maxContextTokens,
+  });
 
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
     const controller = new AbortController();
@@ -545,6 +606,10 @@ export async function* generateStream(
       };
       if (apiKey) {
         headers.Authorization = `Bearer ${apiKey.trim()}`;
+      }
+      const internalApiSecret = getInternalApiSecretHeaderValue();
+      if (internalApiSecret) {
+        headers['X-API-Secret'] = internalApiSecret;
       }
 
       const payload = buildGeneratePayload(

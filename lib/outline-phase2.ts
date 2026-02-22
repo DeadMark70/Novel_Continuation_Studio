@@ -30,6 +30,9 @@ const MARKERS = {
   status: '【Phase 2 狀態】',
 } as const;
 
+const WRAPPED_CODE_BLOCK_PATTERN = /^```(?:[a-zA-Z0-9_-]+)?\s*([\s\S]*?)\s*```$/;
+const PREAMBLE_LINE_PATTERN = /^(?:here(?:'s| is)\b|以下(?:是)?|這是|好的|當然|輸出如下)/i;
+
 function stripDirectiveToken(input: string): string {
   const withoutTaskDirective = input.replace(DIRECTIVE_PATTERN, '').trim();
   return stripResumeLastOutputDirective(withoutTaskDirective) || '';
@@ -59,6 +62,25 @@ function renderMissingList(missing: string[]): string {
     return '- 無';
   }
   return missing.map((label) => `- 【${label}】`).join('\n');
+}
+
+function unwrapCodeFence(content: string): string {
+  const match = content.trim().match(WRAPPED_CODE_BLOCK_PATTERN);
+  return (match?.[1] || content).trim();
+}
+
+export function sanitizeOutlineSectionContent(content: string): string {
+  const unwrapped = unwrapCodeFence(content);
+  if (!unwrapped) {
+    return '';
+  }
+
+  const lines = unwrapped.split('\n');
+  while (lines.length > 0 && PREAMBLE_LINE_PATTERN.test(lines[0].trim())) {
+    lines.shift();
+  }
+
+  return lines.join('\n').trim();
 }
 
 export function buildOutlineTaskDirective(

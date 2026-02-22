@@ -4,18 +4,14 @@ import { WorkflowStepId, useWorkflowStore } from '@/store/useWorkflowStore';
 
 const STEP_TRANSITIONS: Record<
   Exclude<WorkflowStepId, 'continuation'>,
-  { nextStep: WorkflowStepId; autoTrigger: WorkflowStepId | null; delayMs: number }
+  { nextStep: WorkflowStepId; autoTrigger: WorkflowStepId | null }
 > = {
-  compression: { nextStep: 'analysis', autoTrigger: 'analysis', delayMs: 1000 },
-  analysis: { nextStep: 'outline', autoTrigger: null, delayMs: 1500 },
-  outline: { nextStep: 'breakdown', autoTrigger: null, delayMs: 3500 },
-  breakdown: { nextStep: 'chapter1', autoTrigger: 'chapter1', delayMs: 3500 },
-  chapter1: { nextStep: 'continuation', autoTrigger: null, delayMs: 2000 },
+  compression: { nextStep: 'analysis', autoTrigger: 'analysis' },
+  analysis: { nextStep: 'outline', autoTrigger: null },
+  outline: { nextStep: 'breakdown', autoTrigger: null },
+  breakdown: { nextStep: 'chapter1', autoTrigger: 'chapter1' },
+  chapter1: { nextStep: 'continuation', autoTrigger: null },
 };
-
-function wait(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
 
 export function useWorkflowOrchestrator() {
   const targetChapterCount = useNovelStore((state) => state.targetChapterCount);
@@ -44,14 +40,12 @@ export function useWorkflowOrchestrator() {
         return;
       }
 
-      await wait(transition.delayMs);
       releaseLock();
       workflowStore.setCurrentStep(stepId === 'outline' ? 'outline' : transition.nextStep);
       workflowStore.setAutoTriggerStep(stepId === 'outline' ? null : transition.autoTrigger);
       return;
     }
 
-    await wait(1000);
     releaseLock();
 
     const latestNovelState = useNovelStore.getState();

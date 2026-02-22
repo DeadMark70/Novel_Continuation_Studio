@@ -16,6 +16,26 @@ function isChatTemplateUnsupportedError(status: number, errorText: string): bool
 }
 
 export async function POST(request: Request) {
+  // TODO: Replace with Session/Cookie auth for production multi-user deployments.
+  const unsafeLocalBypass = process.env.ALLOW_UNSAFE_LOCAL?.toLowerCase() === 'true'
+    && process.env.NODE_ENV !== 'production';
+  if (!unsafeLocalBypass) {
+    const internalSecret = process.env.INTERNAL_API_SECRET?.trim();
+    if (!internalSecret) {
+      return NextResponse.json(
+        { error: 'Server misconfiguration: INTERNAL_API_SECRET is required.' },
+        { status: 500 }
+      );
+    }
+    const providedSecret = request.headers.get('X-API-Secret')?.trim();
+    if (!providedSecret || providedSecret !== internalSecret) {
+      return NextResponse.json(
+        { error: 'Forbidden: invalid internal API secret.' },
+        { status: 403 }
+      );
+    }
+  }
+
   const authHeader = request.headers.get('Authorization');
   const apiKey = authHeader ? authHeader.replace('Bearer ', '') : process.env.NIM_API_KEY;
 
