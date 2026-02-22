@@ -19,7 +19,12 @@ export async function POST(request: Request) {
   // TODO: Replace with Session/Cookie auth for production multi-user deployments.
   const unsafeLocalBypass = process.env.ALLOW_UNSAFE_LOCAL?.toLowerCase() === 'true'
     && process.env.NODE_ENV !== 'production';
-  if (!unsafeLocalBypass) {
+  const explicitRequire = process.env.REQUIRE_INTERNAL_API_SECRET?.toLowerCase() === 'true';
+  const shouldEnforceInternalSecret = !unsafeLocalBypass && (
+    explicitRequire || process.env.NODE_ENV === 'production'
+  );
+
+  if (shouldEnforceInternalSecret) {
     const internalSecret = process.env.INTERNAL_API_SECRET?.trim();
     if (!internalSecret) {
       return NextResponse.json(

@@ -10,6 +10,7 @@ describe('/api/nim/generate route', () => {
 
   afterEach(() => {
     delete process.env.INTERNAL_API_SECRET;
+    delete process.env.REQUIRE_INTERNAL_API_SECRET;
     delete process.env.ALLOW_UNSAFE_LOCAL;
   });
 
@@ -124,6 +125,7 @@ describe('/api/nim/generate route', () => {
   });
 
   it('rejects requests with invalid internal API secret', async () => {
+    process.env.REQUIRE_INTERNAL_API_SECRET = 'true';
     const request = new Request('http://localhost/api/nim/generate', {
       method: 'POST',
       headers: {
@@ -138,5 +140,36 @@ describe('/api/nim/generate route', () => {
 
     const response = await POST(request);
     expect(response.status).toBe(403);
+  });
+
+  it('allows requests without internal API secret in non-production by default', async () => {
+    delete process.env.INTERNAL_API_SECRET;
+    delete process.env.REQUIRE_INTERNAL_API_SECRET;
+
+    const stream = new ReadableStream({
+      start(controller) {
+        controller.close();
+      },
+    });
+
+    (global.fetch as unknown as ReturnType<typeof vi.fn>).mockResolvedValue({
+      ok: true,
+      body: stream,
+    });
+
+    const request = new Request('http://localhost/api/nim/generate', {
+      method: 'POST',
+      headers: {
+        'Authorization': 'Bearer test-key',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'model-a',
+        messages: [{ role: 'user', content: 'hello' }],
+      }),
+    });
+
+    const response = await POST(request);
+    expect(response.status).toBe(200);
   });
 });

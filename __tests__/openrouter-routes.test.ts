@@ -9,6 +9,7 @@ describe('/api/openrouter routes', () => {
     delete process.env.OPENROUTER_DISABLE_NETWORK;
     delete process.env.E2E_MODE;
     delete process.env.INTERNAL_API_SECRET;
+    delete process.env.REQUIRE_INTERNAL_API_SECRET;
     delete process.env.ALLOW_UNSAFE_LOCAL;
   });
 
@@ -82,6 +83,7 @@ describe('/api/openrouter routes', () => {
   it('rejects generation when internal API secret is missing or invalid', async () => {
     process.env.OPENROUTER_API_KEY = 'test-key';
     process.env.INTERNAL_API_SECRET = 'internal-test-secret';
+    process.env.REQUIRE_INTERNAL_API_SECRET = 'true';
 
     const response = await postGenerate(new Request('http://localhost/api/openrouter/generate', {
       method: 'POST',
@@ -93,5 +95,35 @@ describe('/api/openrouter routes', () => {
     }));
 
     expect(response.status).toBe(403);
+  });
+
+  it('allows generation without internal API secret in non-production by default', async () => {
+    process.env.OPENROUTER_API_KEY = 'test-key';
+    delete process.env.INTERNAL_API_SECRET;
+    delete process.env.REQUIRE_INTERNAL_API_SECRET;
+
+    const stream = new ReadableStream({
+      start(controller) {
+        const encoder = new TextEncoder();
+        controller.enqueue(encoder.encode('data: {"choices":[{"delta":{"content":"ok"}}]}\n\n'));
+        controller.close();
+      },
+    });
+
+    vi.spyOn(global, 'fetch').mockResolvedValueOnce({
+      ok: true,
+      body: stream,
+    } as Response);
+
+    const response = await postGenerate(new Request('http://localhost/api/openrouter/generate', {
+      method: 'POST',
+      body: JSON.stringify({
+        model: 'openai/gpt-4o-mini',
+        messages: [{ role: 'user', content: 'hello' }],
+      }),
+      headers: { 'Content-Type': 'application/json' },
+    }));
+
+    expect(response.status).toBe(200);
   });
 });
