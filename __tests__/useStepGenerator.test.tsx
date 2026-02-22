@@ -216,6 +216,8 @@ vi.mock('../lib/prompt-engine', () => ({
 
 vi.mock('../lib/prompt-section-contracts', () => ({
   applyPromptSectionContract: (template: string) => template,
+  shouldEnforcePromptSections: () => true,
+  appendMissingSectionsRetryInstruction: (prompt: string) => `${prompt}\n\n【格式修正重試】`,
   validatePromptSections: () => validatePromptSectionsMock(),
 }));
 
@@ -368,7 +370,7 @@ describe('useStepGenerator', () => {
     );
   });
 
-  it('keeps analysis output only and does not inject format notice into content', async () => {
+  it('retries analysis section contract once and keeps clean analysis output content', async () => {
     novelState.currentSessionId = 'session_active';
     validatePromptSectionsMock.mockReturnValueOnce({
       ok: false,
@@ -397,7 +399,7 @@ describe('useStepGenerator', () => {
         signal: new AbortController().signal,
         onProgress: vi.fn(),
       })
-    ).rejects.toThrow(/格式檢查提醒/i);
+    ).resolves.toBeUndefined();
 
     const analysisContentUpdates = (
       workflowState.updateStepContent.mock.calls as Array<[string, string]>
@@ -406,13 +408,10 @@ describe('useStepGenerator', () => {
     const lastAnalysisUpdate = analysisContentUpdates[analysisContentUpdates.length - 1][1];
     expect(lastAnalysisUpdate).toContain('analysis body content');
     expect(lastAnalysisUpdate).not.toContain('【格式檢查提醒】');
-    expect(workflowState.setStepError).toHaveBeenCalledWith(
-      'analysis',
-      expect.stringContaining('【格式檢查提醒】')
-    );
+    expect(workflowState.setStepError).not.toHaveBeenCalled();
   });
 
-  it('falls back to pre-run analysis content when new run has no output and validation fails', async () => {
+  it('falls back to pre-run analysis content when retried analysis output is still empty', async () => {
     workflowState.steps.analysis.status = 'completed';
     workflowState.steps.analysis.content = 'previous analysis content';
     novelState.currentSessionId = 'session_active';
@@ -443,7 +442,7 @@ describe('useStepGenerator', () => {
         signal: new AbortController().signal,
         onProgress: vi.fn(),
       })
-    ).rejects.toThrow(/格式檢查提醒/i);
+    ).resolves.toBeUndefined();
 
     const analysisContentUpdates = (
       workflowState.updateStepContent.mock.calls as Array<[string, string]>
@@ -578,9 +577,10 @@ describe('useStepGenerator', () => {
     expect(workflowState.updateStepContent).toHaveBeenCalledWith('outline', existingOutline);
   });
 
-  it('does not auto-resume outline phase on length truncation and keeps manual reminder path', async () => {
+  it('auto-resumes outline phase on length truncation when settings enable outline auto-resume', async () => {
     settingsState.autoResumeOnLength = true;
     settingsState.autoResumePhaseOutline = true;
+    settingsState.autoResumeMaxRounds = 2;
     novelState.currentSessionId = 'session_active';
     novelState.getSessionSnapshot.mockImplementation(async (sessionId: string) => (
       createSessionSnapshot(sessionId, { outline: '' })
@@ -596,13 +596,18 @@ describe('useStepGenerator', () => {
         _systemPrompt: unknown,
         options?: { onFinish?: (meta: { finishReason: 'stop' | 'length' | 'unknown' }) => void }
       ) {
-        if (prompt.includes('Phase 2A')) {
+        if (prompt.includes('生成 Phase 2A（續寫總目標與情節藍圖）')) {
           phase2ACalls += 1;
-          options?.onFinish?.({ finishReason: 'length' });
-          yield '【續寫總目標與篇幅配置】\nPartial 2A';
+          if (phase2ACalls === 1) {
+            options?.onFinish?.({ finishReason: 'length' });
+            yield '【續寫總目標與篇幅配置】\nPartial 2A target\n\n【三至四段情節藍圖】\nPartial 2A blueprint';
+            return;
+          }
+          options?.onFinish?.({ finishReason: 'stop' });
+          yield '【續寫總目標與篇幅配置】\nFinal 2A target\n\n【三至四段情節藍圖】\nFinal 2A blueprint';
           return;
         }
-        if (prompt.includes('Phase 2B')) {
+        if (prompt.includes('生成 Phase 2B（張力機制與伏筆規劃）')) {
           options?.onFinish?.({ finishReason: 'stop' });
           yield '【權力與張力機制】\n2B tension\n\n【伏筆回收與新埋規劃】\n2B hooks';
           return;
@@ -628,16 +633,16 @@ describe('useStepGenerator', () => {
       vi.useRealTimers();
     }
 
-    expect(phase2ACalls).toBe(1);
+    expect(phase2ACalls).toBe(2);
     expect(
       generateStreamByProviderMock.mock.calls.some((call) => String(call[1]).includes('【已輸出內容（禁止重複）】'))
-    ).toBe(false);
+    ).toBe(true);
     expect(workflowState.updateStepTruncation).toHaveBeenCalledWith(
       'outline',
       expect.objectContaining({
-        isTruncated: true,
-        autoResumeRoundsUsed: 0,
-        lastTruncatedOutlineTask: '2A',
+        isTruncated: false,
+        autoResumeRoundsUsed: 1,
+        lastTruncatedOutlineTask: undefined,
       })
     );
   });

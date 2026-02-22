@@ -8,6 +8,8 @@ describe('/api/openrouter routes', () => {
     delete process.env.OPENROUTER_API_KEY;
     delete process.env.OPENROUTER_DISABLE_NETWORK;
     delete process.env.E2E_MODE;
+    delete process.env.INTERNAL_API_SECRET;
+    delete process.env.ALLOW_UNSAFE_LOCAL;
   });
 
   it('returns 403 when network guard is enabled', async () => {
@@ -47,6 +49,7 @@ describe('/api/openrouter routes', () => {
 
   it('proxies streaming generation responses', async () => {
     process.env.OPENROUTER_API_KEY = 'test-key';
+    process.env.INTERNAL_API_SECRET = 'internal-test-secret';
     const stream = new ReadableStream({
       start(controller) {
         const encoder = new TextEncoder();
@@ -66,10 +69,29 @@ describe('/api/openrouter routes', () => {
         model: 'openai/gpt-4o-mini',
         messages: [{ role: 'user', content: 'hello' }],
       }),
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        'X-API-Secret': 'internal-test-secret',
+      },
     }));
 
     expect(response.status).toBe(200);
     expect(response.headers.get('Content-Type')).toContain('text/event-stream');
+  });
+
+  it('rejects generation when internal API secret is missing or invalid', async () => {
+    process.env.OPENROUTER_API_KEY = 'test-key';
+    process.env.INTERNAL_API_SECRET = 'internal-test-secret';
+
+    const response = await postGenerate(new Request('http://localhost/api/openrouter/generate', {
+      method: 'POST',
+      body: JSON.stringify({
+        model: 'openai/gpt-4o-mini',
+        messages: [{ role: 'user', content: 'hello' }],
+      }),
+      headers: { 'Content-Type': 'application/json' },
+    }));
+
+    expect(response.status).toBe(403);
   });
 });

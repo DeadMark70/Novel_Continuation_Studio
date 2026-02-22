@@ -16,6 +16,7 @@ describe('llm-client parameter filtering', () => {
     vi.clearAllMocks();
     delete process.env.NEXT_PUBLIC_OPENROUTER_DISABLE_NETWORK;
     delete process.env.NEXT_PUBLIC_E2E_MODE;
+    delete process.env.NEXT_PUBLIC_INTERNAL_API_SECRET;
   });
 
   it('fails fast when openrouter network guard is enabled on client env', async () => {
@@ -305,5 +306,44 @@ describe('llm-client parameter filtering', () => {
     const secondPayload = JSON.parse((global.fetch as unknown as ReturnType<typeof vi.fn>).mock.calls[1][1].body);
     expect(firstPayload.max_tokens).toBe(4096);
     expect(secondPayload.max_tokens).toBe(1770);
+  });
+
+  it('injects internal API secret header when configured for browser calls', async () => {
+    process.env.NEXT_PUBLIC_INTERNAL_API_SECRET = 'browser-secret';
+    const body = new ReadableStream({
+      start(controller) {
+        const encoder = new TextEncoder();
+        controller.enqueue(encoder.encode('data: {"choices":[{"delta":{"content":"ok"}}]}\n\n'));
+        controller.enqueue(encoder.encode('data: [DONE]\n\n'));
+        controller.close();
+      },
+    });
+    (global.fetch as unknown as ReturnType<typeof vi.fn>).mockResolvedValue({
+      ok: true,
+      body,
+    });
+
+    await collect(generateStream('openrouter', 'hello', 'openai/gpt-4o-mini', 'key'));
+    const call = (global.fetch as unknown as ReturnType<typeof vi.fn>).mock.calls[0];
+    const headers = call[1].headers as Record<string, string>;
+    expect(headers['X-API-Secret']).toBe('browser-secret');
+  });
+
+  it('blocks requests in preflight when estimated context usage exceeds hard budget', async () => {
+    const oversizedPrompt = 'a'.repeat(1200);
+    await expect(
+      collect(generateStream(
+        'openrouter',
+        oversizedPrompt,
+        'openai/gpt-4o-mini',
+        'key',
+        undefined,
+        {
+          maxContextTokens: 300,
+          maxTokens: 20,
+        }
+      ))
+    ).rejects.toThrow('Preflight token gate blocked request');
+    expect(global.fetch).not.toHaveBeenCalled();
   });
 });

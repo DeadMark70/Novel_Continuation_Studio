@@ -2,6 +2,7 @@ import {
   buildOutlineTaskDirective,
   parseOutlinePhase2Content,
   parseOutlineTaskDirective,
+  sanitizeOutlineSectionContent,
   serializeOutlinePhase2Content,
 } from '../lib/outline-phase2';
 
@@ -44,5 +45,17 @@ describe('outline phase2 helpers', () => {
     const parsed = parseOutlinePhase2Content('legacy outline text');
     expect(parsed.structured).toBe(false);
     expect(parsed.rawLegacyContent).toBe('legacy outline text');
+  });
+
+  it('sanitizes wrapped code fences and preamble lines from section content', () => {
+    const sanitized = sanitizeOutlineSectionContent([
+      '```markdown',
+      'Here is your outline:',
+      '【三至四段情節藍圖】',
+      '- A',
+      '```',
+    ].join('\n'));
+
+    expect(sanitized).toBe('【三至四段情節藍圖】\n- A');
   });
 });

@@ -4,7 +4,13 @@ import { vi } from 'vitest';
 describe('/api/nim/generate route', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    process.env.INTERNAL_API_SECRET = 'internal-test-secret';
     (global.fetch as unknown as ReturnType<typeof vi.fn>) = vi.fn();
+  });
+
+  afterEach(() => {
+    delete process.env.INTERNAL_API_SECRET;
+    delete process.env.ALLOW_UNSAFE_LOCAL;
   });
 
   it('forwards optional generation parameters to upstream API', async () => {
@@ -24,6 +30,7 @@ describe('/api/nim/generate route', () => {
       headers: {
         'Authorization': 'Bearer test-key',
         'Content-Type': 'application/json',
+        'X-API-Secret': 'internal-test-secret',
       },
       body: JSON.stringify({
         model: 'model-a',
@@ -57,6 +64,7 @@ describe('/api/nim/generate route', () => {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        'X-API-Secret': 'internal-test-secret',
       },
       body: JSON.stringify({
         model: 'model-a',
@@ -96,6 +104,7 @@ describe('/api/nim/generate route', () => {
       headers: {
         'Authorization': 'Bearer test-key',
         'Content-Type': 'application/json',
+        'X-API-Secret': 'internal-test-secret',
       },
       body: JSON.stringify({
         model: 'mistralai/mistral-large-3-675b-instruct-2512',
@@ -112,5 +121,22 @@ describe('/api/nim/generate route', () => {
     const secondPayload = JSON.parse((global.fetch as unknown as ReturnType<typeof vi.fn>).mock.calls[1][1].body);
     expect(firstPayload.chat_template_kwargs).toEqual({ thinking: true });
     expect(secondPayload.chat_template_kwargs).toBeUndefined();
+  });
+
+  it('rejects requests with invalid internal API secret', async () => {
+    const request = new Request('http://localhost/api/nim/generate', {
+      method: 'POST',
+      headers: {
+        'Authorization': 'Bearer test-key',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'model-a',
+        messages: [{ role: 'user', content: 'hello' }],
+      }),
+    });
+
+    const response = await POST(request);
+    expect(response.status).toBe(403);
   });
 });
