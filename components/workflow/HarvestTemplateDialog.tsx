@@ -23,6 +23,11 @@ function parseTagInput(raw: string): string[] {
   )].slice(0, 8);
 }
 
+function parsePovInput(raw: string): string {
+  const normalized = raw.trim();
+  return normalized || '通用';
+}
+
 export function HarvestTemplateDialog({
   open,
   candidates,
@@ -82,6 +87,7 @@ export function HarvestTemplateDialog({
                     <div className="flex flex-wrap gap-2 text-[11px] text-muted-foreground">
                       <span>Sensory: {candidate.sensoryScore.toFixed(2)}</span>
                       <span>Control-loss: {candidate.controlLossScore.toFixed(2)}</span>
+                      <span>POV: {candidate.povCharacter || '通用'}</span>
                     </div>
                     <Input
                       value={candidate.tags.join(', ')}
@@ -92,6 +98,17 @@ export function HarvestTemplateDialog({
                         )));
                       }}
                       placeholder="tags, comma-separated"
+                      className="h-8 text-xs"
+                    />
+                    <Input
+                      value={candidate.povCharacter || '通用'}
+                      onChange={(event) => {
+                        const povCharacter = parsePovInput(event.target.value);
+                        setEditableCandidates((current) => current.map((entry) => (
+                          entry.id === candidate.id ? { ...entry, povCharacter } : entry
+                        )));
+                      }}
+                      placeholder="POV character"
                       className="h-8 text-xs"
                     />
                   </div>

@@ -13,6 +13,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { resolveWorkflowMode } from '@/lib/workflow-mode';
 import { mergeSensoryAnchorBlocks } from '@/lib/sensory-anchors';
+import { Switch } from '@/components/ui/switch';
 
 export const StepChapter1: React.FC = () => {
   const { step, startStep } = useWorkflowStore(
@@ -26,12 +27,16 @@ export const StepChapter1: React.FC = () => {
     compressionAutoThreshold,
     sensoryAnchorTemplates,
     sensoryAutoTemplateByPhase,
+    autoSensoryMapping,
+    setAutoSensoryMapping,
   } = useSettingsStore(
     useShallow((state) => ({
       compressionMode: state.compressionMode,
       compressionAutoThreshold: state.compressionAutoThreshold,
       sensoryAnchorTemplates: state.sensoryAnchorTemplates,
       sensoryAutoTemplateByPhase: state.sensoryAutoTemplateByPhase,
+      autoSensoryMapping: state.autoSensoryMapping,
+      setAutoSensoryMapping: state.setAutoSensoryMapping,
     }))
   );
   const { wordCount, compressedContext } = useNovelStore(
@@ -59,13 +64,20 @@ export const StepChapter1: React.FC = () => {
     });
   }, [sensoryAutoTemplateByPhase.chapter1, sensoryAnchorTemplates]);
 
+  const ensureManualOverride = React.useCallback(() => {
+    if (autoSensoryMapping) {
+      void setAutoSensoryMapping(false);
+    }
+  }, [autoSensoryMapping, setAutoSensoryMapping]);
+
   const toggleTemplate = React.useCallback((id: string) => {
+    ensureManualOverride();
     setSelectedTemplateIds((current) => (
       current.includes(id)
         ? current.filter((entry) => entry !== id)
         : [...current, id]
     ));
-  }, []);
+  }, [ensureManualOverride]);
   
   const isStreaming = step.status === 'streaming';
   const isCompleted = step.status === 'completed';
@@ -106,7 +118,9 @@ export const StepChapter1: React.FC = () => {
             <Button
               size="sm"
               onClick={() => generate('chapter1', {
-                sensoryAnchors: sensoryAnchors.trim() || undefined,
+                sensoryAnchors: autoSensoryMapping
+                  ? undefined
+                  : (sensoryAnchors.trim() || undefined),
               })}
             >
               {isCompleted ? <RefreshCw className="size-4 mr-2" /> : <Play className="size-4 mr-2" />}
@@ -117,55 +131,86 @@ export const StepChapter1: React.FC = () => {
       </CardHeader>
       <CardContent>
         <div className="space-y-2 mb-4">
-          <div className="flex items-center gap-2">
-            <Label className="text-xs font-mono">Sensory Anchors (Optional)</Label>
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              onClick={() => {
-                const selectedBlocks = sensoryAnchorTemplates
-                  .filter((entry) => selectedTemplateIds.includes(entry.id))
-                  .map((entry) => entry.content);
-                setSensoryAnchors((current) => mergeSensoryAnchorBlocks(current, selectedBlocks));
+          <div className="flex items-center justify-between rounded border border-border/60 p-3">
+            <div className="space-y-1">
+              <Label className="text-xs font-mono">啟動自動感官巡航</Label>
+              <p className="text-[11px] text-muted-foreground">
+                生成時將依 Breakdown 章節與視角自動擷取感官片段。
+              </p>
+            </div>
+            <Switch
+              checked={autoSensoryMapping}
+              onCheckedChange={(checked) => {
+                void setAutoSensoryMapping(checked);
               }}
-              disabled={selectedTemplateIds.length === 0}
-            >
-              Apply Selected Templates
-            </Button>
-            <Button
-              type="button"
-              size="sm"
-              variant="ghost"
-              onClick={() => setSelectedTemplateIds([])}
-              disabled={selectedTemplateIds.length === 0}
-            >
-              Clear Selection
-            </Button>
+            />
           </div>
-          <div className="flex flex-wrap gap-2 rounded border border-border/60 p-2">
-            {sensoryAnchorTemplates.map((entry) => {
-              const selected = selectedTemplateIds.includes(entry.id);
-              return (
+          {autoSensoryMapping && (
+            <div className="rounded border border-dashed border-border/70 bg-muted/20 p-3 text-[11px] text-muted-foreground">
+              Auto 模式為延遲綁定：具體注入內容會在生成時依當前章節框架動態決定。
+            </div>
+          )}
+          <details className="rounded border border-border/60 p-2">
+            <summary className="cursor-pointer text-xs font-mono">進階覆寫（手動）</summary>
+            <div className="mt-3 space-y-2">
+              <p className="text-[11px] text-muted-foreground">
+                編輯手動欄位會自動關閉自動巡航，改由你接管本章感官控制。
+              </p>
+              <div className="flex items-center gap-2">
+                <Label className="text-xs font-mono">Sensory Anchors (Optional)</Label>
                 <Button
-                  key={entry.id}
                   type="button"
                   size="sm"
-                  variant={selected ? 'default' : 'outline'}
-                  className="h-7 px-2 text-[11px]"
-                  onClick={() => toggleTemplate(entry.id)}
+                  variant="outline"
+                  onClick={() => {
+                    ensureManualOverride();
+                    const selectedBlocks = sensoryAnchorTemplates
+                      .filter((entry) => selectedTemplateIds.includes(entry.id))
+                      .map((entry) => entry.content);
+                    setSensoryAnchors((current) => mergeSensoryAnchorBlocks(current, selectedBlocks));
+                  }}
+                  disabled={selectedTemplateIds.length === 0}
                 >
-                  {entry.name}
+                  Apply Selected Templates
                 </Button>
-              );
-            })}
-          </div>
-          <Textarea
-            value={sensoryAnchors}
-            onChange={(event) => setSensoryAnchors(event.target.value)}
-            placeholder="Concrete sensations only: temperature, texture, breath, sound, involuntary reaction..."
-            className="min-h-[110px] text-xs font-mono"
-          />
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => setSelectedTemplateIds([])}
+                  disabled={selectedTemplateIds.length === 0}
+                >
+                  Clear Selection
+                </Button>
+              </div>
+              <div className="flex flex-wrap gap-2 rounded border border-border/60 p-2">
+                {sensoryAnchorTemplates.map((entry) => {
+                  const selected = selectedTemplateIds.includes(entry.id);
+                  return (
+                    <Button
+                      key={entry.id}
+                      type="button"
+                      size="sm"
+                      variant={selected ? 'default' : 'outline'}
+                      className="h-7 px-2 text-[11px]"
+                      onClick={() => toggleTemplate(entry.id)}
+                    >
+                      {entry.name}
+                    </Button>
+                  );
+                })}
+              </div>
+              <Textarea
+                value={sensoryAnchors}
+                onChange={(event) => {
+                  ensureManualOverride();
+                  setSensoryAnchors(event.target.value);
+                }}
+                placeholder="Concrete sensations only: temperature, texture, breath, sound, involuntary reaction..."
+                className="min-h-[110px] text-xs font-mono"
+              />
+            </div>
+          </details>
         </div>
         <Textarea 
           readOnly 
