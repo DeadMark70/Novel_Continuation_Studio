@@ -42,6 +42,7 @@ import type { GenerateFinishReason } from '@/lib/llm-types';
 import {
   buildResumePrompt,
   hasResumeLastOutputDirective,
+  mergeResumedContent,
   stripResumeLastOutputDirective,
 } from '@/lib/resume-directive';
 import { generateWithSectionRetry } from '@/lib/section-retry';
@@ -123,6 +124,7 @@ interface StreamAttemptResult {
 
 interface StreamAttemptWithResumeResult extends StreamAttemptResult {
   autoResumeRoundsUsed: number;
+  hasUnclosedQuotes: boolean;
 }
 
 async function runWithConcurrency<T>(
@@ -737,6 +739,7 @@ export function useStepGenerator() {
             }
             onProgress(toProgressPreview(preflightMessage));
           }
+          const forceChapterAutoTokens = stepId === 'chapter1' || stepId === 'continuation';
           const stream = generateStreamByProvider(
             selectedProvider,
             promptToRun,
@@ -744,8 +747,10 @@ export function useStepGenerator() {
             apiKey,
             undefined,
             {
-              maxTokens: modelParams.autoMaxTokens ? undefined : modelParams.maxTokens,
-              autoMaxTokens: modelParams.autoMaxTokens,
+              maxTokens: forceChapterAutoTokens
+                ? undefined
+                : (modelParams.autoMaxTokens ? undefined : modelParams.maxTokens),
+              autoMaxTokens: forceChapterAutoTokens ? true : modelParams.autoMaxTokens,
               temperature: modelParams.temperature,
               topP: modelParams.topP,
               topK: modelParams.topK,
@@ -805,13 +810,18 @@ export function useStepGenerator() {
             manualResume?: boolean;
             initialContent?: string;
             autoResumeEnabled?: boolean;
+            maxAutoResumeRoundsOverride?: number;
           }
         ): Promise<StreamAttemptWithResumeResult> => {
-          const maxRounds = Math.max(1, Math.floor(autoResumeMaxRounds));
+          const maxRounds = Math.max(
+            1,
+            Math.floor(options?.maxAutoResumeRoundsOverride ?? autoResumeMaxRounds)
+          );
           let attemptPrompt = promptToRun;
           let accumulatedContent = options?.initialContent ?? '';
           let autoResumeRoundsUsed = 0;
           let latestFinishReason: GenerateFinishReason = UNKNOWN_FINISH_REASON;
+          let hasUnclosedQuotes = false;
           const shouldManualResume = Boolean(options?.manualResume && accumulatedContent.trim());
 
           if (shouldManualResume) {
@@ -819,12 +829,20 @@ export function useStepGenerator() {
           }
 
           while (true) {
+            const previousContent = accumulatedContent;
             const result = await runSinglePromptAttempt(
               attemptPrompt,
               accumulatedContent,
               onContentUpdate
             );
-            accumulatedContent = result.content;
+            let nextContent = result.content;
+            if (previousContent.length > 0 && result.content.startsWith(previousContent)) {
+              const appended = result.content.slice(previousContent.length);
+              const merged = mergeResumedContent(previousContent, appended);
+              nextContent = merged.merged;
+              hasUnclosedQuotes = hasUnclosedQuotes || merged.hasUnclosedQuotes;
+            }
+            accumulatedContent = nextContent;
             latestFinishReason = result.finishReason;
 
             const canAutoResume = Boolean(
@@ -845,6 +863,7 @@ export function useStepGenerator() {
             content: accumulatedContent,
             finishReason: latestFinishReason,
             autoResumeRoundsUsed,
+            hasUnclosedQuotes,
           };
         };
 
@@ -852,7 +871,9 @@ export function useStepGenerator() {
         const normalizedUserNotes = stripResumeLastOutputDirective(userNotes);
         const autoResumeEnabledForStep = autoResumeOnLength && (
           (stepId === 'analysis' && autoResumePhaseAnalysis) ||
-          (stepId === 'outline' && autoResumePhaseOutline)
+          (stepId === 'outline' && autoResumePhaseOutline) ||
+          stepId === 'chapter1' ||
+          stepId === 'continuation'
         );
 
         const buildPrompt = (template: string, notes?: string) => injectPrompt(
@@ -1016,6 +1037,7 @@ export function useStepGenerator() {
               content: '',
               finishReason: UNKNOWN_FINISH_REASON,
               autoResumeRoundsUsed: 0,
+              hasUnclosedQuotes: false,
             };
             const taskOutput = (
               await generateWithSectionRetry({
@@ -1187,6 +1209,7 @@ export function useStepGenerator() {
               content: '',
               finishReason: UNKNOWN_FINISH_REASON,
               autoResumeRoundsUsed: 0,
+              hasUnclosedQuotes: false,
             };
             metaRaw = (
               await generateWithSectionRetry({
@@ -1328,6 +1351,9 @@ export function useStepGenerator() {
                       manualResume: attempt === 1 && manualResumeRequested,
                       initialContent: attempt === 1 && manualResumeRequested ? analysis : '',
                       autoResumeEnabled: autoResumeEnabledForStep,
+                      maxAutoResumeRoundsOverride: (
+                        stepId === 'chapter1' || stepId === 'continuation'
+                      ) ? 1 : undefined,
                     }
                   );
                   stepResultMeta = stepResult;
@@ -1343,6 +1369,9 @@ export function useStepGenerator() {
                 manualResume: manualResumeRequested,
                 initialContent: manualResumeRequested ? analysis : '',
                 autoResumeEnabled: autoResumeEnabledForStep,
+                maxAutoResumeRoundsOverride: (
+                  stepId === 'chapter1' || stepId === 'continuation'
+                ) ? 1 : undefined,
               }
             );
             stepResultMeta = stepResult;
@@ -1362,6 +1391,9 @@ export function useStepGenerator() {
               lastTruncatedOutlineTask: undefined,
             });
           }
+          if (stepResult.hasUnclosedQuotes && (stepId === 'chapter1' || stepId === 'continuation')) {
+            console.warn(`[Generator] ${stepId} output may contain unclosed quote pairs after resume merge.`);
+          }
           if (shouldCheckSections && !content.trim() && preRunStepContent.trim() && isActiveSession(sessionId)) {
             // Keep the previous successful output when this run returns empty content.
             useWorkflowStore.getState().updateStepContent(stepId, preRunStepContent);
@@ -1370,7 +1402,7 @@ export function useStepGenerator() {
 
         if (isActiveSession(sessionId)) {
           const storeContent = useWorkflowStore.getState().steps[stepId].content;
-          if (storeContent.length === 0 && content.length > 0) {
+          if (storeContent !== content && content.length > 0) {
             useWorkflowStore.getState().updateStepContent(stepId, content);
           }
           await useWorkflowStore.getState().completeStep(stepId);
@@ -1389,8 +1421,11 @@ export function useStepGenerator() {
           void (async () => {
             try {
               const novelSnapshot = useNovelStore.getState();
-              const latestChapterNumber = novelSnapshot.chapters.length;
-              const latestChapterText = novelSnapshot.chapters[latestChapterNumber - 1] || latestGeneratedChapter;
+              const allChapters = Array.isArray(novelSnapshot.chapters)
+                ? novelSnapshot.chapters
+                : [];
+              const latestChapterNumber = allChapters.length;
+              const latestChapterText = allChapters[latestChapterNumber - 1] || latestGeneratedChapter;
               if (!latestChapterText?.trim()) {
                 return;
               }
@@ -1431,15 +1466,17 @@ export function useStepGenerator() {
                 : undefined;
 
               const consistencyResult = await runConsistencyCheck({
-                chapterNumber: latestChapterNumber,
+                chapterNumber: latestChapterNumber > 0 ? latestChapterNumber : 1,
                 latestChapterText,
-                allChapters: novelSnapshot.chapters,
+                allChapters: allChapters.length > 0 ? allChapters : [latestChapterText],
                 characterCards: novelSnapshot.characterCards,
                 styleGuide: novelSnapshot.styleGuide,
                 compressionOutline: novelSnapshot.compressionOutline,
                 evidencePack: novelSnapshot.evidencePack,
                 eroticPack: novelSnapshot.eroticPack,
                 compressedContext: novelSnapshot.compressedContext,
+                targetStoryWordCount: novelSnapshot.targetStoryWordCount,
+                targetChapterCount: novelSnapshot.targetChapterCount,
                 previousForeshadowLedger: novelSnapshot.foreshadowLedger,
                 llmCheck,
                 promptTemplate: consistencyTemplate,

@@ -647,6 +647,65 @@ describe('useStepGenerator', () => {
     );
   });
 
+  it('auto-resumes chapter generation once on length and trims duplicated overlap', async () => {
+    novelState.currentSessionId = 'session_active';
+    novelState.getSessionSnapshot.mockImplementation(async (sessionId: string) => (
+      createSessionSnapshot(sessionId, { chapters: [] })
+    ));
+
+    let chapterCalls = 0;
+    generateStreamByProviderMock.mockImplementation(
+      async function* (
+        _provider: string,
+        prompt: string,
+        _model: string,
+        _apiKey: string,
+        _systemPrompt: unknown,
+        options?: { onFinish?: (meta: { finishReason: 'stop' | 'length' | 'unknown' }) => void }
+      ) {
+        if (prompt.includes('【已輸出內容（禁止重複）】')) {
+          options?.onFinish?.({ finishReason: 'stop' });
+          yield '指尖發顫。然後又慢慢放下。';
+          return;
+        }
+        if (prompt.includes('撰寫續寫的第一章')) {
+          chapterCalls += 1;
+          options?.onFinish?.({ finishReason: 'length' });
+          yield '她抬手，指尖發顫。';
+          return;
+        }
+        options?.onFinish?.({ finishReason: 'stop' });
+        yield 'Generated content';
+      }
+    );
+
+    await getRunExecutor()({
+      runId: 'run_chapter1_auto_resume',
+      sessionId: 'session_active',
+      stepId: 'chapter1',
+      source: 'manual',
+      signal: new AbortController().signal,
+      onProgress: vi.fn(),
+    });
+
+    expect(chapterCalls).toBe(1);
+    expect(
+      generateStreamByProviderMock.mock.calls.some((call) =>
+        String(call[1]).includes('【銜接前綴（僅供接續，不得重複輸出）】')
+      )
+    ).toBe(true);
+    expect(
+      generateStreamByProviderMock.mock.calls.some((call) =>
+        Boolean((call[5] as { autoMaxTokens?: boolean })?.autoMaxTokens)
+      )
+    ).toBe(true);
+    expect(novelState.applyStepResultBySession).toHaveBeenCalledWith(
+      'session_active',
+      'chapter1',
+      '她抬手，指尖發顫。然後又慢慢放下。'
+    );
+  });
+
   it('forwards sensory anchors when manually queuing chapter generation', () => {
     act(() => {
       hookApi?.generate('chapter1', { sensoryAnchors: 'cold steel, wet cloth' }, 'session_active');

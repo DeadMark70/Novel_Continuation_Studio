@@ -183,7 +183,7 @@ describe('Prompt Engine', () => {
       sensoryAnchors: 'cold surface, rough friction, heavy breathing',
       sensoryTemplateName: 'Test Template',
     });
-    expect(result).toContain('<critical_instruction_set>');
+    expect(result).toContain('<sensory_execution_rules>');
     expect(result).toContain('<sensory_focus_for_scene>');
     expect(result).toContain('Template: Test Template');
     expect(result).toContain('cold surface, rough friction, heavy breathing');

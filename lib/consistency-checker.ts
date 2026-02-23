@@ -1,4 +1,5 @@
 import { DEFAULT_PROMPTS } from './prompts';
+import { evaluateChapterQuality } from './chapter-quality-guard';
 import type {
   CharacterTimelineEntry,
   ConsistencyCategory,
@@ -758,6 +759,11 @@ export async function runConsistencyCheck(input: ConsistencyCheckInput): Promise
   const openForeshadowCount = mergedForeshadowLedger.filter((entry) => entry.status === 'open').length;
   const highRiskCount = mergedIssues.filter((issue) => issue.severity === 'high').length;
   const summaryText = llmSummary || buildSummaryText(chapterNumber, mergedIssues, openForeshadowCount);
+  const quality = evaluateChapterQuality({
+    chapterText: input.latestChapterText,
+    targetStoryWordCount: input.targetStoryWordCount,
+    targetChapterCount: input.targetChapterCount,
+  });
 
   const report: ConsistencyReport = {
     id: createId('consistency_report'),
@@ -766,6 +772,9 @@ export async function runConsistencyCheck(input: ConsistencyCheckInput): Promise
     summary: summaryText,
     issues: mergedIssues,
     regenPromptDraft: '',
+    qualityScore: quality.score,
+    qualityBreakdown: quality.breakdown,
+    qualityWarnings: quality.warnings,
   };
   report.regenPromptDraft = buildRegenPromptDraft(report);
 

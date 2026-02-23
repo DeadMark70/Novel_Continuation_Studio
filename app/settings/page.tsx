@@ -1264,7 +1264,17 @@ export default function SettingsPage() {
                 autoComplete="off"
               />
               <div className="flex gap-2">
-                <Button size="sm" variant="outline" onClick={() => setDraftPrompts((prev) => ({ ...prev, [selectedPrompt]: DEFAULT_PROMPTS[selectedPrompt] }))}>Reset Selected</Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setDraftPrompts((prev) => {
+                    const next = { ...prev };
+                    delete next[selectedPrompt];
+                    return next;
+                  })}
+                >
+                  Reset Selected
+                </Button>
                 <Button size="sm" variant="outline" onClick={() => setDraftPrompts(clone(DEFAULT_PROMPTS))}>Reset All</Button>
               </div>
               <p className="text-xs text-muted-foreground">

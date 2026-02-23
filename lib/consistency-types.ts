@@ -49,6 +49,14 @@ export interface ConsistencySummary {
   lastCheckedAt: number;
 }
 
+export interface ChapterQualityBreakdown {
+  structure: number;
+  style: number;
+  language: number;
+  pacing: number;
+  penalties: string[];
+}
+
 export interface ConsistencyReport {
   id: string;
   chapterNumber: number;
@@ -56,6 +64,9 @@ export interface ConsistencyReport {
   summary: string;
   issues: ConsistencyIssue[];
   regenPromptDraft: string;
+  qualityScore?: number;
+  qualityBreakdown?: ChapterQualityBreakdown;
+  qualityWarnings?: string[];
 }
 
 export interface ConsistencyCheckInput {
@@ -68,6 +79,8 @@ export interface ConsistencyCheckInput {
   evidencePack: string;
   eroticPack: string;
   compressedContext: string;
+  targetStoryWordCount?: number;
+  targetChapterCount?: number;
   previousForeshadowLedger?: ForeshadowEntry[];
   llmCheck?: (prompt: string) => Promise<string>;
   promptTemplate?: string;

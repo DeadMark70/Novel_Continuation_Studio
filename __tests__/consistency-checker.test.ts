@@ -24,6 +24,8 @@ describe('consistency-checker', () => {
     expect(result.summary.highRiskCount).toBeGreaterThan(0);
     expect(result.report.issues.some((issue) => issue.category === 'timeline' && issue.severity === 'high')).toBe(true);
     expect(result.report.regenPromptDraft.length).toBeGreaterThan(10);
+    expect(typeof result.report.qualityScore).toBe('number');
+    expect(result.report.qualityBreakdown?.penalties).toBeDefined();
   });
 
   it('merges llm output when valid json is returned', async () => {
@@ -81,6 +83,7 @@ describe('consistency-checker', () => {
     expect(result.report.issues.some((issue) => issue.title === '人設衝突')).toBe(true);
     expect(result.characterTimelineUpdates.some((entry) => entry.character === '阿明')).toBe(true);
     expect(result.foreshadowLedger.some((entry) => entry.title.includes('戒指來源'))).toBe(true);
+    expect(result.report.qualityWarnings).toBeDefined();
   });
 
   it('builds regen prompt from medium/high issues', () => {
