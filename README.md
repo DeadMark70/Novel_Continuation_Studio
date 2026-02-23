@@ -51,6 +51,16 @@ Compression → Analysis → Outline → Breakdown → Drafting (Chapter 1 / Con
 | **Breakdown**   | Expands beats into scene-level instructions / 將節拍展開為場景級指令                                       |
 | **Drafting**    | Executes final prose generation / 執行最終散文生成                                                         |
 
+#### Phase 4 Sensory Automation / 第四階段感官自動化
+
+- `autoSensoryMapping` (default ON): sensory anchors are late-bound at generation time from the current chapter breakdown.
+- Breakdown now carries chapter-level sensory routing hints:
+  - `【推薦感官標籤】`
+  - `【感官視角重心】`
+- Cross-chapter cooldown memory reduces immediate reuse of the same sensory templates.
+- Manual override is explicit: editing sensory fields in the chapter UI automatically turns auto mapping OFF.
+- Zero-template safe fallback: chapter generation continues even when no sensory templates exist.
+
 ### Hybrid AI Engine / 混合 AI 引擎
 
 - **NVIDIA NIM** + **OpenRouter** dual-provider routing
@@ -71,6 +81,7 @@ Compression → Analysis → Outline → Breakdown → Drafting (Chapter 1 / Con
 - **Run Scheduler** — Queue-based execution engine with abort control and concurrent run management.
 - **Streaming** — Real-time Server-Sent Events (SSE) streaming with configurable throttle control.
 - **Prompt Engine** — Template-based prompt injection system supporting pacing ratios, dramatic curve control, and structured section contracts.
+- **Sensory Harvest + Auto Mapping** — Template harvesting with strict sensory tag whitelist, `povCharacter` extraction, defensive JSON parsing, and chapter-aware auto injection with cooldown.
 - **Dynamic Lorebook Studio** — Character/World card management with:
   - extraction target modes (`Single Character`, `Multiple Characters`, `World/Lore`)
   - manual character-list extraction (strict filtering + user-order output)
@@ -187,9 +198,10 @@ npm run e2e
 | **Browser Storage** | IndexedDB has a quota limit. Large projects with many versions may hit it. / IndexedDB 有容量限制，版本過多可能觸發上限。                                                        |
 | **Context Window**  | Very long novels may degrade if compression misses key details. / 極長小說若壓縮遺漏關鍵細節，品質會下降。                                                                       |
 | **English Prompts** | System prompts are Chinese-only. English novels produce mixed-language or degraded output. / 系統 Prompt 僅中文，英文小說會產生混語或品質下降的輸出。                            |
+| **Sensory Cooldown Scope** | Sensory cooldown memory is session-transient and not persisted across app restarts. / 感官片段冷卻記憶為工作階段暫態，重啟後不保留。                                  |
 | **Mobile**          | Desktop-only UI. Mobile experience is broken. / 僅支援桌面瀏覽器，手機體驗不佳。                                                                                                 |
 | **Bugs**            | This is an alpha prototype. Expect occasional UI glitches, edge-case crashes, and iterative error-handling updates. / 此為 Alpha 原型，仍可能出現 UI 問題、邊界情況崩潰與持續迭代中的錯誤處理。 |
 
 ---
 
-_Last verified locally on Windows 11 / Node v20.11.0 — 2026-02-21_
+_Last verified locally on Windows 11 / Node v20.11.0 — 2026-02-23_
