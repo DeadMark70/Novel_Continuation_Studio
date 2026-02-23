@@ -67,6 +67,16 @@ Expected outcome:
 - Auto mode can queue further continuation chapters.
 - If generation stops by length, system may auto-resume once to complete the chapter boundary.
 - Consistency output includes rule-based chapter quality diagnostics (structure/style/language/pacing) for soft scoring feedback.
+- If `autoSensoryMapping` is enabled, sensory anchors are resolved at generation time (late binding) from:
+  - chapter-level breakdown sensory tags
+  - chapter-level sensory POV focus
+  - sensory template library (with cooldown against recently used templates)
+- Manual override behavior:
+  - editing sensory override fields in UI auto-disables `autoSensoryMapping`
+  - turning `autoSensoryMapping` back on keeps manual text but does not inject it unless auto is turned off again
+- Zero-template behavior:
+  - chapter generation proceeds without interruption when template library is empty
+  - sensory focus section is omitted instead of failing the run
 
 ## Phase 5: Consistency
 

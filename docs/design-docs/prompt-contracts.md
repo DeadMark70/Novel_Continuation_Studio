@@ -45,6 +45,23 @@ Two-stage contract:
 
 - Meta stage: chapter framework summary + anti-dup rules
 - Chunk stage: per-range chapter table output
+- Chunk stage additionally requires per-chapter sensory routing hints:
+  - `【推薦感官標籤】` (from canonical sensory tag set)
+  - `【感官視角重心】` (single POV character or `通用`)
+
+## Sensory Harvest Contract
+
+Harvest prompt (`SENSORY_TEMPLATE_HARVEST_PROMPT`) is strict JSON-only and enforces:
+
+- canonical sensory tag whitelist only
+- `povCharacter` extraction for each candidate
+- concrete physical sensation focus (no plot/abstract expansion)
+
+Runtime parser (`lib/sensory-template-harvest.ts`) adds defensive parsing:
+
+- strips fenced code blocks / noisy wrappers
+- accepts array payloads and common object wrappers
+- filters out low-score / invalid-tag candidates before storage
 
 ## Chapter Generation Anchors (Phase 4)
 
@@ -58,6 +75,7 @@ Design intent:
 - Keep chapter generation in prose mode while preserving structural control.
 - Prevent sensory/style directives from overpowering chapter progression goals.
 - Ensure breakdown instructions are marked as high-priority execution target, not background context.
+- When auto sensory mapping is enabled, sensory anchors are late-bound at generation time from breakdown chapter hints.
 
 ## Retry Policy
 

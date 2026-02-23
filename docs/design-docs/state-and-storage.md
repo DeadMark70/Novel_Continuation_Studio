@@ -17,10 +17,17 @@
 - Prompt overrides
 - compression and auto-resume knobs
 - sensory template settings
+  - `autoSensoryMapping` toggle
+  - template-level `povCharacter` metadata
 
 4. Run scheduler (`store/useRunSchedulerStore.ts`)
 - queue + active runs
 - cancellation and interruption handling
+
+5. Chapter sensory runtime memory (`hooks/useStepGenerator.ts`)
+- session-scoped recent sensory template IDs
+- used for cross-chapter cooldown (avoid immediate template repetition)
+- transient only (not persisted to DB)
 
 ## Persistence Model
 
@@ -50,4 +57,3 @@ This split reduces heavy list reads and keeps session lookup predictable.
 See generated snapshot:
 
 - `docs/generated/db-schema.md`
-

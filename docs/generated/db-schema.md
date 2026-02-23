@@ -91,6 +91,7 @@ Current schema version: `13`
 - sensory templates:
   - `sensoryAnchorTemplates`
   - `sensoryAutoTemplateByPhase`
+  - `autoSensoryMapping`
 - timestamp: `updatedAt`
 
 ## Migration Timeline
@@ -112,5 +113,5 @@ Current schema version: `13`
 ## Notes
 
 - Runtime reads merge `novels` metadata and `novelBlobs` payload to form full `NovelEntry`.
+- `sensoryAnchorTemplates[]` now supports optional `povCharacter` for view-safe sensory mapping.
 - This file is a generated snapshot. Update it whenever `lib/db.ts` schema or migrations change.
-
