@@ -167,3 +167,69 @@ Resolution order:
 - `conductor/tracks.md`
 - `conductor/product.md`
 - `conductor/tech-stack.md`
+
+## 10. Continuous Learning Protocol (Self-Improving)
+
+Goal: convert repeated mistakes into explicit repo rules so future agent runs avoid the same failures.
+
+### 10.1 Trigger Events
+
+Run this protocol whenever one of these happens:
+
+- User correction or rejection of output
+- Bug/regression discovered after a change
+- Flaky test or reliability incident
+- Security/privacy review finding
+- Performance incident (render freeze, event-loop starvation, large-write lag)
+
+### 10.2 Mandatory Loop
+
+1. Capture: summarize the mistake in one sentence.
+2. Classify: identify root class (`prompt`, `state`, `persistence`, `streaming`, `security`, `tests`, `ux`).
+3. Generalize: write a prevention rule that applies beyond the single case.
+4. Encode: update `agent.md` (and any impacted docs) in the same change set.
+5. Verify: add or update a regression test/check whenever feasible.
+
+### 10.3 End-Of-Fix Rule
+
+After every correction, explicitly finish with this action:
+
+`Update your agent.md so you don't make that mistake again.`
+
+If the rule is project-wide, add it to section 12 (`Learned Rules Log`) with date + impact.
+
+## 11. Parallel Session Execution Pattern
+
+Use parallel agent sessions to increase throughput, but keep ownership strict.
+
+### 11.1 Suggested Lanes
+
+- Lane A (Explorer): inspect code/docs, identify scope, collect references.
+- Lane B (Implementer): make code changes for one owned file set.
+- Lane C (Verifier): run typecheck/tests/e2e and validate acceptance criteria.
+
+### 11.2 Hard Boundaries
+
+- One lane owns one file set at a time; avoid overlapping edits.
+- Split work by module boundaries (`hooks/`, `lib/`, `store/`, `app/api/`, `components/`).
+- If overlap is unavoidable, stop and reassign ownership before editing.
+- Prefer short-lived branches/patches and frequent integration.
+
+### 11.3 Quality Gate Before Merge
+
+- Typecheck/lint/tests for changed scope pass.
+- Prompt-contract and token-budget invariants remain intact.
+- Any new failure mode has a documented rule + regression coverage.
+
+## 12. Learned Rules Log
+
+Format: `Date | ID | Rule | Why | Enforcement`
+
+- 2026-02-23 | LR-001 | Never use broad Zustand subscriptions in high-frequency render paths. | Prevent rendering freeze during streaming. | Selector-based subscriptions + review check.
+- 2026-02-23 | LR-002 | Always flush debounced novel persistence before session switch/delete. | Prevent buffered-input data loss. | `hasPendingPersist()` + `flushPendingPersist()`.
+- 2026-02-23 | LR-003 | Keep Phase 2 outputs skeleton-only and sanitize 2A before 2B. | Preserve phase role clarity and context budget. | Prompt contracts + sanitizer.
+- 2026-02-23 | LR-004 | Run preflight token budget gating before provider calls. | Prevent predictable context overflow failures. | `lib/token-estimator.ts` gate.
+- 2026-02-23 | LR-005 | Every bug fix should add or tighten a regression test when feasible. | Stop repeat failures and hidden drift. | Unit/e2e update in same change.
+- 2026-02-23 | LR-006 | In Phase 4, annotate breakdown as explicit execution target and enforce critical priority block. | Prevent prompt-attention hijack by style/sensory directives. | `<chapter_execution_target>` + `<critical_enforcement>` in default chapter prompts.
+- 2026-02-23 | LR-007 | Resume-on-length must provide tail prefix and trim overlap when merging. | Prevent duplicated phrasing and broken chapter continuity after truncation. | `buildResumePrompt()` prefix + `mergeResumedContent()`.
+- 2026-02-23 | LR-008 | Use rule-based chapter quality diagnostics for soft scoring before adding semantic judges. | Keep scoring deterministic and debuggable. | `chapter-quality-guard` integrated into consistency report.

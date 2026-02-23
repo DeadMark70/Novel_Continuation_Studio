@@ -46,6 +46,19 @@ Two-stage contract:
 - Meta stage: chapter framework summary + anti-dup rules
 - Chunk stage: per-range chapter table output
 
+## Chapter Generation Anchors (Phase 4)
+
+Phase 4 does not use strict section contracts, but default prompts include hard-priority XML anchors:
+
+- `<chapter_execution_target>`: wraps injected Phase 3 chapter breakdown text.
+- `<critical_enforcement>`: locks priority order for chapter progression, style constraints, rhythm, and language purity.
+
+Design intent:
+
+- Keep chapter generation in prose mode while preserving structural control.
+- Prevent sensory/style directives from overpowering chapter progression goals.
+- Ensure breakdown instructions are marked as high-priority execution target, not background context.
+
 ## Retry Policy
 
 - Retries are bounded (default max 2 attempts for enforced contracts).
@@ -63,4 +76,3 @@ Handled by:
 - case-insensitive extraction
 - content sanitization
 - strict section validation
-

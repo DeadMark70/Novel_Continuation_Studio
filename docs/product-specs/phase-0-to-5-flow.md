@@ -65,6 +65,8 @@ Expected outcome:
 
 - Chapter text streaming + final persisted chapter.
 - Auto mode can queue further continuation chapters.
+- If generation stops by length, system may auto-resume once to complete the chapter boundary.
+- Consistency output includes rule-based chapter quality diagnostics (structure/style/language/pacing) for soft scoring feedback.
 
 ## Phase 5: Consistency
 
@@ -84,4 +86,3 @@ Flow is considered successful when:
 - At least one new chapter is generated.
 - Consistency report is available for that chapter.
 - Session can be resumed from persisted state.
-

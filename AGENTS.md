@@ -73,3 +73,50 @@ When changing behavior:
 - Generation orchestration: `hooks/useStepGenerator.ts`, `store/useRunSchedulerStore.ts`
 - API routes: `app/api/openrouter/generate/route.ts`, `app/api/nim/generate/route.ts`
 
+## Continuous Learning Protocol
+
+Goal: make agent behavior improve over time by turning repeated mistakes into explicit repository rules.
+
+Trigger this protocol when any of these occur:
+
+- User correction or rejection
+- Bug/regression after a change
+- Flaky tests or reliability incidents
+- Security/privacy findings
+- Performance incidents (render freeze, event-loop starvation, large-write lag)
+
+Mandatory loop:
+
+1. Capture the mistake in one sentence.
+2. Classify root cause (`prompt`, `state`, `persistence`, `streaming`, `security`, `tests`, `ux`).
+3. Generalize into a reusable prevention rule.
+4. Encode the rule in docs (`agent.md` and/or this file) in the same change set.
+5. Verify with regression test/check when feasible.
+
+End-of-fix rule:
+
+- After every correction, explicitly run this step:
+  - `Update your agent.md so you don't make that mistake again.`
+
+## Parallel Session Pattern
+
+Use parallel sessions for throughput while preserving file ownership boundaries.
+
+- Lane A (Explorer): inspect code/docs and collect scope.
+- Lane B (Implementer): apply changes for one owned file set.
+- Lane C (Verifier): run typecheck/tests/e2e for changed scope.
+
+Rules:
+
+- One lane owns one file set at a time.
+- Avoid overlapping edits across lanes.
+- If overlap is unavoidable, stop and reassign ownership first.
+- Merge only after quality gates pass and new failure modes are documented.
+
+## Learned Rules Log
+
+Keep durable, project-wide rules in `agent.md` section `Learned Rules Log`.
+
+Log format:
+
+- `Date | ID | Rule | Why | Enforcement`

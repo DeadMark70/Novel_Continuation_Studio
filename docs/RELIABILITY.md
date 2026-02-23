@@ -13,6 +13,8 @@
 - Prompt section validation + bounded retries
 - Analysis/outline sanitization and dual-output parsing
 - Preflight token budget gate with CJK safety buffer
+- Phase 4 length auto-resume (bounded) with overlap-trim merge for continuation integrity
+- Chapter quality guard scoring (rule-based structure/style/language/pacing diagnostics)
 
 ## Error Classes
 
@@ -26,9 +28,9 @@
 - Surface explicit errors with actionable next steps.
 - Preserve latest stable artifacts in session storage.
 - Allow rerun from failed phase, not full restart.
+- On generation truncation (`finish_reason=length`) for chapter steps, auto-resume is bounded and merged without duplicated prefix text.
 
 ## Operational Checks
 
 - Typecheck + lint + unit tests + e2e on high-impact changes.
 - Keep route and generation timeout behavior explicit.
-
