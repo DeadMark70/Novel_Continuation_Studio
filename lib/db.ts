@@ -150,11 +150,13 @@ export interface SettingsEntry {
     name: string;
     content: string;
     tags?: string[];
+    povCharacter?: string;
   }>;
   sensoryAutoTemplateByPhase?: {
     chapter1?: string;
     continuation?: string;
   };
+  autoSensoryMapping?: boolean;
   updatedAt: number;
 }
 

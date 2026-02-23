@@ -89,14 +89,23 @@ export interface SensoryAnchorTemplate {
   name: string;
   content: string;
   tags?: string[];
+  povCharacter?: string;
 }
 
 export interface HarvestedTemplateCandidate {
   id: string;
   text: string;
   tags: string[];
+  povCharacter: string;
   sensoryScore: number;
   controlLossScore: number;
   source: 'uploaded_novel';
   createdAt: string;
+}
+
+export interface AutoSensoryMappingResult {
+  anchorText: string;
+  selectedTemplateIds: string[];
+  matchedTags: string[];
+  matchedPov: string;
 }

@@ -1,10 +1,11 @@
 import type { HarvestedTemplateCandidate } from '@/lib/llm-types';
 import { injectPrompt } from '@/lib/prompt-engine';
 import { SENSORY_TEMPLATE_HARVEST_PROMPT } from '@/lib/prompts';
-import { sanitizeSensoryTags } from '@/lib/sensory-tags';
+import { normalizePovCharacter, sanitizeSensoryTagsStrict } from '@/lib/sensory-tags';
 
 const MAX_CANDIDATES = 5;
 const MIN_CANDIDATES = 3;
+const MIN_SENSORY_SCORE = 0.7;
 const EROTIC_MARKERS = [
   '下身', '腿間', '乳', '胸', '臀', '陰', '蜜', '液', '濕', '黏', '抽搐', '痙攣', '失控', '喘',
   'thigh', 'breast', 'hip', 'groin', 'wet', 'slick', 'sticky', 'fluid', 'spasm', 'tremble', 'gasp',
@@ -25,6 +26,7 @@ const ENVIRONMENT_MARKERS = [
 type RawHarvestCandidate = {
   text?: unknown;
   tags?: unknown;
+  povCharacter?: unknown;
   sensoryScore?: unknown;
   controlLossScore?: unknown;
 };
@@ -38,7 +40,7 @@ function clampScore(value: unknown, fallback: number): number {
 }
 
 function sanitizeTags(value: unknown): string[] {
-  return sanitizeSensoryTags(value, 8);
+  return sanitizeSensoryTagsStrict(value, 8);
 }
 
 function stripCodeFence(raw: string): string {
@@ -52,9 +54,25 @@ function stripCodeFence(raw: string): string {
     .trim();
 }
 
+function stripInlineCodeFence(raw: string): string {
+  return raw
+    .replace(/```json/giu, '')
+    .replace(/```/gu, '')
+    .trim();
+}
+
 function extractLikelyJsonArray(raw: string): string {
   const start = raw.indexOf('[');
   const end = raw.lastIndexOf(']');
+  if (start === -1 || end === -1 || end <= start) {
+    return raw;
+  }
+  return raw.slice(start, end + 1);
+}
+
+function extractLikelyJsonObject(raw: string): string {
+  const start = raw.indexOf('{');
+  const end = raw.lastIndexOf('}');
   if (start === -1 || end === -1 || end <= start) {
     return raw;
   }
@@ -66,22 +84,53 @@ function repairJson(raw: string): string {
     .replace(/^\uFEFF/, '')
     .replace(/[“”]/g, '"')
     .replace(/[‘’]/g, "'")
-    .replace(/,\s*([}\]])/g, '$1');
+    .replace(/,\s*([}\]])/g, '$1')
+    .trim();
+}
+
+function toHarvestArray(value: unknown): unknown[] | null {
+  if (Array.isArray(value)) {
+    return value;
+  }
+  if (!value || typeof value !== 'object') {
+    return null;
+  }
+  const asRecord = value as Record<string, unknown>;
+  const candidateKeys = ['candidates', 'templates', 'items', 'results', 'data'];
+  for (const key of candidateKeys) {
+    const entry = asRecord[key];
+    if (Array.isArray(entry)) {
+      return entry;
+    }
+  }
+  return null;
 }
 
 function parseJsonArrayBestEffort(raw: string): unknown[] {
+  const stripped = stripCodeFence(raw);
+  const inlineStripped = stripInlineCodeFence(stripped);
+  const likelyArray = extractLikelyJsonArray(inlineStripped);
+  const likelyObject = extractLikelyJsonObject(inlineStripped);
+
   const attempts = [
-    raw,
-    stripCodeFence(raw),
-    extractLikelyJsonArray(stripCodeFence(raw)),
-    repairJson(extractLikelyJsonArray(stripCodeFence(raw))),
+    raw.trim(),
+    stripped,
+    inlineStripped,
+    likelyArray,
+    repairJson(likelyArray),
+    likelyObject,
+    repairJson(likelyObject),
   ];
 
   for (const candidate of attempts) {
+    if (!candidate) {
+      continue;
+    }
     try {
       const parsed = JSON.parse(candidate);
-      if (Array.isArray(parsed)) {
-        return parsed;
+      const asArray = toHarvestArray(parsed);
+      if (asArray) {
+        return asArray;
       }
     } catch {
       // Try next strategy.
@@ -105,6 +154,7 @@ function normalizeCandidate(
       id: `harvest_${Date.now()}_${index}`,
       text,
       tags: [],
+      povCharacter: '通用',
       sensoryScore: 0.8,
       controlLossScore: 0.8,
       source: 'uploaded_novel',
@@ -126,11 +176,22 @@ function normalizeCandidate(
     id: `harvest_${Date.now()}_${index}`,
     text,
     tags: sanitizeTags(raw.tags),
+    povCharacter: normalizePovCharacter(raw.povCharacter),
     sensoryScore: clampScore(raw.sensoryScore, 0.8),
     controlLossScore: clampScore(raw.controlLossScore, 0.8),
     source: 'uploaded_novel',
     createdAt: nowIso,
   };
+}
+
+function isEligibleCandidate(
+  entry: HarvestedTemplateCandidate | null
+): entry is HarvestedTemplateCandidate {
+  return Boolean(
+    entry &&
+    entry.sensoryScore >= MIN_SENSORY_SCORE &&
+    entry.tags.length > 0
+  );
 }
 
 function countMarkers(text: string, markers: string[]): number {
@@ -159,7 +220,7 @@ export function parseHarvestCandidates(rawOutput: string): HarvestedTemplateCand
 
   const normalized = parsedArray
     .map((entry, index) => normalizeCandidate(entry, index, nowIso))
-    .filter((entry): entry is HarvestedTemplateCandidate => Boolean(entry));
+    .filter(isEligibleCandidate);
 
   const deduped: HarvestedTemplateCandidate[] = [];
   const seen = new Set<string>();

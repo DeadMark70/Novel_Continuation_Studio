@@ -1,4 +1,5 @@
 import type { LoreCharacterSourceMode, LoreExtractionTarget } from './lorebook-types';
+import { CANONICAL_SENSORY_TAGS } from './sensory-tags';
 
 const ADULT_FICTION_GUARDRAILS = `**成人創作前提（硬性）**
 - 所有角色必須將其視為 18 歲以上虛構成年人。
@@ -23,38 +24,31 @@ export const SENSORY_STYLE_GUIDE = `
 </sensory_execution_rules>
 `;
 
+const SENSORY_TAG_LIST_TEXT = CANONICAL_SENSORY_TAGS.join('、');
+
 export const SENSORY_TEMPLATE_HARVEST_PROMPT = `
-You are a sensory-template extractor.
-Extract exactly 3 to 5 reusable snippets from the source text.
+你是感官模板提取器，請從來源文本提取 3 到 5 條可重用片段。
 
-Strict rules:
-1) Focus only on concrete sensory details:
-   - temperature, texture, sound, smell, internal body sensation
-2) Prefer involuntary physical reactions:
-   - trembling, spasms, choking sounds, loss of motor control, muscle tension, fluid release
-3) Ignore plot explanation, dialogue, abstract metaphor, and moral commentary
-4) Do not use abstract literary words such as:
-   resonance, symphony, ritual, symbol, order, art, soul, collapse
-5) Erotic-priority rule:
-   - If the source contains erotic/intimate content, you must prioritize those parts first.
-   - Prefer body-contact, fluid, friction, pressure, involuntary reactions.
-   - Avoid environment-only descriptions (weather, sky, scenery, battlefield atmosphere) unless tightly coupled to direct body sensation.
-5) Each snippet must be self-contained and directly reusable as a writing template.
+嚴格規則：
+1) 只保留具體物理感知（溫度、壓力、摩擦、聲音、呼吸、液體流動、非自願肌肉反應）。
+2) 忽略劇情解說、抽象比喻、價值評論與大量對話。
+3) 每條片段必須是可直接移植的描寫模板，避免依賴特定上下文。
+4) 標籤白名單（CRITICAL）：` + '`tags`' + ` 只能使用下列字串，禁止自創：
+   ${SENSORY_TAG_LIST_TEXT}
+5) 必須標示主要感官承受者：
+   - ` + '`povCharacter`' + ` 填角色名，若無明確對象填「通用」。
 
-Output format:
-- Return strict JSON only.
-- Return a JSON array with 3 to 10 objects.
-- Every object must match:
+輸出格式：
+- 僅輸出 JSON，不可輸出 markdown code fence。
+- 輸出一個 JSON array，元素必須符合：
   {
     "text": "string",
     "tags": ["string", "string"],
+    "povCharacter": "string",
     "sensoryScore": 0.0,
     "controlLossScore": 0.0
   }
-- tags must be Traditional Chinese short labels (1-6 chars), for example:
-  "百合", "觸感質地", "強制絶頂", "拘束", "貞操帯", "監禁", "快楽責め", "拘束衣", "媚薬", "寸止".
-- No markdown fences.
-- No additional keys.
+- 除上述欄位外不可新增其他欄位。
 
 Source text:
 {{NOVEL_TEXT}}
@@ -348,6 +342,8 @@ const BREAKDOWN_CHUNK_PROMPT = `你是章節框架規劃器。請只為指定章
 輸出規則：
 - 僅輸出本範圍章節，不可輸出其他章節
 - 每章都要有：章節標題、2-3 個關鍵情節點、角色心理位移、敘事重心、張力位移、伏筆回收/新埋、去重提醒
+- 每章新增：` + '`【推薦感官標籤】`' + `（只能從 ${SENSORY_TAG_LIST_TEXT} 中選 1-3 個，若不需要填「無」）
+- 每章新增：` + '`【感官視角重心】`' + `（填單一角色名；若無明確角色填「通用」）
 - 可選擇用 ` + '`【逐章章節表】`' + ` 作為單一標題，或直接從 ` + '`【第X章】`' + ` 開始
 - 不要輸出前言、結語、說明文字`;
 

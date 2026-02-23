@@ -24,13 +24,20 @@ import {
   DEFAULT_COMPRESSION_MODE,
   type CompressionMode,
 } from '@/lib/compression';
-import { buildHarvestTemplateName, sanitizeSensoryTags } from '@/lib/sensory-tags';
+import {
+  buildHarvestTemplateName,
+  normalizePovCharacter,
+  sanitizeSensoryTags,
+  sanitizeSensoryTagsStrict,
+} from '@/lib/sensory-tags';
 
 const CAPABILITY_CACHE_TTL_MS = 10 * 60 * 1000;
 
 const DEFAULT_NIM_MODEL = 'meta/llama3-70b-instruct';
 const DEFAULT_OPENROUTER_MODEL = 'openai/gpt-4o-mini';
 const DEFAULT_SENSORY_TEMPLATE_ID = 'sensory_default';
+const DEFAULT_AUTO_SENSORY_MAPPING = true;
+const MIN_HARVEST_SENSORY_SCORE = 0.7;
 let settingsInitializePromise: Promise<void> | null = null;
 const DEFAULT_PHASES: GenerationPhaseId[] = [
   'compression',
@@ -146,6 +153,7 @@ function createDefaultSensoryAnchorTemplates(): SensoryAnchorTemplate[] {
         'Avoid abstract symbolism and explanatory summary tone.',
       ].join('\n'),
       tags: ['基礎', '感官'],
+      povCharacter: '通用',
     },
   ];
 }
@@ -156,6 +164,10 @@ function normalizeTemplateContent(content: string): string {
 
 function sanitizeTemplateTags(tags: unknown): string[] {
   return sanitizeSensoryTags(tags, MAX_SENSORY_TAGS);
+}
+
+function sanitizeTemplateTagsStrict(tags: unknown): string[] {
+  return sanitizeSensoryTagsStrict(tags, MAX_SENSORY_TAGS);
 }
 
 function createSensoryTemplateId(prefix = 'sensory_harvest'): string {
@@ -186,6 +198,7 @@ function sanitizeSensoryAnchorTemplates(
       name,
       content,
       tags: sanitizeTemplateTags(item?.tags),
+      povCharacter: normalizePovCharacter(item?.povCharacter),
     });
   }
 
@@ -329,6 +342,7 @@ interface SettingsState {
     chapter1?: string;
     continuation?: string;
   };
+  autoSensoryMapping: boolean;
   truncationThreshold: number;
   dualEndBuffer: number;
   compressionMode: CompressionMode;
@@ -356,6 +370,7 @@ interface SettingsState {
       chapter1?: string;
       continuation?: string;
     };
+    autoSensoryMapping?: boolean;
     context: Pick<
       SettingsState,
       | 'truncationThreshold'
@@ -399,6 +414,7 @@ interface SettingsState {
   setSensoryAnchorTemplates: (templates: SensoryAnchorTemplate[]) => Promise<void>;
   addSensoryTemplatesFromHarvest: (candidates: HarvestedTemplateCandidate[]) => Promise<void>;
   setSensoryAutoTemplate: (phase: 'chapter1' | 'continuation', templateId?: string) => Promise<void>;
+  setAutoSensoryMapping: (enabled: boolean) => Promise<void>;
   setThinkingEnabled: (enabled: boolean, provider?: LLMProvider) => Promise<void>;
   upsertModelCapability: (model: string, capability: ModelCapability, provider?: LLMProvider) => Promise<void>;
   probeModelCapability: (model: string, apiKey?: string, provider?: LLMProvider) => Promise<ModelCapability>;
@@ -445,6 +461,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   customPrompts: {},
   sensoryAnchorTemplates: createDefaultSensoryAnchorTemplates(),
   sensoryAutoTemplateByPhase: createDefaultSensoryAutoTemplateByPhase(),
+  autoSensoryMapping: DEFAULT_AUTO_SENSORY_MAPPING,
   truncationThreshold: 799,
   dualEndBuffer: 500,
   compressionMode: DEFAULT_COMPRESSION_MODE,
@@ -511,6 +528,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
         customPrompts: snapshot.customPrompts,
         sensoryAnchorTemplates: normalizedSensoryTemplates,
         sensoryAutoTemplateByPhase: normalizedSensoryAutoTemplateByPhase,
+        autoSensoryMapping: snapshot.autoSensoryMapping ?? state.autoSensoryMapping,
         truncationThreshold: sanitizePositiveInt(snapshot.context.truncationThreshold, state.truncationThreshold),
         dualEndBuffer: sanitizePositiveInt(snapshot.context.dualEndBuffer, state.dualEndBuffer),
         compressionMode: snapshot.context.compressionMode,
@@ -726,17 +744,25 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
         if (!text) {
           continue;
         }
+        const sensoryScore = Number(candidate?.sensoryScore);
+        if (!Number.isFinite(sensoryScore) || sensoryScore < MIN_HARVEST_SENSORY_SCORE) {
+          continue;
+        }
         const key = normalizeTemplateContent(text);
         if (!key || seen.has(key)) {
           continue;
         }
+        const normalizedTags = sanitizeTemplateTagsStrict(candidate.tags);
+        if (normalizedTags.length === 0) {
+          continue;
+        }
         seen.add(key);
-        const normalizedTags = sanitizeTemplateTags(candidate.tags);
         next.push({
           id: createSensoryTemplateId(),
           name: buildHarvestTemplateName(normalizedTags),
           content: text,
           tags: normalizedTags,
+          povCharacter: normalizePovCharacter(candidate.povCharacter),
         });
       }
 
@@ -762,6 +788,11 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
         },
       };
     });
+    await get().persist();
+  },
+
+  setAutoSensoryMapping: async (enabled) => {
+    set({ autoSensoryMapping: Boolean(enabled) });
     await get().persist();
   },
 
@@ -1031,6 +1062,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       customPrompts: settings.customPrompts || {},
       sensoryAnchorTemplates,
       sensoryAutoTemplateByPhase,
+      autoSensoryMapping: settings.autoSensoryMapping ?? DEFAULT_AUTO_SENSORY_MAPPING,
       truncationThreshold: settings.truncationThreshold ?? 799,
       dualEndBuffer: settings.dualEndBuffer ?? 500,
       compressionMode: settings.compressionMode ?? DEFAULT_COMPRESSION_MODE,
@@ -1080,6 +1112,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       customPrompts: state.customPrompts,
       sensoryAnchorTemplates: state.sensoryAnchorTemplates,
       sensoryAutoTemplateByPhase: state.sensoryAutoTemplateByPhase,
+      autoSensoryMapping: state.autoSensoryMapping,
       truncationThreshold: state.truncationThreshold,
       dualEndBuffer: state.dualEndBuffer,
       compressionMode: state.compressionMode,

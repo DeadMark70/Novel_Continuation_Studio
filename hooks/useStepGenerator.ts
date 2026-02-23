@@ -46,12 +46,15 @@ import {
   stripResumeLastOutputDirective,
 } from '@/lib/resume-directive';
 import { generateWithSectionRetry } from '@/lib/section-retry';
+import { getAutoSensoryAnchors } from '@/lib/sensory-mapping';
 
 type PromptTemplateKey = keyof typeof DEFAULT_PROMPTS;
 const activeAbortControllers = new Map<string, AbortController>();
 const PREVIEW_CHARS = 220;
 const UNKNOWN_FINISH_REASON: GenerateFinishReason = 'unknown';
 const BREAKDOWN_CHUNK_SIZE = 4;
+const RECENT_SENSORY_TEMPLATE_IDS_LIMIT = 4;
+const recentSensoryTemplateIdsBySession = new Map<string, string[]>();
 
 const STEP_TRANSITIONS: Record<
   Exclude<WorkflowStepId, 'continuation'>,
@@ -115,6 +118,20 @@ function resolvePromptTemplateKey(stepId: WorkflowStepId, useCompressedContext: 
 
 function isLengthFinishReason(reason: GenerateFinishReason): boolean {
   return reason === 'length';
+}
+
+function getRecentSensoryTemplateIds(sessionId: string): string[] {
+  return recentSensoryTemplateIdsBySession.get(sessionId) ?? [];
+}
+
+function pushRecentSensoryTemplateIds(sessionId: string, ids: string[]): void {
+  if (!sessionId || ids.length === 0) {
+    return;
+  }
+  const current = getRecentSensoryTemplateIds(sessionId);
+  const merged = [...current, ...ids.map((entry) => entry.trim()).filter(Boolean)];
+  const deduped = [...new Set(merged)].slice(-RECENT_SENSORY_TEMPLATE_IDS_LIMIT);
+  recentSensoryTemplateIdsBySession.set(sessionId, deduped);
 }
 
 interface StreamAttemptResult {
@@ -364,6 +381,7 @@ export function useStepGenerator() {
       const evidencePack = sessionSnapshot.evidencePack ?? '';
       const eroticPack = sessionSnapshot.eroticPack ?? '';
       const compressedContext = sessionSnapshot.compressedContext ?? '';
+      const autoSensoryMapping = settingsState.autoSensoryMapping ?? true;
       const manualSensoryAnchors = sensoryAnchors?.trim();
       const autoTemplateId = stepId === 'chapter1'
         ? sensoryAutoTemplateByPhase.chapter1
@@ -373,10 +391,43 @@ export function useStepGenerator() {
       const autoTemplate = autoTemplateId
         ? sensoryAnchorTemplates.find((entry) => entry.id === autoTemplateId)
         : undefined;
-      const resolvedSensoryAnchors = manualSensoryAnchors || autoTemplate?.content?.trim() || undefined;
-      const resolvedSensoryTemplateName = manualSensoryAnchors
-        ? undefined
-        : autoTemplate?.name;
+      const chapterNumber = stepId === 'chapter1' || stepId === 'continuation'
+        ? chapters.length + 1
+        : undefined;
+
+      const autoMappingResult = (
+        !manualSensoryAnchors &&
+        autoSensoryMapping &&
+        (stepId === 'chapter1' || stepId === 'continuation') &&
+        chapterNumber !== undefined
+      )
+        ? getAutoSensoryAnchors({
+          templates: sensoryAnchorTemplates,
+          breakdown,
+          chapterNumber,
+          recentlyUsedIds: getRecentSensoryTemplateIds(sessionId),
+          maxAnchors: 2,
+        })
+        : null;
+
+      let resolvedSensoryAnchors: string | undefined;
+      let resolvedSensoryTemplateName: string | undefined;
+      let resolvedSensorySource: 'none' | 'manual' | 'autoMapping' | 'autoTemplate' = 'none';
+
+      if (manualSensoryAnchors) {
+        resolvedSensoryAnchors = manualSensoryAnchors;
+        resolvedSensorySource = 'manual';
+      } else if (autoMappingResult?.anchorText?.trim()) {
+        resolvedSensoryAnchors = autoMappingResult.anchorText.trim();
+        resolvedSensoryTemplateName = 'Auto Mapping';
+        resolvedSensorySource = 'autoMapping';
+      } else if (autoTemplate?.content?.trim()) {
+        resolvedSensoryAnchors = autoTemplate.content.trim();
+        resolvedSensoryTemplateName = autoTemplate.name;
+        resolvedSensorySource = 'autoTemplate';
+      }
+
+      const shouldCarrySensoryAnchorsToNextRun = resolvedSensorySource !== 'autoMapping';
 
       let generationConfig = settingsState.getResolvedGenerationConfig(stepId);
       if (
@@ -472,7 +523,9 @@ export function useStepGenerator() {
           onProgress(toProgressPreview(skippedMessage));
           await onStepCompleted(sessionId, stepId, skippedMessage, {
             continuationPolicy,
-            persistentSensoryAnchors: resolvedSensoryAnchors,
+            persistentSensoryAnchors: shouldCarrySensoryAnchorsToNextRun
+              ? resolvedSensoryAnchors
+              : undefined,
           });
           content = skippedMessage;
         } else {
@@ -715,7 +768,9 @@ export function useStepGenerator() {
           }
           await onStepCompleted(sessionId, stepId, content, {
             continuationPolicy,
-            persistentSensoryAnchors: resolvedSensoryAnchors,
+            persistentSensoryAnchors: shouldCarrySensoryAnchorsToNextRun
+              ? resolvedSensoryAnchors
+              : undefined,
           });
         }
       } else {
@@ -1407,9 +1462,18 @@ export function useStepGenerator() {
           }
           await useWorkflowStore.getState().completeStep(stepId);
         }
+        if (
+          resolvedSensorySource === 'autoMapping' &&
+          autoMappingResult?.selectedTemplateIds &&
+          autoMappingResult.selectedTemplateIds.length > 0
+        ) {
+          pushRecentSensoryTemplateIds(sessionId, autoMappingResult.selectedTemplateIds);
+        }
         await onStepCompleted(sessionId, stepId, content, {
           continuationPolicy,
-          persistentSensoryAnchors: resolvedSensoryAnchors,
+          persistentSensoryAnchors: shouldCarrySensoryAnchorsToNextRun
+            ? resolvedSensoryAnchors
+            : undefined,
         });
 
         if ((stepId === 'chapter1' || stepId === 'continuation') && isActiveSession(sessionId)) {
