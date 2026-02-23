@@ -46,6 +46,8 @@ describe('StepChapter1', () => {
         chapter1: 'sensory_default',
         continuation: 'sensory_default',
       },
+      autoSensoryMapping: false,
+      setAutoSensoryMapping: vi.fn(async () => undefined),
     };
     const generatorState = {
       generate: vi.fn(),
@@ -67,7 +69,8 @@ describe('StepChapter1', () => {
   it('passes sensory anchors to generate action', () => {
     render(<StepChapter1 />);
 
-    expect(screen.getByText('Sensory Anchors (Optional)')).toBeDefined();
+    expect(screen.getByText('啟動自動感官巡航')).toBeDefined();
+    fireEvent.click(screen.getByText('進階覆寫（手動）'));
 
     fireEvent.change(
       screen.getByPlaceholderText('Concrete sensations only: temperature, texture, breath, sound, involuntary reaction...'),

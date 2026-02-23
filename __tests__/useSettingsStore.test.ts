@@ -287,8 +287,8 @@ describe('useSettingsStore', () => {
     expect(initial.providerDefaults.nim.presencePenalty).toBe(0.2);
 
     const nextTemplates = [
-      { id: 'sensory_a', name: 'A', content: 'cold + sticky + breath', tags: [] },
-      { id: 'sensory_b', name: 'B', content: 'metal scrape + shallow breath', tags: [] },
+      { id: 'sensory_a', name: 'A', content: 'cold + sticky + breath', tags: [], povCharacter: '通用' },
+      { id: 'sensory_b', name: 'B', content: 'metal scrape + shallow breath', tags: [], povCharacter: '通用' },
     ];
     await act(async () => {
       await useSettingsStore.getState().applySettingsSnapshot({
@@ -335,6 +335,7 @@ describe('useSettingsStore', () => {
           id: 'h1',
           text: 'Cold slime coated her thigh and dripped slowly.',
           tags: ['cold', 'slime'],
+          povCharacter: '主角',
           sensoryScore: 0.9,
           controlLossScore: 0.8,
           source: 'uploaded_novel',
@@ -344,6 +345,7 @@ describe('useSettingsStore', () => {
           id: 'h2',
           text: 'Cold slime coated her thigh and dripped slowly.',
           tags: ['dup'],
+          povCharacter: '主角',
           sensoryScore: 0.4,
           controlLossScore: 0.4,
           source: 'uploaded_novel',
@@ -358,6 +360,17 @@ describe('useSettingsStore', () => {
     expect(added).toBeDefined();
     expect(added?.name.startsWith('收割-')).toBe(true);
     expect(added?.tags?.every((tag) => /[\u3400-\u9FFF]/.test(tag))).toBe(true);
+    expect(added?.povCharacter).toBe('主角');
+  });
+
+  it('toggles auto sensory mapping state', async () => {
+    expect(useSettingsStore.getState().autoSensoryMapping).toBe(true);
+
+    await act(async () => {
+      await useSettingsStore.getState().setAutoSensoryMapping(false);
+    });
+
+    expect(useSettingsStore.getState().autoSensoryMapping).toBe(false);
   });
 
   it('initialize is idempotent across concurrent calls', async () => {

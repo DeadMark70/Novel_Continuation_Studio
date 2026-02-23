@@ -2,6 +2,7 @@ import { render, screen } from '@testing-library/react';
 import { StepContinuation } from '../components/workflow/StepContinuation';
 import { useWorkflowStore } from '../store/useWorkflowStore';
 import { useNovelStore } from '../store/useNovelStore';
+import { useSettingsStore } from '../store/useSettingsStore';
 import { useStepGenerator } from '../hooks/useStepGenerator';
 import { vi, beforeEach, describe, expect, it } from 'vitest';
 
@@ -19,6 +20,7 @@ vi.mock('../components/workflow/ConsistencyPanel', () => ({
 }));
 vi.mock('../store/useWorkflowStore');
 vi.mock('../store/useNovelStore');
+vi.mock('../store/useSettingsStore');
 vi.mock('../hooks/useStepGenerator');
 
 type ContinuationStepState = {
@@ -46,6 +48,7 @@ type StepGeneratorState = {
 
 const useWorkflowStoreMock = useWorkflowStore as unknown as ReturnType<typeof vi.fn>;
 const useNovelStoreMock = useNovelStore as unknown as ReturnType<typeof vi.fn>;
+const useSettingsStoreMock = useSettingsStore as unknown as ReturnType<typeof vi.fn>;
 const useStepGeneratorMock = useStepGenerator as unknown as ReturnType<typeof vi.fn>;
 
 describe('StepContinuation', () => {
@@ -62,6 +65,19 @@ describe('StepContinuation', () => {
       wordCount: 1200,
       compressedContext: ''
     };
+    const settingsState = {
+      compressionMode: 'off',
+      compressionAutoThreshold: 20000,
+      sensoryAnchorTemplates: [
+        { id: 'sensory_default', name: 'Default', content: 'cold metal + rough friction' },
+      ],
+      sensoryAutoTemplateByPhase: {
+        chapter1: 'sensory_default',
+        continuation: 'sensory_default',
+      },
+      autoSensoryMapping: false,
+      setAutoSensoryMapping: vi.fn(async () => undefined),
+    };
     const stepGeneratorState: StepGeneratorState = {
       generate: vi.fn(),
       stop: vi.fn()
@@ -75,6 +91,9 @@ describe('StepContinuation', () => {
     useNovelStoreMock.mockImplementation((selector?: (value: StepContinuationNovelState) => unknown) => {
       return selector ? selector(novelState) : novelState;
     });
+    useSettingsStoreMock.mockImplementation((selector?: (state: typeof settingsState) => unknown) => (
+      selector ? selector(settingsState) : settingsState
+    ));
     useStepGeneratorMock.mockReturnValue(stepGeneratorState);
   });
 

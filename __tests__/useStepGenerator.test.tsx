@@ -140,6 +140,7 @@ const settingsState = {
     chapter1: 'sensory_default',
     continuation: 'sensory_default',
   },
+  autoSensoryMapping: true,
   autoResumeOnLength: true,
   autoResumePhaseAnalysis: true,
   autoResumePhaseOutline: true,
