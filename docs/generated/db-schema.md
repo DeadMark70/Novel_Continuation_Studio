@@ -2,9 +2,9 @@
 
 Source: `lib/db.ts`  
 Database name: `NovelContinuationDB`  
-Current schema version: `13`
+Current schema version: `14`
 
-## Tables (v13)
+## Tables (v14)
 
 1. `novels`
 - key: `++id`
@@ -70,6 +70,8 @@ Current schema version: `13`
   - `providerDefaults`
   - `modelOverrides`
   - `phaseConfig`
+  - `phaseParamOverrides`
+  - `phaseParamInheritance`
 - compatibility fields:
   - `apiKey`, `selectedModel`, `recentModels`
   - `thinkingEnabled`, `modelCapabilities`
@@ -109,6 +111,7 @@ Current schema version: `13`
 - v11: add/backfill auto-resume settings
 - v12: add/backfill sensory templates and auto-template mapping
 - v13: add `lorebook` table
+- v14: add phase-level param override/inheritance defaults
 
 ## Notes
 

@@ -19,10 +19,11 @@ import { resolveWorkflowMode } from '@/lib/workflow-mode';
 
 export const WorkflowStepper: React.FC = () => {
   const {
-    currentStepId,
+    openStepId,
     autoTriggerStepId,
     clearAutoTrigger,
     setCurrentStep,
+    setOpenStep,
     compressionStatus,
     analysisStatus,
     outlineStatus,
@@ -32,9 +33,11 @@ export const WorkflowStepper: React.FC = () => {
   } = useWorkflowStore(
     useShallow((state) => ({
       currentStepId: state.currentStepId,
+      openStepId: state.openStepId,
       autoTriggerStepId: state.autoTriggerStepId,
       clearAutoTrigger: state.clearAutoTrigger,
       setCurrentStep: state.setCurrentStep,
+      setOpenStep: state.setOpenStep,
       compressionStatus: state.steps.compression.status,
       analysisStatus: state.steps.analysis.status,
       outlineStatus: state.steps.outline.status,
@@ -135,9 +138,12 @@ export const WorkflowStepper: React.FC = () => {
         type="single" 
         collapsible 
         defaultValue="compression" 
-        value={currentStepId} 
+        value={openStepId ?? ''}
         onValueChange={(val) => {
-          if (!val) return;
+          if (!val) {
+            setOpenStep(null);
+            return;
+          }
           setCurrentStep(val as WorkflowStepId);
         }}
         className="w-full space-y-2 border-none"

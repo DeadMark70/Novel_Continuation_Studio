@@ -94,6 +94,8 @@
 - `phaseConfig[phase]`: explicit `{ provider, model }` selection for each phase.
 - `providerDefaults[provider]`: default generation params.
 - `modelOverrides[provider][model]`: per-model override params.
+- `phaseParamInheritance[phase]`: whether a phase inherits global/model defaults.
+- `phaseParamOverrides[phase]`: optional per-phase generation param overrides.
 - `getResolvedGenerationConfig(phase)`: effective config resolution entrypoint used by generation flow.
 
 Resolution order:
@@ -101,6 +103,7 @@ Resolution order:
 1. Phase provider/model (`phaseConfig`)
 2. Provider default params (`providerDefaults`)
 3. Model overrides (`modelOverrides`)
+4. Phase param overrides when inheritance is disabled (`phaseParamOverrides`)
 
 ## 6. Reliability Rules
 
@@ -233,3 +236,4 @@ Format: `Date | ID | Rule | Why | Enforcement`
 - 2026-02-23 | LR-006 | In Phase 4, annotate breakdown as explicit execution target and enforce critical priority block. | Prevent prompt-attention hijack by style/sensory directives. | `<chapter_execution_target>` + `<critical_enforcement>` in default chapter prompts.
 - 2026-02-23 | LR-007 | Resume-on-length must provide tail prefix and trim overlap when merging. | Prevent duplicated phrasing and broken chapter continuity after truncation. | `buildResumePrompt()` prefix + `mergeResumedContent()`.
 - 2026-02-23 | LR-008 | Use rule-based chapter quality diagnostics for soft scoring before adding semantic judges. | Keep scoring deterministic and debuggable. | `chapter-quality-guard` integrated into consistency report.
+- 2026-02-24 | LR-009 | Keep Accordion value controlled even when all panels are closed. | Prevent controlled/uncontrolled state flips and runtime warnings during collapse UX. | Use `''` sentinel value for closed state instead of `undefined`.

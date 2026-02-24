@@ -8,6 +8,7 @@ import { useSettingsStore } from '@/store/useSettingsStore';
 import { NovelStats } from '@/components/NovelStats';
 import { StoryUpload } from '@/components/StoryUpload';
 import { WorkflowStepper } from '@/components/WorkflowStepper';
+import { ReadingRoom } from '@/components/workflow/ReadingRoom';
 import { Separator } from '@/components/ui/separator';
 import { Button } from '@/components/ui/button';
 import { Terminal, ShieldAlert, History, Settings, Plus, Library } from 'lucide-react';
@@ -146,6 +147,14 @@ export default function Home() {
             <Separator className="flex-1" />
           </div>
           <WorkflowStepper />
+        </section>
+
+        <section className="space-y-4">
+          <div className="flex items-center gap-4">
+            <h2 className="text-sm font-mono font-bold text-muted-foreground uppercase tracking-[0.2em]">Reading Room</h2>
+            <Separator className="flex-1" />
+          </div>
+          <ReadingRoom />
         </section>
       </div>
 

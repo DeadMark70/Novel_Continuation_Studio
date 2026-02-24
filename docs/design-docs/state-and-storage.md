@@ -14,6 +14,7 @@
 
 3. Settings state (`store/useSettingsStore.ts`)
 - Provider/model/phase routing
+- Per-phase parameter inheritance and overrides
 - Prompt overrides
 - compression and auto-resume knobs
 - sensory template settings
@@ -24,14 +25,19 @@
 - queue + active runs
 - cancellation and interruption handling
 
-5. Chapter sensory runtime memory (`hooks/useStepGenerator.ts`)
+5. Harvest runtime state (`store/useHarvestStore.ts`)
+- global harvesting task lifecycle (`idle|running|success|error`)
+- cross-route task continuity
+- manual JSON recovery path and candidate save action
+
+6. Chapter sensory runtime memory (`hooks/useStepGenerator.ts`)
 - session-scoped recent sensory template IDs
 - used for cross-chapter cooldown (avoid immediate template repetition)
 - transient only (not persisted to DB)
 
 ## Persistence Model
 
-Database: Dexie (`lib/db.ts`), current schema version 13.
+Database: Dexie (`lib/db.ts`), current schema version 14.
 
 Tables:
 

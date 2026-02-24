@@ -29,6 +29,7 @@
 - Preserve latest stable artifacts in session storage.
 - Allow rerun from failed phase, not full restart.
 - On generation truncation (`finish_reason=length`) for chapter steps, auto-resume is bounded and merged without duplicated prefix text.
+- Sensory harvesting errors do not auto-retry; system opens recovery dialog with editable raw output for manual JSON fix and re-parse.
 
 ## Operational Checks
 

@@ -33,6 +33,7 @@ export interface WorkflowStepState {
 interface WorkflowState {
   steps: Record<WorkflowStepId, WorkflowStepState>;
   currentStepId: WorkflowStepId;
+  openStepId: WorkflowStepId | null;
   autoTriggerStepId: WorkflowStepId | null;
   isGenerating: boolean;
 
@@ -66,6 +67,7 @@ interface WorkflowState {
   clearAutoTrigger: () => void;
   setAutoTriggerStep: (stepId: WorkflowStepId | null) => void;
   setCurrentStep: (stepId: WorkflowStepId) => void;
+  setOpenStep: (stepId: WorkflowStepId | null) => void;
   cancelStep: (stepId: WorkflowStepId) => void;
   setIsGenerating: (value: boolean) => void;
 
@@ -161,6 +163,7 @@ function mapCurrentStepToId(step: number): WorkflowStepId {
 export const useWorkflowStore = create<WorkflowState>((set, get) => ({
   steps: cloneInitialSteps(),
   currentStepId: 'compression',
+  openStepId: 'compression',
   autoTriggerStepId: null,
   isGenerating: false,
   autoMode: 'manual',
@@ -187,6 +190,7 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
         },
       },
       currentStepId: stepId,
+      openStepId: stepId,
       autoTriggerStepId: null,
     }));
   },
@@ -263,6 +267,7 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
     set({
       steps: cloneInitialSteps(),
       currentStepId: 'compression',
+      openStepId: 'compression',
       autoTriggerStepId: null,
       autoMode: 'manual',
       autoRangeStart: clamped.start,
@@ -278,6 +283,7 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
     set({
       steps: cloneInitialSteps(),
       currentStepId: 'compression',
+      openStepId: 'compression',
       autoTriggerStepId: null,
       autoMode: 'manual',
       autoRangeStart: clamped.start,
@@ -382,6 +388,7 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
         },
       },
       currentStepId: resolvedCurrentStepId,
+      openStepId: resolvedCurrentStepId,
       autoTriggerStepId: null,
       autoMode: 'manual',
       autoRangeStart: clampedRange.start,
@@ -403,7 +410,18 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
     if (!isWorkflowStepId(stepId as string)) {
       return;
     }
-    set({ currentStepId: stepId });
+    set({ currentStepId: stepId, openStepId: stepId });
+  },
+
+  setOpenStep: (stepId) => {
+    if (stepId === null) {
+      set({ openStepId: null });
+      return;
+    }
+    if (!isWorkflowStepId(stepId as string)) {
+      return;
+    }
+    set({ openStepId: stepId });
   },
 
   cancelStep: (stepId) => {

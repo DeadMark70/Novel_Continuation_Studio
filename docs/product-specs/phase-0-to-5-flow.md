@@ -55,6 +55,18 @@ Expected outcome:
 - Chapter plan with progression and anti-dup rules.
 - If chapter count is large, output can be composed from chunks.
 
+## Sensory Pipeline Checkpoint (between Phase 3 and Phase 4)
+
+User action:
+
+- Review sensory templates from the global `Sensory Vault`.
+
+Expected outcome:
+
+- Harvesting can run in background across route changes.
+- Task status is visible globally (`處理中...` / `已完成`).
+- If harvest output fails to parse, system opens recovery dialog (no auto-retry) and allows manual JSON correction.
+
 ## Phase 4: Chapter Generation
 
 User action:
