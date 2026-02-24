@@ -6,6 +6,8 @@ import { Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useHarvestStore } from '@/store/useHarvestStore';
 import { HarvestTemplateDialog } from '@/components/workflow/HarvestTemplateDialog';
+import { useUiStore } from '@/store/useUiStore';
+import { cn } from '@/lib/utils';
 
 export function HarvestTaskIndicator() {
   const {
@@ -33,6 +35,7 @@ export function HarvestTaskIndicator() {
       clearTask: state.clearTask,
     }))
   );
+  const isSensoryVaultOpen = useUiStore((state) => state.isSensoryVaultOpen);
 
   if (status === 'idle') {
     return null;
@@ -40,7 +43,12 @@ export function HarvestTaskIndicator() {
 
   return (
     <>
-      <div className="fixed bottom-4 right-4 z-50 w-[320px] rounded-lg border border-border bg-card/95 p-3 shadow-xl backdrop-blur">
+      <div
+        className={cn(
+          'fixed bottom-4 z-40 w-[320px] rounded-lg border border-border bg-card/95 p-3 shadow-xl backdrop-blur transition-all',
+          isSensoryVaultOpen ? 'right-[min(94vw,450px)]' : 'right-4'
+        )}
+      >
         <div className="flex items-center gap-2">
           {status === 'running' ? (
             <Loader2 className="size-4 animate-spin text-primary" />

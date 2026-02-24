@@ -11,6 +11,10 @@ vi.mock('@/components/NovelStats', () => ({
   NovelStats: () => <div data-testid="novel-stats" />
 }));
 
+vi.mock('@/components/sensory/SensoryHarvestPanel', () => ({
+  SensoryHarvestPanel: () => <div data-testid="sensory-harvest-panel" />
+}));
+
 // Mock Lucide icons
 vi.mock('lucide-react', () => ({
   Terminal: () => <div />,
@@ -47,5 +51,6 @@ describe('Home Page', () => {
     expect(screen.getByText(/Novel Continuation/i)).toBeDefined();
     expect(screen.getByTestId('story-upload')).toBeDefined();
     expect(screen.getByTestId('novel-stats')).toBeDefined();
+    expect(screen.getByTestId('sensory-harvest-panel')).toBeDefined();
   });
 });

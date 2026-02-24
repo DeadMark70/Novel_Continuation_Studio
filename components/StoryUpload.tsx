@@ -8,7 +8,6 @@ import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Upload, FileText, Eraser } from 'lucide-react';
-import { useHarvestStore } from '@/store/useHarvestStore';
 import {
   Dialog,
   DialogContent,
@@ -30,21 +29,9 @@ export const StoryUpload: React.FC = () => {
       reset: state.reset,
     }))
   );
-  const {
-    status,
-    statusText,
-    startHarvest,
-  } = useHarvestStore(
-    useShallow((state) => ({
-      status: state.status,
-      statusText: state.statusText,
-      startHarvest: state.startHarvest,
-    }))
-  );
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [showInvalidFileDialog, setShowInvalidFileDialog] = React.useState(false);
   const [showClearConfirm, setShowClearConfirm] = React.useState(false);
-  const isHarvesting = status === 'running';
 
   const handleTextChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     void setNovel(e.target.value);
@@ -121,22 +108,7 @@ export const StoryUpload: React.FC = () => {
             Clear
           </Button>
 
-          <Button
-            variant="outline"
-            onClick={() => {
-              void startHarvest(originalNovel);
-            }}
-            disabled={isHarvesting || !originalNovel.trim()}
-            className="flex items-center gap-2"
-          >
-            {isHarvesting ? 'Harvesting...' : 'Harvest Sensory Templates'}
-          </Button>
         </div>
-        {statusText && (
-          <p className="text-xs font-mono text-muted-foreground">
-            Harvest Status: {statusText}
-          </p>
-        )}
       </CardContent>
       <Dialog open={showInvalidFileDialog} onOpenChange={setShowInvalidFileDialog}>
         <DialogContent className="sm:max-w-md">
