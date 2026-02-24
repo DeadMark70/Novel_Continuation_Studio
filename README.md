@@ -143,7 +143,7 @@ Novel_Continuation_Studio/
 ### Installation / 安裝
 
 ```bash
-git clone https://github.com/your-username/novel-continuation-studio.git
+git clone https://github.com/DeadMark70/novel-continuation-studio.git
 cd novel-continuation-studio
 npm install
 ```
