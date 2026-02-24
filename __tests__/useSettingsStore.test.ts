@@ -394,6 +394,7 @@ describe('useSettingsStore', () => {
         {
           id: 'h1',
           text: 'Cold slime coated her thigh and dripped slowly.',
+          psychologicalShift: '羞恥攀升且意志鬆動',
           tags: ['cold', 'slime'],
           povCharacter: '主角',
           sensoryScore: 0.9,
@@ -404,6 +405,7 @@ describe('useSettingsStore', () => {
         {
           id: 'h2',
           text: 'Cold slime coated her thigh and dripped slowly.',
+          psychologicalShift: '驚慌升高',
           tags: ['dup'],
           povCharacter: '主角',
           sensoryScore: 0.4,
@@ -416,8 +418,9 @@ describe('useSettingsStore', () => {
 
     const after = useSettingsStore.getState();
     expect(after.sensoryAnchorTemplates.length).toBe(initialCount + 1);
-    const added = after.sensoryAnchorTemplates.find((entry) => entry.content === 'Cold slime coated her thigh and dripped slowly.');
+    const added = after.sensoryAnchorTemplates.find((entry) => entry.content.includes('Cold slime coated her thigh and dripped slowly.'));
     expect(added).toBeDefined();
+    expect(added?.content).toContain('心理位移：羞恥攀升且意志鬆動');
     expect(added?.name.startsWith('收割-')).toBe(true);
     expect(added?.tags?.every((tag) => /[\u3400-\u9FFF]/.test(tag))).toBe(true);
     expect(added?.povCharacter).toBe('主角');

@@ -3,9 +3,13 @@ import { injectPrompt } from '@/lib/prompt-engine';
 import { SENSORY_TEMPLATE_HARVEST_PROMPT } from '@/lib/prompts';
 import { normalizePovCharacter, sanitizeSensoryTagsStrict } from '@/lib/sensory-tags';
 
-const MAX_CANDIDATES = 5;
-const MIN_CANDIDATES = 3;
-const MIN_SENSORY_SCORE = 0.7;
+const MAX_CANDIDATES = 4;
+const MIN_CANDIDATES = 2;
+const MIN_SENSORY_SCORE = 0.8;
+const MIN_CONTROL_LOSS_SCORE = 0.75;
+const MAX_TEMPLATE_TEXT_CHARS = 65;
+const MIN_SHIFT_CHARS = 8;
+const MAX_SHIFT_CHARS = 20;
 const EROTIC_MARKERS = [
   '下身', '腿間', '乳', '胸', '臀', '陰', '蜜', '液', '濕', '黏', '抽搐', '痙攣', '失控', '喘',
   'thigh', 'breast', 'hip', 'groin', 'wet', 'slick', 'sticky', 'fluid', 'spasm', 'tremble', 'gasp',
@@ -22,9 +26,21 @@ const ENVIRONMENT_MARKERS = [
   '海風', '雲', '落日', '天空', '地平線', '戰場', '屍體',
   'wind', 'cloud', 'sunset', 'sky', 'horizon', 'battlefield', 'corpse',
 ];
+const ABSTRACT_METAPHOR_MARKERS = [
+  '靈魂', '命運', '永恆', '宇宙', '深淵', '救贖', '虛無', '神性',
+  '自由的風', '命運的手', '星辰', '宿命', '哲學',
+  'soul', 'destiny', 'eternity', 'cosmos', 'metaphor', 'philosophy',
+];
+const CONTEXT_DEPENDENCY_MARKERS = [
+  '上一章', '前文', '先前', '當時', '那時', '如前', '前面提到',
+  'as above', 'previous chapter', 'earlier',
+];
+const SIMPLIFIED_MARKERS = /[这来后发对说为与时会点吗么里们将于并让从吗]/u;
+const MULTI_SENTENCE_SPLIT = /[。！？!?；;]/u;
 
 type RawHarvestCandidate = {
   text?: unknown;
+  psychologicalShift?: unknown;
   tags?: unknown;
   povCharacter?: unknown;
   sensoryScore?: unknown;
@@ -145,29 +161,15 @@ function normalizeCandidate(
   index: number,
   nowIso: string
 ): HarvestedTemplateCandidate | null {
-  if (typeof value === 'string') {
-    const text = value.trim();
-    if (!text) {
-      return null;
-    }
-    return {
-      id: `harvest_${Date.now()}_${index}`,
-      text,
-      tags: [],
-      povCharacter: '通用',
-      sensoryScore: 0.8,
-      controlLossScore: 0.8,
-      source: 'uploaded_novel',
-      createdAt: nowIso,
-    };
-  }
-
   if (!value || typeof value !== 'object') {
     return null;
   }
 
   const raw = value as RawHarvestCandidate;
   const text = typeof raw.text === 'string' ? raw.text.trim() : '';
+  const psychologicalShift = typeof raw.psychologicalShift === 'string'
+    ? raw.psychologicalShift.trim()
+    : '';
   if (!text) {
     return null;
   }
@@ -175,6 +177,7 @@ function normalizeCandidate(
   return {
     id: `harvest_${Date.now()}_${index}`,
     text,
+    psychologicalShift,
     tags: sanitizeTags(raw.tags),
     povCharacter: normalizePovCharacter(raw.povCharacter),
     sensoryScore: clampScore(raw.sensoryScore, 0.8),
@@ -184,12 +187,56 @@ function normalizeCandidate(
   };
 }
 
+function countCharsWithoutSpaces(value: string): number {
+  return value.replace(/\s+/g, '').length;
+}
+
+function isTraditionalText(value: string): boolean {
+  return !SIMPLIFIED_MARKERS.test(value);
+}
+
+function hasContextDependency(value: string): boolean {
+  return CONTEXT_DEPENDENCY_MARKERS.some((marker) => value.includes(marker));
+}
+
+function hasAbstractMetaphor(value: string): boolean {
+  const lower = value.toLowerCase();
+  return ABSTRACT_METAPHOR_MARKERS.some((marker) => lower.includes(marker.toLowerCase()));
+}
+
+function isSingleSentence(value: string): boolean {
+  const chunks = value
+    .split(MULTI_SENTENCE_SPLIT)
+    .map((entry) => entry.trim())
+    .filter(Boolean);
+  return chunks.length <= 1;
+}
+
 function isEligibleCandidate(
   entry: HarvestedTemplateCandidate | null
 ): entry is HarvestedTemplateCandidate {
+  if (!entry) {
+    return false;
+  }
+  const shiftChars = countCharsWithoutSpaces(entry.psychologicalShift);
+  if (!entry.psychologicalShift || shiftChars < MIN_SHIFT_CHARS || shiftChars > MAX_SHIFT_CHARS) {
+    return false;
+  }
+  if (!isTraditionalText(entry.text) || !isTraditionalText(entry.psychologicalShift)) {
+    return false;
+  }
+  if (!isSingleSentence(entry.text)) {
+    return false;
+  }
+  if (countCharsWithoutSpaces(entry.text) > MAX_TEMPLATE_TEXT_CHARS) {
+    return false;
+  }
+  if (hasContextDependency(entry.text) || hasAbstractMetaphor(entry.text)) {
+    return false;
+  }
   return Boolean(
-    entry &&
     entry.sensoryScore >= MIN_SENSORY_SCORE &&
+    entry.controlLossScore >= MIN_CONTROL_LOSS_SCORE &&
     entry.tags.length > 0
   );
 }
@@ -226,7 +273,7 @@ export function parseHarvestCandidates(rawOutput: string): HarvestedTemplateCand
   const seen = new Set<string>();
 
   for (const item of normalized) {
-    const key = item.text.replace(/\s+/g, ' ').trim().toLowerCase();
+    const key = `${item.text}||${item.psychologicalShift}`.replace(/\s+/g, ' ').trim().toLowerCase();
     if (!key || seen.has(key)) {
       continue;
     }
@@ -238,7 +285,7 @@ export function parseHarvestCandidates(rawOutput: string): HarvestedTemplateCand
   }
 
   if (deduped.length === 0) {
-    throw new Error('No valid sensory template candidates were extracted.');
+    throw new Error('No valid sensory templates matched strict harvest rules.');
   }
 
   const ranked = [...deduped].sort((a, b) => rankCandidate(b) - rankCandidate(a));

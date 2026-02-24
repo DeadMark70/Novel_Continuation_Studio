@@ -827,6 +827,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
         if (!key || seen.has(key)) {
           continue;
         }
+        const psychologicalShift = candidate?.psychologicalShift?.trim();
         const normalizedTags = sanitizeTemplateTagsStrict(candidate.tags);
         if (normalizedTags.length === 0) {
           continue;
@@ -835,7 +836,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
         next.push({
           id: createSensoryTemplateId(),
           name: buildHarvestTemplateName(normalizedTags),
-          content: text,
+          content: psychologicalShift ? `${text}\n心理位移：${psychologicalShift}` : text,
           tags: normalizedTags,
           povCharacter: normalizePovCharacter(candidate.povCharacter),
         });

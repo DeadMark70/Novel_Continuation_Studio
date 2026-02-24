@@ -97,6 +97,7 @@ export interface SensoryAnchorTemplate {
 export interface HarvestedTemplateCandidate {
   id: string;
   text: string;
+  psychologicalShift: string;
   tags: string[];
   povCharacter: string;
   sensoryScore: number;

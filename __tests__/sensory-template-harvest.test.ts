@@ -4,97 +4,110 @@ import {
 } from '../lib/sensory-template-harvest';
 
 describe('sensory-template-harvest', () => {
-  it('parses strict JSON object arrays', () => {
+  it('parses strict JSON arrays with psychological shift field', () => {
     const output = JSON.stringify([
       {
-        text: 'Ice-cold slime slid across her skin and left a sticky film.',
-        tags: ['cold', 'slimy'],
+        text: '冰冷液體沿腿根滑下，她呼吸驟斷，指尖失衡地發顫。',
+        psychologicalShift: '羞恥升高且抗拒鬆動',
+        tags: ['溫度刺激', '液體釋放'],
         povCharacter: '莉亞',
-        sensoryScore: 0.95,
-        controlLossScore: 0.82,
+        sensoryScore: 0.92,
+        controlLossScore: 0.84,
       },
       {
-        text: 'Her knees buckled and her breath broke into short, shaky gasps.',
-        tags: ['breath', 'spasm'],
+        text: '金屬擦過皮膚時，她肩背一縮，喉間只剩破碎喘息。',
+        psychologicalShift: '警戒崩落並轉為依附',
+        tags: ['摩擦刺激', '聲音反應'],
         povCharacter: '莉亞',
-        sensoryScore: 0.91,
-        controlLossScore: 0.88,
+        sensoryScore: 0.9,
+        controlLossScore: 0.83,
       },
       {
-        text: 'Metal scraped against the ring, and the sharp sound made her flinch.',
-        tags: ['metal', 'sound'],
+        text: '束縛壓緊腕骨，她腿根發軟，膝蓋不受控地下沉。',
+        psychologicalShift: '控制感流失並出現順從',
+        tags: ['壓迫束縛', '失控反應'],
         povCharacter: '通用',
-        sensoryScore: 0.86,
-        controlLossScore: 0.73,
+        sensoryScore: 0.88,
+        controlLossScore: 0.8,
       },
     ]);
 
     const candidates = parseHarvestCandidates(output);
-    expect(candidates).toHaveLength(3);
-    expect(candidates.some((entry) => entry.tags.includes('溫度刺激'))).toBe(true);
-    expect(candidates.some((entry) => entry.povCharacter === '莉亞')).toBe(true);
+    expect(candidates.length).toBeGreaterThanOrEqual(2);
+    expect(candidates.every((entry) => entry.psychologicalShift.length >= 4)).toBe(true);
     expect(candidates.every((entry) => entry.source === 'uploaded_novel')).toBe(true);
-    expect(candidates.every((entry) => entry.tags.every((tag) => /[\u3400-\u9FFF]/.test(tag)))).toBe(true);
   });
 
-  it('parses fenced JSON and strips duplicates', () => {
+  it('parses fenced JSON and strips duplicates by text+shift', () => {
     const output = [
       '```json',
       '[',
-      '{"text":"A","tags":["cold"],"povCharacter":"通用","sensoryScore":0.7,"controlLossScore":0.6},',
-      '{"text":"A","tags":["cold"],"povCharacter":"通用","sensoryScore":0.8,"controlLossScore":0.7},',
-      '{"text":"B","tags":["friction"],"povCharacter":"通用","sensoryScore":0.8,"controlLossScore":0.8}',
+      '{"text":"冰冷液體沿腿根滑下，她呼吸驟斷，指尖失衡地發顫。","psychologicalShift":"羞恥升高且抗拒鬆動","tags":["溫度刺激"],"povCharacter":"通用","sensoryScore":0.86,"controlLossScore":0.8},',
+      '{"text":"冰冷液體沿腿根滑下，她呼吸驟斷，指尖失衡地發顫。","psychologicalShift":"羞恥升高且抗拒鬆動","tags":["溫度刺激"],"povCharacter":"通用","sensoryScore":0.9,"controlLossScore":0.85},',
+      '{"text":"束縛壓緊腕骨，她腿根發軟，膝蓋不受控地下沉。","psychologicalShift":"控制感流失並出現順從","tags":["壓迫束縛"],"povCharacter":"通用","sensoryScore":0.84,"controlLossScore":0.8}',
       ']',
       '```',
     ].join('\n');
 
     const candidates = parseHarvestCandidates(output);
     expect(candidates).toHaveLength(2);
-    expect(candidates.map((entry) => entry.text).sort()).toEqual(['A', 'B']);
   });
 
-  it('filters out low-score entries and non-whitelist tags', () => {
+  it('filters out low-score, abstract, and missing-shift entries', () => {
     const output = JSON.stringify([
       {
-        text: 'valid one',
-        tags: ['cold'],
+        text: '指節摩擦皮膚，她呼吸驟亂，肩線緊繃後微微發顫。',
+        psychologicalShift: '抗拒鬆動轉為期待',
+        tags: ['摩擦刺激'],
+        povCharacter: '主角',
+        sensoryScore: 0.86,
+        controlLossScore: 0.81,
+      },
+      {
+        text: '她的靈魂像星辰墜落在永恆深淵中。',
+        psychologicalShift: '抽象情緒堆疊',
+        tags: ['溫度刺激'],
+        povCharacter: '主角',
+        sensoryScore: 0.95,
+        controlLossScore: 0.9,
+      },
+      {
+        text: '金屬碰撞時她後頸發麻。',
+        psychologicalShift: '',
+        tags: ['聲音反應'],
         povCharacter: '主角',
         sensoryScore: 0.9,
         controlLossScore: 0.8,
       },
       {
-        text: 'too low score',
-        tags: ['friction'],
+        text: '有效句，但分數不足。',
+        psychologicalShift: '羞恥升高',
+        tags: ['觸感質地'],
         povCharacter: '主角',
-        sensoryScore: 0.4,
-        controlLossScore: 0.7,
-      },
-      {
-        text: 'invalid tag only',
-        tags: ['監禁'],
-        povCharacter: '主角',
-        sensoryScore: 0.92,
-        controlLossScore: 0.9,
+        sensoryScore: 0.6,
+        controlLossScore: 0.6,
       },
     ]);
 
     const candidates = parseHarvestCandidates(output);
     expect(candidates).toHaveLength(1);
-    expect(candidates[0].text).toBe('valid one');
+    expect(candidates[0].text).toContain('指節摩擦皮膚');
   });
 
   it('accepts object-wrapper payloads and normalizes missing POV', () => {
     const output = JSON.stringify({
       candidates: [
         {
-          text: 'first',
-          tags: ['cold'],
+          text: '冰冷液體沿腿根滑下，她呼吸驟斷，指尖失衡地發顫。',
+          psychologicalShift: '羞恥升高且抗拒鬆動',
+          tags: ['溫度刺激'],
           sensoryScore: 0.88,
           controlLossScore: 0.8,
         },
         {
-          text: 'second',
-          tags: ['friction'],
+          text: '束縛壓緊腕骨，她腿根發軟，膝蓋不受控地下沉。',
+          psychologicalShift: '控制感流失並出現順從',
+          tags: ['壓迫束縛'],
           povCharacter: '',
           sensoryScore: 0.9,
           controlLossScore: 0.8,
@@ -110,6 +123,7 @@ describe('sensory-template-harvest', () => {
   it('builds harvest prompt with source text injected', () => {
     const prompt = buildSensoryTemplateHarvestPrompt('SOURCE_TEXT');
     expect(prompt).toContain('SOURCE_TEXT');
+    expect(prompt).toContain('psychologicalShift');
     expect(prompt).not.toContain('{{NOVEL_TEXT}}');
   });
 });

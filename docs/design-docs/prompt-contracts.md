@@ -53,15 +53,21 @@ Two-stage contract:
 
 Harvest prompt (`SENSORY_TEMPLATE_HARVEST_PROMPT`) is strict JSON-only and enforces:
 
+- fixed high-quality output size (4 templates)
 - canonical sensory tag whitelist only
 - `povCharacter` extraction for each candidate
 - concrete physical sensation focus (no plot/abstract expansion)
+- mandatory `psychologicalShift` for each template
+- single-sentence template text with max 65 characters
+- strict Traditional Chinese output (JSON keys excluded)
 
 Runtime parser (`lib/sensory-template-harvest.ts`) adds defensive parsing:
 
 - strips fenced code blocks / noisy wrappers
 - accepts array payloads and common object wrappers
-- filters out low-score / invalid-tag candidates before storage
+- rejects simplified Chinese markers, abstract-metaphor markers, and context-dependent phrasing
+- rejects missing/invalid `psychologicalShift` length windows and low score candidates
+- deduplicates by `text + psychologicalShift` before ranking
 
 ## Chapter Generation Anchors (Phase 4)
 

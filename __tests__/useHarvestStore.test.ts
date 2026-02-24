@@ -41,6 +41,7 @@ describe('useHarvestStore', () => {
       {
         id: 'h1',
         text: 'sample',
+        psychologicalShift: '羞恥升高且抗拒鬆動',
         tags: ['觸覺'],
         povCharacter: '通用',
         sensoryScore: 0.9,
@@ -84,6 +85,7 @@ describe('useHarvestStore', () => {
       {
         id: 'h2',
         text: 'fixed',
+        psychologicalShift: '依賴感上升並放棄抵抗',
         tags: ['聲音'],
         povCharacter: '主角',
         sensoryScore: 0.85,

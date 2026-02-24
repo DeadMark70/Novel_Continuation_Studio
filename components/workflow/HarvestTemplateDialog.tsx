@@ -28,6 +28,10 @@ function parsePovInput(raw: string): string {
   return normalized || '通用';
 }
 
+function parseShiftInput(raw: string): string {
+  return raw.trim();
+}
+
 export function HarvestTemplateDialog({
   open,
   candidates,
@@ -84,6 +88,9 @@ export function HarvestTemplateDialog({
                   />
                   <div className="flex-1 space-y-2">
                     <p className="text-sm leading-relaxed">{candidate.text}</p>
+                    <p className="text-xs text-primary/90">
+                      心理位移：{candidate.psychologicalShift}
+                    </p>
                     <div className="flex flex-wrap gap-2 text-[11px] text-muted-foreground">
                       <span>Sensory: {candidate.sensoryScore.toFixed(2)}</span>
                       <span>Control-loss: {candidate.controlLossScore.toFixed(2)}</span>
@@ -109,6 +116,17 @@ export function HarvestTemplateDialog({
                         )));
                       }}
                       placeholder="POV character"
+                      className="h-8 text-xs"
+                    />
+                    <Input
+                      value={candidate.psychologicalShift}
+                      onChange={(event) => {
+                        const psychologicalShift = parseShiftInput(event.target.value);
+                        setEditableCandidates((current) => current.map((entry) => (
+                          entry.id === candidate.id ? { ...entry, psychologicalShift } : entry
+                        )));
+                      }}
+                      placeholder="psychological shift"
                       className="h-8 text-xs"
                     />
                   </div>
