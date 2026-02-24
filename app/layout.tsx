@@ -2,6 +2,9 @@ import type { Metadata } from "next";
 import "./globals.css";
 import { NovelPersistenceLifecycleBridge } from "@/components/NovelPersistenceLifecycleBridge";
 import { SettingsLifecycleBridge } from "@/components/SettingsLifecycleBridge";
+import { SensoryVaultSidebar } from "@/components/sensory/SensoryVaultSidebar";
+import { HarvestTaskIndicator } from "@/components/sensory/HarvestTaskIndicator";
+import { HarvestErrorRecoveryModal } from "@/components/sensory/HarvestErrorRecoveryModal";
 
 export const metadata: Metadata = {
   title: {
@@ -21,6 +24,9 @@ export default function RootLayout({
       <body className="antialiased bg-background text-foreground">
         <NovelPersistenceLifecycleBridge />
         <SettingsLifecycleBridge />
+        <SensoryVaultSidebar />
+        <HarvestTaskIndicator />
+        <HarvestErrorRecoveryModal />
         {children}
       </body>
     </html>
