@@ -35,6 +35,10 @@
 - used for cross-chapter cooldown (avoid immediate template repetition)
 - transient only (not persisted to DB)
 
+7. UI shell state (`store/useUiStore.ts`)
+- global sensory vault open/close state
+- settings phase-center active phase tab state
+
 ## Persistence Model
 
 Database: Dexie (`lib/db.ts`), current schema version 14.

@@ -108,3 +108,10 @@ Flow is considered successful when:
 - At least one new chapter is generated.
 - Consistency report is available for that chapter.
 - Session can be resumed from persisted state.
+
+## Settings Surface
+
+- Settings now exposes a unified `Phase Center` where each phase can be configured with:
+  - provider + model routing
+  - per-phase param inheritance toggle
+  - per-phase param overrides (temperature, top_p, top_k, penalties, max tokens, thinking flags)

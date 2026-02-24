@@ -4,6 +4,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useSettingsStore, type PhaseMetadataSyncResult } from '@/store/useSettingsStore';
 import { useShallow } from 'zustand/react/shallow';
+import { useUiStore } from '@/store/useUiStore';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -207,7 +208,12 @@ export default function SettingsPage() {
   const [draftPhaseParamInheritance, setDraftPhaseParamInheritance] = useState<PhaseParamInheritanceMap>(
     () => clone(settings.phaseParamInheritance)
   );
-  const [selectedPhaseParamTab, setSelectedPhaseParamTab] = useState<GenerationPhaseId>('compression');
+  const { activeSettingsPhase, setActiveSettingsPhase } = useUiStore(
+    useShallow((state) => ({
+      activeSettingsPhase: state.activeSettingsPhase,
+      setActiveSettingsPhase: state.setActiveSettingsPhase,
+    }))
+  );
   const [draftPrompts, setDraftPrompts] = useState<Record<string, string>>(() =>
     clone(settings.customPrompts)
   );
@@ -582,11 +588,10 @@ export default function SettingsPage() {
           )}
         </div>
 
-        <Tabs defaultValue="provider" className="w-full">
-          <TabsList className="grid w-full grid-cols-5">
+        <Tabs defaultValue="phases" className="w-full">
+          <TabsList className="grid w-full grid-cols-4">
             <TabsTrigger value="provider">Provider</TabsTrigger>
-            <TabsTrigger value="phases">Phase Routing</TabsTrigger>
-            <TabsTrigger value="params">Model Params</TabsTrigger>
+            <TabsTrigger value="phases">Phase Center</TabsTrigger>
             <TabsTrigger value="context">Context</TabsTrigger>
             <TabsTrigger value="prompts">Prompts</TabsTrigger>
           </TabsList>
@@ -638,7 +643,7 @@ export default function SettingsPage() {
             ))}
           </TabsContent>
 
-          <TabsContent value="phases" className="space-y-3 pt-4">
+          <TabsContent value="legacyRouting" className="space-y-3 pt-4">
             <label className="inline-flex items-center gap-2 text-xs">
               <input type="checkbox" checked={allowCustomModelId} onChange={(e) => setAllowCustomModelId(e.target.checked)} />
               Allow manual model IDs
@@ -677,7 +682,7 @@ export default function SettingsPage() {
             })}
           </TabsContent>
 
-          <TabsContent value="params" className="space-y-4 pt-4">
+          <TabsContent value="phases" className="space-y-4 pt-4">
             {PROVIDERS.map((provider) => (
               <div key={provider} className="rounded-lg border border-border p-3 space-y-3">
                 <h3 className="font-semibold uppercase text-sm">{provider} defaults</h3>
@@ -877,14 +882,22 @@ export default function SettingsPage() {
 
             <div className="rounded-lg border border-border p-3 space-y-4">
               <div>
-                <h3 className="font-semibold uppercase text-sm">Phase Param Overrides</h3>
+                <h3 className="font-semibold uppercase text-sm">Phase Routing + Params</h3>
                 <p className="text-xs text-muted-foreground">
-                  Configure per-phase overrides with fallback to global defaults.
+                  Configure provider/model and per-phase parameter overrides in one place.
                 </p>
+                <label className="mt-2 inline-flex items-center gap-2 text-xs text-muted-foreground">
+                  <input
+                    type="checkbox"
+                    checked={allowCustomModelId}
+                    onChange={(e) => setAllowCustomModelId(e.target.checked)}
+                  />
+                  Allow manual model IDs
+                </label>
               </div>
               <Tabs
-                value={selectedPhaseParamTab}
-                onValueChange={(value) => setSelectedPhaseParamTab(value as GenerationPhaseId)}
+                value={activeSettingsPhase}
+                onValueChange={(value) => setActiveSettingsPhase(value as GenerationPhaseId)}
                 className="w-full"
               >
                 <TabsList className="grid h-auto w-full grid-cols-2 gap-1 md:grid-cols-3 lg:grid-cols-5">
@@ -910,6 +923,14 @@ export default function SettingsPage() {
                     ...baselineParams,
                     ...phaseOverrides,
                   };
+                  const effectivePreview = [
+                    `temp=${effectiveParams.temperature}`,
+                    `top_p=${effectiveParams.topP}`,
+                    `top_k=${effectiveParams.topK ?? '-'}`,
+                    `max_tokens=${effectiveParams.autoMaxTokens ? 'auto' : effectiveParams.maxTokens}`,
+                    `freq=${effectiveParams.frequencyPenalty ?? '-'}`,
+                    `pres=${effectiveParams.presencePenalty ?? '-'}`,
+                  ].join(' | ');
                   return (
                     <TabsContent key={`phase-params-content-${phase}`} value={phase} className="space-y-4 pt-3">
                       <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 rounded-md border border-border p-3">
@@ -976,6 +997,9 @@ export default function SettingsPage() {
                           }}
                         />
                       </div>
+                      <p className="rounded border border-border/70 bg-background/40 px-3 py-2 text-[11px] font-mono text-muted-foreground">
+                        Effective: {effectivePreview}
+                      </p>
 
                       {!inherited ? (
                         <div className="space-y-3">
