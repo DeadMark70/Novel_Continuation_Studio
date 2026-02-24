@@ -15,6 +15,7 @@ import type {
   PhaseParamInheritanceMap,
   PhaseParamOverrides,
   ProviderScopedSettings,
+  SensoryTagUsageMap,
 } from './llm-types';
 
 type WorkflowPhaseId =
@@ -62,6 +63,15 @@ export interface NovelEntry {
   outline: string;
   outlineDirection: string;
   breakdown: string;
+  breakdownMeta?: {
+    repairStatus?: 'none' | 'auto_repaired' | 'manual_repaired';
+    repairReasons?: string[];
+    repairedAt?: number;
+    repairedBy?: 'system' | 'user';
+    injectedTagCount?: number;
+    injectedPovCount?: number;
+    injectedTagsByChapter?: Record<number, string[]>;
+  };
   chapters: string[];
   targetStoryWordCount?: number;
   targetChapterCount?: number;
@@ -161,6 +171,7 @@ export interface SettingsEntry {
     continuation?: string;
   };
   autoSensoryMapping?: boolean;
+  sensoryTagUsage?: SensoryTagUsageMap;
   updatedAt: number;
 }
 
@@ -499,6 +510,18 @@ export class NovelDatabase extends Dexie {
             loreJsonRepair: true,
           };
           entry.phaseParamInheritance = inheritance;
+        }
+      });
+    });
+    this.version(15).stores({
+      novels: '++id, sessionId, updatedAt, createdAt',
+      settings: 'id, updatedAt',
+      novelBlobs: 'sessionId, updatedAt',
+      lorebook: 'id, novelId, type'
+    }).upgrade(async (tx) => {
+      await tx.table('settings').toCollection().modify((entry: SettingsEntry) => {
+        if (!entry.sensoryTagUsage || typeof entry.sensoryTagUsage !== 'object') {
+          entry.sensoryTagUsage = {};
         }
       });
     });

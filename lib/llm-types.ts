@@ -112,3 +112,11 @@ export interface AutoSensoryMappingResult {
   matchedTags: string[];
   matchedPov: string;
 }
+
+export interface SensoryTagUsageEntry {
+  count: number;
+  lastUsedAt: number;
+  byPov?: Record<string, number>;
+}
+
+export type SensoryTagUsageMap = Record<string, SensoryTagUsageEntry>;

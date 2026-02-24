@@ -37,6 +37,15 @@ interface NovelState {
   outline: string;
   outlineDirection: string;
   breakdown: string;
+  breakdownMeta?: {
+    repairStatus?: 'none' | 'auto_repaired' | 'manual_repaired';
+    repairReasons?: string[];
+    repairedAt?: number;
+    repairedBy?: 'system' | 'user';
+    injectedTagCount?: number;
+    injectedPovCount?: number;
+    injectedTagsByChapter?: Record<number, string[]>;
+  };
   chapters: string[];
   targetStoryWordCount: number;
   targetChapterCount: number;
@@ -80,6 +89,7 @@ interface NovelState {
     | 'outline'
     | 'outlineDirection'
     | 'breakdown'
+    | 'breakdownMeta'
     | 'chapters'
     | 'characterCards'
     | 'styleGuide'
@@ -101,6 +111,7 @@ interface NovelState {
       | 'outline'
       | 'outlineDirection'
       | 'breakdown'
+      | 'breakdownMeta'
       | 'chapters'
       | 'characterCards'
       | 'styleGuide'
@@ -224,6 +235,7 @@ export const useNovelStore = create<NovelState>((set, get) => {
   outline: '',
   outlineDirection: '',
   breakdown: '',
+  breakdownMeta: undefined,
   chapters: [],
   targetStoryWordCount: 20000,
   targetChapterCount: 5,
@@ -277,7 +289,7 @@ export const useNovelStore = create<NovelState>((set, get) => {
       return;
     }
 
-    const patchResult = (entry: Pick<NovelState, 'analysis' | 'outline' | 'breakdown' | 'chapters' | 'compressedContext'>) => {
+    const patchResult = (entry: Pick<NovelState, 'analysis' | 'outline' | 'breakdown' | 'breakdownMeta' | 'chapters' | 'compressedContext'>) => {
       if (stepId === 'compression') {
         return { compressedContext: content };
       }
@@ -288,7 +300,7 @@ export const useNovelStore = create<NovelState>((set, get) => {
         return { outline: content };
       }
       if (stepId === 'breakdown') {
-        return { breakdown: content };
+        return { breakdown: content, breakdownMeta: undefined };
       }
       if (stepId === 'chapter1') {
         return { chapters: [content] };
@@ -314,6 +326,7 @@ export const useNovelStore = create<NovelState>((set, get) => {
       analysis: session.analysis,
       outline: session.outline,
       breakdown: session.breakdown,
+      breakdownMeta: session.breakdownMeta,
       chapters: session.chapters,
       compressedContext: session.compressedContext ?? '',
     }) };
@@ -451,6 +464,7 @@ export const useNovelStore = create<NovelState>((set, get) => {
         outline: state.outline,
         outlineDirection: state.outlineDirection,
         breakdown: state.breakdown,
+        breakdownMeta: state.breakdownMeta,
         chapters: state.chapters,
         targetStoryWordCount: state.targetStoryWordCount,
         targetChapterCount: state.targetChapterCount,
@@ -568,6 +582,7 @@ export const useNovelStore = create<NovelState>((set, get) => {
           outline: state.outline,
           outlineDirection: state.outlineDirection,
           breakdown: state.breakdown,
+          breakdownMeta: state.breakdownMeta,
           chapters: state.chapters,
           targetStoryWordCount: state.targetStoryWordCount,
           targetChapterCount: state.targetChapterCount,
@@ -604,6 +619,7 @@ export const useNovelStore = create<NovelState>((set, get) => {
             outline: state.outline,
             outlineDirection: state.outlineDirection,
             breakdown: state.breakdown,
+            breakdownMeta: state.breakdownMeta,
             chapters: state.chapters,
             targetStoryWordCount: state.targetStoryWordCount,
             targetChapterCount: state.targetChapterCount,
@@ -682,6 +698,7 @@ export const useNovelStore = create<NovelState>((set, get) => {
         outline: session.outline,
         outlineDirection: session.outlineDirection,
         breakdown: session.breakdown,
+        breakdownMeta: session.breakdownMeta,
         chapters: session.chapters,
         targetStoryWordCount: session.targetStoryWordCount ?? 20000,
         targetChapterCount: session.targetChapterCount ?? 5,
@@ -734,6 +751,7 @@ export const useNovelStore = create<NovelState>((set, get) => {
       outline: '',
       outlineDirection: '',
       breakdown: '',
+      breakdownMeta: undefined,
       chapters: [],
       targetStoryWordCount: 20000,
       targetChapterCount: 5,
@@ -812,6 +830,7 @@ export const useNovelStore = create<NovelState>((set, get) => {
         outline: latest.outline,
         outlineDirection: latest.outlineDirection,
         breakdown: latest.breakdown,
+        breakdownMeta: latest.breakdownMeta,
         chapters: latest.chapters,
         targetStoryWordCount: latest.targetStoryWordCount ?? 20000,
         targetChapterCount: latest.targetChapterCount ?? 5,

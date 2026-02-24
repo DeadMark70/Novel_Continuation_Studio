@@ -12,6 +12,8 @@
 - Abortable generation requests and interruption states
 - Prompt section validation + bounded retries
 - Analysis/outline sanitization and dual-output parsing
+- Phase 3 breakdown normalization + guarded validation (chapter count/sequence/truncation/omission markers)
+- Phase 3 sensory fallback injection for missing tag/POV fields with persisted repair metadata
 - Preflight token budget gate with CJK safety buffer
 - Phase 4 length auto-resume (bounded) with overlap-trim merge for continuation integrity
 - Chapter quality guard scoring (rule-based structure/style/language/pacing diagnostics)

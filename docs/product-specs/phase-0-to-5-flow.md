@@ -54,6 +54,10 @@ Expected outcome:
 
 - Chapter plan with progression and anti-dup rules.
 - If chapter count is large, output can be composed from chunks.
+- System normalizes chapter/field headings before save (for parser stability).
+- System validates chapter range completeness and truncation risk; invalid output is retried once.
+- If sensory fields are missing, system auto-injects fallback tags/POV and marks this in metadata.
+- StepBreakdown shows auto-repair status and chapter-level injected tags in highlighted style.
 
 ## Sensory Pipeline Checkpoint (between Phase 3 and Phase 4)
 
@@ -87,6 +91,7 @@ Expected outcome:
   - before generation, UI shows resolved sensory source (`manual` / `auto mapping` / `phase default template` / `none`)
   - diagnostics includes matched tags + POV when auto mapping is selected
   - diagnostics shows fallback reason when auto mapping has no signal and defaults are used
+  - diagnostics also shows Phase 3 tag source for current chapter (`模型原生` vs `系統補全`)
 - Manual override behavior:
   - editing sensory override fields in UI auto-disables `autoSensoryMapping`
   - turning `autoSensoryMapping` back on keeps manual text but does not inject it unless auto is turned off again

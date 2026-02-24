@@ -9,7 +9,7 @@ import { useStepGenerator } from '@/hooks/useStepGenerator';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
-import { Play, StopCircle, RefreshCw } from 'lucide-react';
+import { AlertTriangle, Play, StopCircle, RefreshCw } from 'lucide-react';
 import { Textarea } from '@/components/ui/textarea';
 import { resolveWorkflowMode } from '@/lib/workflow-mode';
 
@@ -21,11 +21,12 @@ export const StepBreakdown: React.FC = () => {
       compressionAutoThreshold: state.compressionAutoThreshold,
     }))
   );
-  const { targetChapterCount, wordCount, compressedContext } = useNovelStore(
+  const { targetChapterCount, wordCount, compressedContext, breakdownMeta } = useNovelStore(
     useShallow((state) => ({
       targetChapterCount: state.targetChapterCount,
       wordCount: state.wordCount,
       compressedContext: state.compressedContext,
+      breakdownMeta: state.breakdownMeta,
     }))
   );
   const { generate, stop } = useStepGenerator();
@@ -44,6 +45,9 @@ export const StepBreakdown: React.FC = () => {
   const modeClass = modeMeta.isCompressed
     ? 'border-amber-400/40 bg-amber-600/20 text-amber-200'
     : 'border-zinc-500/30 bg-zinc-700/30 text-zinc-200';
+  const injectedTagsByChapter = Object.entries(breakdownMeta?.injectedTagsByChapter || {})
+    .filter(([, tags]) => Array.isArray(tags) && tags.length > 0)
+    .sort((a, b) => Number(a[0]) - Number(b[0]));
 
   return (
     <Card className="border-l-4 border-l-amber-500">
@@ -78,6 +82,37 @@ export const StepBreakdown: React.FC = () => {
               ? 'Auto-resume is disabled. If output looks incomplete, rerun this step manually.'
               : 'Breakdown output status will appear here after generation.'}
         </div>
+        {breakdownMeta?.repairStatus && breakdownMeta.repairStatus !== 'none' ? (
+          <div className="rounded-md border border-orange-400/40 bg-orange-500/10 px-3 py-2 text-xs text-orange-200">
+            <p className="font-mono font-semibold">
+              System Auto-Repaired Breakdown ({breakdownMeta.repairStatus})
+            </p>
+            <p className="mt-1 text-[11px]">
+              Injected Tags: {breakdownMeta.injectedTagCount ?? 0} / Injected POV: {breakdownMeta.injectedPovCount ?? 0}
+            </p>
+            {breakdownMeta.repairReasons && breakdownMeta.repairReasons.length > 0 ? (
+              <p className="mt-1 text-[11px]">Reasons: {breakdownMeta.repairReasons.join(', ')}</p>
+            ) : null}
+            {injectedTagsByChapter.length > 0 ? (
+              <div className="mt-2 space-y-1">
+                <p className="flex items-center gap-1 text-[11px] font-semibold">
+                  <AlertTriangle className="size-3" />
+                  System Injected Tags (by chapter)
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  {injectedTagsByChapter.map(([chapter, tags]) => (
+                    <span
+                      key={`injected-tags-${chapter}`}
+                      className="rounded border border-orange-300/60 bg-orange-400/15 px-2 py-1 text-[10px] text-orange-100"
+                    >
+                      第{chapter}章: {(Array.isArray(tags) ? tags : []).join('、')}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+          </div>
+        ) : null}
 
         <div className="space-y-2 rounded-lg border border-amber-500/20 bg-card/30 p-3">
           <Label className="text-xs font-mono text-amber-500 font-bold">

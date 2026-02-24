@@ -3,6 +3,7 @@ import {
   normalizePovCharacter,
   sanitizeSensoryTagsStrict,
 } from '@/lib/sensory-tags';
+import { normalizeBreakdownContent } from '@/lib/breakdown-normalizer';
 
 interface AutoSensoryMappingInput {
   templates: SensoryAnchorTemplate[];
@@ -194,6 +195,7 @@ export function getAutoSensoryAnchors({
   recentlyUsedIds = [],
   maxAnchors = DEFAULT_MAX_ANCHORS,
 }: AutoSensoryMappingInput): AutoSensoryMappingResult {
+  const normalizedBreakdown = normalizeBreakdownContent(breakdown).content;
   const normalizedTemplates = toNormalizedTemplates(templates);
   if (normalizedTemplates.length === 0) {
     return {
@@ -204,7 +206,7 @@ export function getAutoSensoryAnchors({
     };
   }
 
-  const chapterBlock = findChapterBlock(breakdown, chapterNumber);
+  const chapterBlock = findChapterBlock(normalizedBreakdown, chapterNumber);
   if (!chapterBlock) {
     return {
       anchorText: '',
@@ -265,4 +267,3 @@ export function getAutoSensoryAnchors({
     matchedPov: chapterPov,
   };
 }
-

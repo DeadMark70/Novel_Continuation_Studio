@@ -141,10 +141,12 @@ const settingsState = {
     continuation: 'sensory_default',
   },
   autoSensoryMapping: true,
+  sensoryTagUsage: {},
   autoResumeOnLength: true,
   autoResumePhaseAnalysis: true,
   autoResumePhaseOutline: true,
   autoResumeMaxRounds: 2,
+  recordSensoryTagUsageBatch: vi.fn(async () => undefined),
   fetchProviderModels: vi.fn(async () => []),
   getResolvedGenerationConfig: vi.fn(() => ({
     provider: 'nim' as const,
@@ -977,7 +979,21 @@ describe('useStepGenerator', () => {
           chunkAttempts += 1;
           if (chunkAttempts === 1) {
             options?.onFinish?.({ finishReason: 'length' });
-            yield '【逐章章節表】\n【第1章】第一版';
+            yield [
+              '【逐章章節表】',
+              '【第1章】第一版',
+              '【推薦感官標籤】摩擦刺激',
+              '【感官視角重心】通用',
+              '【第2章】第二版',
+              '【推薦感官標籤】溫度刺激',
+              '【感官視角重心】通用',
+              '【第3章】第三版',
+              '【推薦感官標籤】壓迫束縛',
+              '【感官視角重心】通用',
+              '【第4章】第四版',
+              '【推薦感官標籤】失控反應',
+              '【感官視角重心】通用',
+            ].join('\n');
             return;
           }
           options?.onFinish?.({ finishReason: 'stop' });
@@ -1041,7 +1057,21 @@ describe('useStepGenerator', () => {
           return;
         }
         if (kind === 'breakdownChunk') {
-          yield '【逐章章節表】\n【第1章】情節 A';
+          yield [
+            '【逐章章節表】',
+            '【第1章】情節 A',
+            '【推薦感官標籤】摩擦刺激',
+            '【感官視角重心】通用',
+            '【第2章】情節 B',
+            '【推薦感官標籤】溫度刺激',
+            '【感官視角重心】通用',
+            '【第3章】情節 C',
+            '【推薦感官標籤】壓迫束縛',
+            '【感官視角重心】通用',
+            '【第4章】情節 D',
+            '【推薦感官標籤】失控反應',
+            '【感官視角重心】通用',
+          ].join('\n');
           return;
         }
         yield 'Generated content';
@@ -1071,8 +1101,99 @@ describe('useStepGenerator', () => {
     expect((breakdownContent.match(/【逐章章節表】/g) || []).length).toBe(1);
     expect(breakdownContent).toContain('【章節框架總覽】');
     expect(breakdownContent).toContain('總覽內容');
-    expect(breakdownContent).toContain('【第1章】情節 A');
+    expect(breakdownContent).toContain('【第1章】');
+    expect(breakdownContent).toContain('情節 A');
     expect(breakdownContent).toContain('【張力升級與去重守則】');
     expect(breakdownContent).toContain('去重規則');
+  });
+
+  it('retries breakdown once when validator detects missing chapter count', async () => {
+    settingsState.compressionMode = 'off';
+    novelState.currentSessionId = 'session_active';
+    novelState.getSessionSnapshot.mockImplementation(async (sessionId: string) => (
+      createSessionSnapshot(sessionId, {
+        targetChapterCount: 4,
+      })
+    ));
+
+    let chunkCalls = 0;
+    generateStreamByProviderMock.mockImplementation(
+      async function* (
+        _provider: string,
+        prompt: string,
+        _model: string,
+        _apiKey: string,
+        _systemPrompt: unknown,
+        options?: { onFinish?: (meta: { finishReason: 'stop' | 'length' | 'unknown' }) => void }
+      ) {
+        options?.onFinish?.({ finishReason: 'stop' });
+        const kind = resolvePromptKind(prompt);
+        if (kind === 'breakdownMeta') {
+          yield '【章節框架總覽】\n總覽內容\n\n【張力升級與去重守則】\n去重規則';
+          return;
+        }
+        if (kind === 'breakdownChunk') {
+          chunkCalls += 1;
+          if (chunkCalls === 1) {
+            yield [
+              '【逐章章節表】',
+              '【第1章】情節 A',
+              '【推薦感官標籤】摩擦刺激',
+              '【感官視角重心】通用',
+              '【第2章】情節 B',
+              '【推薦感官標籤】溫度刺激',
+              '【感官視角重心】通用',
+              '【第3章】情節 C',
+              '【推薦感官標籤】壓迫束縛',
+              '【感官視角重心】通用',
+            ].join('\n');
+            return;
+          }
+          yield [
+            '【逐章章節表】',
+            '【第1章】情節 A',
+            '【推薦感官標籤】摩擦刺激',
+            '【感官視角重心】通用',
+            '【第2章】情節 B',
+            '【推薦感官標籤】溫度刺激',
+            '【感官視角重心】通用',
+            '【第3章】情節 C',
+            '【推薦感官標籤】壓迫束縛',
+            '【感官視角重心】通用',
+            '【第4章】情節 D',
+            '【推薦感官標籤】失控反應',
+            '【感官視角重心】通用',
+          ].join('\n');
+          return;
+        }
+        yield 'Generated content';
+      }
+    );
+
+    vi.useFakeTimers();
+    try {
+      const runPromise = getRunExecutor()({
+        runId: 'run_breakdown_retry_validator',
+        sessionId: 'session_active',
+        stepId: 'breakdown',
+        source: 'manual',
+        signal: new AbortController().signal,
+        onProgress: vi.fn(),
+      });
+      await vi.advanceTimersByTimeAsync(3500);
+      await runPromise;
+    } finally {
+      vi.useRealTimers();
+    }
+
+    expect(chunkCalls).toBe(2);
+    expect(novelState.updateWorkflowBySession).toHaveBeenCalledWith(
+      'session_active',
+      expect.objectContaining({
+        breakdownMeta: expect.objectContaining({
+          repairStatus: expect.any(String),
+        }),
+      })
+    );
   });
 });

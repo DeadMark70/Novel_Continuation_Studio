@@ -49,6 +49,33 @@ Two-stage contract:
   - `【推薦感官標籤】` (from canonical sensory tag set)
   - `【感官視角重心】` (single POV character or `通用`)
 
+Runtime hardening for noisy Markdown outputs:
+
+- Normalizer (`lib/breakdown-normalizer.ts`) canonicalizes heading/field variants:
+  - chapter forms like `### 第五章` -> `【第5章】`
+  - field forms like `推薦感官標籤:` -> `【推薦感官標籤】`
+- Validator (`lib/breakdown-validator.ts`) rejects broken payloads before persistence:
+  - chapter count mismatch for requested range
+  - missing/extra chapter numbers
+  - omission markers (`以下省略`, `略同`, etc.)
+  - likely truncated tail / incomplete last chapter signal
+- Retry policy:
+  - one guarded retry for Phase 3 contract failures
+  - if still invalid: fail explicitly (no silent acceptance)
+
+Sensory tag injection strategy (A+B):
+
+- A (prompt-time hint): inject ranked existing tag candidates (`top 30`) into Breakdown chunk prompt.
+- Ranking uses:
+  - usage frequency (`sensoryTagUsage` log scale)
+  - recent usage bonus
+  - POV relevance bonus
+  - canonical fallback bonus
+- B (post-parse fallback):
+  - if chapter lacks `推薦感官標籤` or `感官視角重心`, system injects fallback values
+  - tags use weighted randomness with cooldown to avoid repeating the same set every chapter
+  - repaired metadata is persisted in `breakdownMeta`
+
 ## Sensory Harvest Contract
 
 Harvest prompt (`SENSORY_TEMPLATE_HARVEST_PROMPT`) is strict JSON-only and enforces:

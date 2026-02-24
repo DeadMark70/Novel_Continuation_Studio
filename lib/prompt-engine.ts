@@ -32,6 +32,7 @@ export interface PromptContext {
   compressionSampledChunkCount?: number;
   chapterRangeStart?: number;
   chapterRangeEnd?: number;
+  existingSensoryTagsHint?: string;
   sensoryAnchors?: string;
   sensoryTemplateName?: string;
 }
@@ -215,6 +216,7 @@ export function injectPrompt(template: string, context: PromptContext): string {
   result = result.replace(/{{TARGET_CHAPTER_COUNT}}/g, targetChapterCount.toString());
   result = result.replace(/{{CHAPTER_RANGE_START}}/g, (context.chapterRangeStart ?? 1).toString());
   result = result.replace(/{{CHAPTER_RANGE_END}}/g, (context.chapterRangeEnd ?? targetChapterCount).toString());
+  result = result.replace(/{{EXISTING_SENSORY_TAGS_HINT}}/g, context.existingSensoryTagsHint?.trim() || '無');
   result = result.replace(/{{PACING_RATIO_SECTION}}/g, buildPacingRatioSection(context));
 
   const plotPercent = clampPercent(context.plotPercent, 60);

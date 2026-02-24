@@ -2,9 +2,9 @@
 
 Source: `lib/db.ts`  
 Database name: `NovelContinuationDB`  
-Current schema version: `14`
+Current schema version: `15`
 
-## Tables (v14)
+## Tables (v15)
 
 1. `novels`
 - key: `++id`
@@ -35,6 +35,7 @@ Current schema version: `14`
   - `outline`
   - `outlineDirection`
   - `breakdown`
+  - `breakdownMeta` (`repairStatus`, `repairReasons`, `repairedAt`, `repairedBy`, `injectedTagCount`, `injectedPovCount`, `injectedTagsByChapter`)
   - `chapters[]`
 - targets/pacing:
   - `targetStoryWordCount`
@@ -94,6 +95,7 @@ Current schema version: `14`
   - `sensoryAnchorTemplates`
   - `sensoryAutoTemplateByPhase`
   - `autoSensoryMapping`
+  - `sensoryTagUsage`
 - timestamp: `updatedAt`
 
 ## Migration Timeline
@@ -112,6 +114,7 @@ Current schema version: `14`
 - v12: add/backfill sensory templates and auto-template mapping
 - v13: add `lorebook` table
 - v14: add phase-level param override/inheritance defaults
+- v15: add/backfill `settings.sensoryTagUsage` persistence map
 
 ## Notes
 

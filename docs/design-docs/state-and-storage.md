@@ -11,6 +11,7 @@
 - Session content and phase artifacts
 - Chapter array
 - Consistency reports and ledgers
+- Phase 3 repair metadata (`breakdownMeta`) including injected sensory tag provenance
 
 3. Settings state (`store/useSettingsStore.ts`)
 - Provider/model/phase routing
@@ -20,6 +21,7 @@
 - sensory template settings
   - `autoSensoryMapping` toggle
   - template-level `povCharacter` metadata
+  - persistent `sensoryTagUsage` map (`count`, `lastUsedAt`, optional `byPov`)
 
 4. Run scheduler (`store/useRunSchedulerStore.ts`)
 - queue + active runs
@@ -41,7 +43,7 @@
 
 ## Persistence Model
 
-Database: Dexie (`lib/db.ts`), current schema version 14.
+Database: Dexie (`lib/db.ts`), current schema version 15.
 
 Tables:
 

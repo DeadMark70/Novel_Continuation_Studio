@@ -42,11 +42,12 @@ export const StepChapter1: React.FC = () => {
       setAutoSensoryMapping: state.setAutoSensoryMapping,
     }))
   );
-  const { wordCount, compressedContext, breakdown, chapters, currentSessionId } = useNovelStore(
+  const { wordCount, compressedContext, breakdown, breakdownMeta, chapters, currentSessionId } = useNovelStore(
     useShallow((state) => ({
       wordCount: state.wordCount,
       compressedContext: state.compressedContext,
       breakdown: state.breakdown || '',
+      breakdownMeta: state.breakdownMeta,
       chapters: Array.isArray(state.chapters) ? state.chapters : [],
       currentSessionId: state.currentSessionId || '',
     }))
@@ -180,6 +181,7 @@ export const StepChapter1: React.FC = () => {
             chapterNumber={chapterNumber}
             autoSensoryMapping={autoSensoryMapping}
             resolution={sensoryCruiseResolution}
+            breakdownMeta={breakdownMeta}
           />
           <details className="rounded border border-border/60 p-2">
             <summary className="cursor-pointer text-xs font-mono">進階覆寫（手動）</summary>

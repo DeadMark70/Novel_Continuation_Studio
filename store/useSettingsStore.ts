@@ -16,6 +16,7 @@ import type {
   PhaseModelSelection,
   ProviderScopedSettings,
   SensoryAnchorTemplate,
+  SensoryTagUsageMap,
 } from '@/lib/llm-types';
 import { getModelCapabilityOverride } from '@/lib/nim-model-overrides';
 import {
@@ -31,7 +32,9 @@ import {
   normalizePovCharacter,
   sanitizeSensoryTags,
   sanitizeSensoryTagsStrict,
+  toChineseSensoryTagStrict,
 } from '@/lib/sensory-tags';
+import { sanitizeSensoryTagUsageMap } from '@/lib/sensory-tag-ranking';
 
 const CAPABILITY_CACHE_TTL_MS = 10 * 60 * 1000;
 
@@ -230,6 +233,10 @@ function sanitizeSensoryAutoTemplateByPhase(
   return { chapter1, continuation };
 }
 
+function createDefaultSensoryTagUsageMap(): SensoryTagUsageMap {
+  return {};
+}
+
 function createDefaultPhaseConfig(): PhaseConfigMap {
   return {
     compression: { provider: 'nim', model: DEFAULT_NIM_MODEL },
@@ -395,6 +402,7 @@ interface SettingsState {
 
   customPrompts: Record<string, string>;
   sensoryAnchorTemplates: SensoryAnchorTemplate[];
+  sensoryTagUsage: SensoryTagUsageMap;
   sensoryAutoTemplateByPhase: {
     chapter1?: string;
     continuation?: string;
@@ -425,6 +433,7 @@ interface SettingsState {
     phaseParamInheritance?: PhaseParamInheritanceMap;
     customPrompts: Record<string, string>;
     sensoryAnchorTemplates: SensoryAnchorTemplate[];
+    sensoryTagUsage?: SensoryTagUsageMap;
     sensoryAutoTemplateByPhase: {
       chapter1?: string;
       continuation?: string;
@@ -472,6 +481,9 @@ interface SettingsState {
   setCustomPrompt: (key: string, prompt: string) => Promise<void>;
   setSensoryAnchorTemplates: (templates: SensoryAnchorTemplate[]) => Promise<void>;
   addSensoryTemplatesFromHarvest: (candidates: HarvestedTemplateCandidate[]) => Promise<void>;
+  recordSensoryTagUsageBatch: (
+    entries: Array<{ tags: string[]; povCharacter?: string }>
+  ) => Promise<void>;
   setSensoryAutoTemplate: (phase: 'chapter1' | 'continuation', templateId?: string) => Promise<void>;
   setAutoSensoryMapping: (enabled: boolean) => Promise<void>;
   setThinkingEnabled: (enabled: boolean, provider?: LLMProvider) => Promise<void>;
@@ -521,6 +533,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
 
   customPrompts: {},
   sensoryAnchorTemplates: createDefaultSensoryAnchorTemplates(),
+  sensoryTagUsage: createDefaultSensoryTagUsageMap(),
   sensoryAutoTemplateByPhase: createDefaultSensoryAutoTemplateByPhase(),
   autoSensoryMapping: DEFAULT_AUTO_SENSORY_MAPPING,
   truncationThreshold: 799,
@@ -574,6 +587,9 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
         },
       };
       const normalizedSensoryTemplates = sanitizeSensoryAnchorTemplates(snapshot.sensoryAnchorTemplates);
+      const normalizedSensoryTagUsage = sanitizeSensoryTagUsageMap(
+        snapshot.sensoryTagUsage ?? state.sensoryTagUsage
+      );
       const normalizedSensoryAutoTemplateByPhase = sanitizeSensoryAutoTemplateByPhase(
         snapshot.sensoryAutoTemplateByPhase,
         normalizedSensoryTemplates
@@ -592,6 +608,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
         phaseParamInheritance: normalizedPhaseParamInheritance,
         customPrompts: snapshot.customPrompts,
         sensoryAnchorTemplates: normalizedSensoryTemplates,
+        sensoryTagUsage: normalizedSensoryTagUsage,
         sensoryAutoTemplateByPhase: normalizedSensoryAutoTemplateByPhase,
         autoSensoryMapping: snapshot.autoSensoryMapping ?? state.autoSensoryMapping,
         truncationThreshold: sanitizePositiveInt(snapshot.context.truncationThreshold, state.truncationThreshold),
@@ -853,6 +870,41 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     await get().persist();
   },
 
+  recordSensoryTagUsageBatch: async (entries) => {
+    if (!Array.isArray(entries) || entries.length === 0) {
+      return;
+    }
+
+    set((state) => {
+      const next: SensoryTagUsageMap = {
+        ...sanitizeSensoryTagUsageMap(state.sensoryTagUsage),
+      };
+      const now = Date.now();
+
+      for (const entry of entries) {
+        const pov = normalizePovCharacter(entry?.povCharacter);
+        const normalizedTags = sanitizeSensoryTagsStrict(entry?.tags ?? [], 8);
+        for (const rawTag of normalizedTags) {
+          const tag = toChineseSensoryTagStrict(rawTag);
+          if (!tag) {
+            continue;
+          }
+          const existing = next[tag] ?? { count: 0, lastUsedAt: now, byPov: {} };
+          const byPov = { ...(existing.byPov ?? {}) };
+          byPov[pov] = (byPov[pov] ?? 0) + 1;
+          next[tag] = {
+            count: existing.count + 1,
+            lastUsedAt: now,
+            byPov,
+          };
+        }
+      }
+
+      return { sensoryTagUsage: next };
+    });
+    await get().persist();
+  },
+
   setSensoryAutoTemplate: async (phase, templateId) => {
     set((state) => {
       const validIds = new Set(state.sensoryAnchorTemplates.map((entry) => entry.id));
@@ -1092,6 +1144,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     const phaseParamOverrides = sanitizePhaseParamOverrides(settings.phaseParamOverrides);
     const phaseParamInheritance = sanitizePhaseParamInheritance(settings.phaseParamInheritance);
     const sensoryAnchorTemplates = sanitizeSensoryAnchorTemplates(settings.sensoryAnchorTemplates);
+    const sensoryTagUsage = sanitizeSensoryTagUsageMap(settings.sensoryTagUsage);
     const sensoryAutoTemplateByPhase = sanitizeSensoryAutoTemplateByPhase(
       settings.sensoryAutoTemplateByPhase,
       sensoryAnchorTemplates
@@ -1141,6 +1194,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       phaseParamInheritance,
       customPrompts: settings.customPrompts || {},
       sensoryAnchorTemplates,
+      sensoryTagUsage,
       sensoryAutoTemplateByPhase,
       autoSensoryMapping: settings.autoSensoryMapping ?? DEFAULT_AUTO_SENSORY_MAPPING,
       truncationThreshold: settings.truncationThreshold ?? 799,
@@ -1193,6 +1247,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
 
       customPrompts: state.customPrompts,
       sensoryAnchorTemplates: state.sensoryAnchorTemplates,
+      sensoryTagUsage: state.sensoryTagUsage,
       sensoryAutoTemplateByPhase: state.sensoryAutoTemplateByPhase,
       autoSensoryMapping: state.autoSensoryMapping,
       truncationThreshold: state.truncationThreshold,

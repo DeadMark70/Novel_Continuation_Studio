@@ -369,6 +369,7 @@ const BREAKDOWN_CHUNK_PROMPT =
 - 每章新增：` +
   "`【推薦感官標籤】`" +
   `（只能從 ${SENSORY_TAG_LIST_TEXT} 中選 1-3 個，若不需要填「無」）
+- 既有標籤候選（優先）：{{EXISTING_SENSORY_TAGS_HINT}}
 - 每章新增：` +
   "`【感官視角重心】`" +
   `（填單一角色名；若無明確角色填「通用」）

@@ -7,6 +7,10 @@ interface SensoryCruiseDiagnosticsPanelProps {
   chapterNumber: number;
   autoSensoryMapping: boolean;
   resolution: SensoryCruiseResolution;
+  breakdownMeta?: {
+    repairReasons?: string[];
+    injectedTagsByChapter?: Record<number, string[]>;
+  };
 }
 
 function resolveSourceLabel(source: SensoryCruiseResolution['source']): string {
@@ -46,10 +50,13 @@ export function SensoryCruiseDiagnosticsPanel({
   chapterNumber,
   autoSensoryMapping,
   resolution,
+  breakdownMeta,
 }: SensoryCruiseDiagnosticsPanelProps) {
   const preview = resolution.anchors?.trim() || '';
   const matchedTags = resolution.autoMappingResult?.matchedTags ?? [];
   const matchedPov = resolution.autoMappingResult?.matchedPov?.trim() || '';
+  const injectedTagsForChapter = breakdownMeta?.injectedTagsByChapter?.[chapterNumber] ?? [];
+  const usedSystemFallback = injectedTagsForChapter.length > 0;
 
   return (
     <div className="rounded border border-border/70 bg-card/20 p-3 text-xs">
@@ -70,6 +77,22 @@ export function SensoryCruiseDiagnosticsPanel({
         {resolution.source === 'autoMapping' ? (
           <p>
             匹配：標籤 {matchedTags.length > 0 ? matchedTags.join('、') : '無'} / 視角 {matchedPov || '通用'}
+          </p>
+        ) : null}
+        {resolution.source === 'autoMapping' ? (
+          <p>
+            Breakdown 標籤來源：
+            <span className={`font-semibold ${usedSystemFallback ? 'text-orange-300' : ''}`}>
+              {usedSystemFallback ? '系統補全（Fallback）' : '模型原生'}
+            </span>
+          </p>
+        ) : null}
+        {usedSystemFallback ? (
+          <p className="text-[11px] text-orange-200">
+            補全標籤：{injectedTagsForChapter.join('、')}
+            {breakdownMeta?.repairReasons?.length
+              ? `（原因：${breakdownMeta.repairReasons.join(' / ')}）`
+              : ''}
           </p>
         ) : null}
       </div>
