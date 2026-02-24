@@ -46,15 +46,14 @@ import {
   stripResumeLastOutputDirective,
 } from '@/lib/resume-directive';
 import { generateWithSectionRetry } from '@/lib/section-retry';
-import { getAutoSensoryAnchors } from '@/lib/sensory-mapping';
+import { resolveSensoryCruiseState } from '@/lib/sensory-cruise';
+import { getRecentSensoryTemplateIds, pushRecentSensoryTemplateIds } from '@/lib/sensory-recent';
 
 type PromptTemplateKey = keyof typeof DEFAULT_PROMPTS;
 const activeAbortControllers = new Map<string, AbortController>();
 const PREVIEW_CHARS = 220;
 const UNKNOWN_FINISH_REASON: GenerateFinishReason = 'unknown';
 const BREAKDOWN_CHUNK_SIZE = 4;
-const RECENT_SENSORY_TEMPLATE_IDS_LIMIT = 4;
-const recentSensoryTemplateIdsBySession = new Map<string, string[]>();
 
 const STEP_TRANSITIONS: Record<
   Exclude<WorkflowStepId, 'continuation'>,
@@ -118,20 +117,6 @@ function resolvePromptTemplateKey(stepId: WorkflowStepId, useCompressedContext: 
 
 function isLengthFinishReason(reason: GenerateFinishReason): boolean {
   return reason === 'length';
-}
-
-function getRecentSensoryTemplateIds(sessionId: string): string[] {
-  return recentSensoryTemplateIdsBySession.get(sessionId) ?? [];
-}
-
-function pushRecentSensoryTemplateIds(sessionId: string, ids: string[]): void {
-  if (!sessionId || ids.length === 0) {
-    return;
-  }
-  const current = getRecentSensoryTemplateIds(sessionId);
-  const merged = [...current, ...ids.map((entry) => entry.trim()).filter(Boolean)];
-  const deduped = [...new Set(merged)].slice(-RECENT_SENSORY_TEMPLATE_IDS_LIMIT);
-  recentSensoryTemplateIdsBySession.set(sessionId, deduped);
 }
 
 interface StreamAttemptResult {
@@ -382,52 +367,25 @@ export function useStepGenerator() {
       const eroticPack = sessionSnapshot.eroticPack ?? '';
       const compressedContext = sessionSnapshot.compressedContext ?? '';
       const autoSensoryMapping = settingsState.autoSensoryMapping ?? true;
-      const manualSensoryAnchors = sensoryAnchors?.trim();
-      const autoTemplateId = stepId === 'chapter1'
-        ? sensoryAutoTemplateByPhase.chapter1
-        : stepId === 'continuation'
-          ? sensoryAutoTemplateByPhase.continuation
-          : undefined;
-      const autoTemplate = autoTemplateId
-        ? sensoryAnchorTemplates.find((entry) => entry.id === autoTemplateId)
-        : undefined;
       const chapterNumber = stepId === 'chapter1' || stepId === 'continuation'
         ? chapters.length + 1
         : undefined;
-
-      const autoMappingResult = (
-        !manualSensoryAnchors &&
-        autoSensoryMapping &&
-        (stepId === 'chapter1' || stepId === 'continuation') &&
-        chapterNumber !== undefined
-      )
-        ? getAutoSensoryAnchors({
-          templates: sensoryAnchorTemplates,
-          breakdown,
-          chapterNumber,
-          recentlyUsedIds: getRecentSensoryTemplateIds(sessionId),
-          maxAnchors: 2,
-        })
-        : null;
-
-      let resolvedSensoryAnchors: string | undefined;
-      let resolvedSensoryTemplateName: string | undefined;
-      let resolvedSensorySource: 'none' | 'manual' | 'autoMapping' | 'autoTemplate' = 'none';
-
-      if (manualSensoryAnchors) {
-        resolvedSensoryAnchors = manualSensoryAnchors;
-        resolvedSensorySource = 'manual';
-      } else if (autoMappingResult?.anchorText?.trim()) {
-        resolvedSensoryAnchors = autoMappingResult.anchorText.trim();
-        resolvedSensoryTemplateName = 'Auto Mapping';
-        resolvedSensorySource = 'autoMapping';
-      } else if (autoTemplate?.content?.trim()) {
-        resolvedSensoryAnchors = autoTemplate.content.trim();
-        resolvedSensoryTemplateName = autoTemplate.name;
-        resolvedSensorySource = 'autoTemplate';
-      }
-
-      const shouldCarrySensoryAnchorsToNextRun = resolvedSensorySource !== 'autoMapping';
+      const sensoryCruise = resolveSensoryCruiseState({
+        stepId,
+        chapterNumber,
+        manualSensoryAnchors: sensoryAnchors,
+        autoSensoryMapping,
+        sensoryAnchorTemplates,
+        sensoryAutoTemplateByPhase,
+        breakdown,
+        recentlyUsedIds: getRecentSensoryTemplateIds(sessionId),
+        maxAnchors: 2,
+      });
+      const autoMappingResult = sensoryCruise.autoMappingResult;
+      const resolvedSensoryAnchors = sensoryCruise.anchors;
+      const resolvedSensoryTemplateName = sensoryCruise.templateName;
+      const resolvedSensorySource = sensoryCruise.source;
+      const shouldCarrySensoryAnchorsToNextRun = sensoryCruise.shouldCarryToNextRun;
 
       let generationConfig = settingsState.getResolvedGenerationConfig(stepId);
       if (

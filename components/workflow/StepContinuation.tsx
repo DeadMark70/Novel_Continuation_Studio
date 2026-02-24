@@ -17,6 +17,9 @@ import { ConsistencyPanel } from './ConsistencyPanel';
 import { resolveWorkflowMode } from '@/lib/workflow-mode';
 import { mergeSensoryAnchorBlocks } from '@/lib/sensory-anchors';
 import { Switch } from '@/components/ui/switch';
+import { resolveSensoryCruiseState } from '@/lib/sensory-cruise';
+import { getRecentSensoryTemplateIds } from '@/lib/sensory-recent';
+import { SensoryCruiseDiagnosticsPanel } from '@/components/sensory/SensoryCruiseDiagnosticsPanel';
 
 export const StepContinuation: React.FC = () => {
   const step = useWorkflowStore((state) => state.steps.continuation);
@@ -38,12 +41,14 @@ export const StepContinuation: React.FC = () => {
       setAutoSensoryMapping: state.setAutoSensoryMapping,
     }))
   );
-  const { chapters, targetChapterCount, wordCount, compressedContext } = useNovelStore(
+  const { chapters, targetChapterCount, wordCount, compressedContext, breakdown, currentSessionId } = useNovelStore(
     useShallow((state) => ({
-      chapters: state.chapters,
+      chapters: Array.isArray(state.chapters) ? state.chapters : [],
       targetChapterCount: state.targetChapterCount,
       wordCount: state.wordCount,
       compressedContext: state.compressedContext,
+      breakdown: state.breakdown || '',
+      currentSessionId: state.currentSessionId || '',
     }))
   );
   const { generate, stop } = useStepGenerator();
@@ -94,6 +99,25 @@ export const StepContinuation: React.FC = () => {
   const modeClass = modeMeta.isCompressed
     ? 'border-green-400/40 bg-green-600/20 text-green-200'
     : 'border-zinc-500/30 bg-zinc-700/30 text-zinc-200';
+  const sensoryCruiseResolution = React.useMemo(() => resolveSensoryCruiseState({
+    stepId: 'continuation',
+    chapterNumber: nextChapterNumber,
+    manualSensoryAnchors: sensoryAnchors,
+    autoSensoryMapping,
+    sensoryAnchorTemplates,
+    sensoryAutoTemplateByPhase,
+    breakdown,
+    recentlyUsedIds: getRecentSensoryTemplateIds(currentSessionId),
+    maxAnchors: 2,
+  }), [
+    autoSensoryMapping,
+    breakdown,
+    currentSessionId,
+    nextChapterNumber,
+    sensoryAnchorTemplates,
+    sensoryAnchors,
+    sensoryAutoTemplateByPhase,
+  ]);
 
   return (
     <Card className="border-l-4 border-l-green-500">
@@ -137,6 +161,11 @@ export const StepContinuation: React.FC = () => {
                   Auto 模式為延遲綁定：具體注入內容會在生成時依當前章節框架動態決定。
                 </div>
               )}
+              <SensoryCruiseDiagnosticsPanel
+                chapterNumber={nextChapterNumber}
+                autoSensoryMapping={autoSensoryMapping}
+                resolution={sensoryCruiseResolution}
+              />
               <details className="rounded border border-border/60 p-2">
                 <summary className="cursor-pointer text-xs font-mono">進階覆寫（手動）</summary>
                 <div className="mt-3 space-y-2">

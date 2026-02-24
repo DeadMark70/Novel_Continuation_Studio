@@ -14,6 +14,9 @@ import { Label } from '@/components/ui/label';
 import { resolveWorkflowMode } from '@/lib/workflow-mode';
 import { mergeSensoryAnchorBlocks } from '@/lib/sensory-anchors';
 import { Switch } from '@/components/ui/switch';
+import { resolveSensoryCruiseState } from '@/lib/sensory-cruise';
+import { getRecentSensoryTemplateIds } from '@/lib/sensory-recent';
+import { SensoryCruiseDiagnosticsPanel } from '@/components/sensory/SensoryCruiseDiagnosticsPanel';
 
 export const StepChapter1: React.FC = () => {
   const { step, startStep } = useWorkflowStore(
@@ -39,10 +42,13 @@ export const StepChapter1: React.FC = () => {
       setAutoSensoryMapping: state.setAutoSensoryMapping,
     }))
   );
-  const { wordCount, compressedContext } = useNovelStore(
+  const { wordCount, compressedContext, breakdown, chapters, currentSessionId } = useNovelStore(
     useShallow((state) => ({
       wordCount: state.wordCount,
       compressedContext: state.compressedContext,
+      breakdown: state.breakdown || '',
+      chapters: Array.isArray(state.chapters) ? state.chapters : [],
+      currentSessionId: state.currentSessionId || '',
     }))
   );
   const { generate, stop } = useStepGenerator();
@@ -91,6 +97,26 @@ export const StepChapter1: React.FC = () => {
   const modeClass = modeMeta.isCompressed
     ? 'border-purple-400/40 bg-purple-600/20 text-purple-200'
     : 'border-zinc-500/30 bg-zinc-700/30 text-zinc-200';
+  const chapterNumber = chapters.length + 1;
+  const sensoryCruiseResolution = React.useMemo(() => resolveSensoryCruiseState({
+    stepId: 'chapter1',
+    chapterNumber,
+    manualSensoryAnchors: sensoryAnchors,
+    autoSensoryMapping,
+    sensoryAnchorTemplates,
+    sensoryAutoTemplateByPhase,
+    breakdown,
+    recentlyUsedIds: getRecentSensoryTemplateIds(currentSessionId),
+    maxAnchors: 2,
+  }), [
+    autoSensoryMapping,
+    breakdown,
+    chapterNumber,
+    currentSessionId,
+    sensoryAnchorTemplates,
+    sensoryAnchors,
+    sensoryAutoTemplateByPhase,
+  ]);
 
   return (
     <Card className="border-l-4 border-l-purple-500">
@@ -150,6 +176,11 @@ export const StepChapter1: React.FC = () => {
               Auto 模式為延遲綁定：具體注入內容會在生成時依當前章節框架動態決定。
             </div>
           )}
+          <SensoryCruiseDiagnosticsPanel
+            chapterNumber={chapterNumber}
+            autoSensoryMapping={autoSensoryMapping}
+            resolution={sensoryCruiseResolution}
+          />
           <details className="rounded border border-border/60 p-2">
             <summary className="cursor-pointer text-xs font-mono">進階覆寫（手動）</summary>
             <div className="mt-3 space-y-2">

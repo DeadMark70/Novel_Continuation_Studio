@@ -83,6 +83,10 @@ Expected outcome:
   - chapter-level breakdown sensory tags
   - chapter-level sensory POV focus
   - sensory template library (with cooldown against recently used templates)
+- Pre-run diagnostics panel behavior:
+  - before generation, UI shows resolved sensory source (`manual` / `auto mapping` / `phase default template` / `none`)
+  - diagnostics includes matched tags + POV when auto mapping is selected
+  - diagnostics shows fallback reason when auto mapping has no signal and defaults are used
 - Manual override behavior:
   - editing sensory override fields in UI auto-disables `autoSensoryMapping`
   - turning `autoSensoryMapping` back on keeps manual text but does not inject it unless auto is turned off again
