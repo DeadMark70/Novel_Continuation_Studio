@@ -12,6 +12,8 @@ import type {
   LLMProvider,
   ModelCapability,
   PhaseConfigMap,
+  PhaseParamInheritanceMap,
+  PhaseParamOverrides,
   ProviderScopedSettings,
 } from './llm-types';
 
@@ -145,6 +147,8 @@ export interface SettingsEntry {
   providerDefaults?: Record<LLMProvider, GenerationParams>;
   modelOverrides?: Record<LLMProvider, Record<string, Partial<GenerationParams>>>;
   phaseConfig?: Partial<PhaseConfigMap>;
+  phaseParamOverrides?: Partial<PhaseParamOverrides>;
+  phaseParamInheritance?: Partial<PhaseParamInheritanceMap>;
   sensoryAnchorTemplates?: Array<{
     id: string;
     name: string;
@@ -471,6 +475,32 @@ export class NovelDatabase extends Dexie {
       settings: 'id, updatedAt',
       novelBlobs: 'sessionId, updatedAt',
       lorebook: 'id, novelId, type'
+    });
+    this.version(14).stores({
+      novels: '++id, sessionId, updatedAt, createdAt',
+      settings: 'id, updatedAt',
+      novelBlobs: 'sessionId, updatedAt',
+      lorebook: 'id, novelId, type'
+    }).upgrade(async (tx) => {
+      await tx.table('settings').toCollection().modify((entry: SettingsEntry) => {
+        if (!entry.phaseParamOverrides) {
+          entry.phaseParamOverrides = {};
+        }
+        if (!entry.phaseParamInheritance) {
+          const inheritance: Record<WorkflowPhaseId, boolean> = {
+            compression: true,
+            analysis: true,
+            outline: true,
+            breakdown: true,
+            chapter1: true,
+            continuation: true,
+            sensoryHarvest: true,
+            loreExtractor: true,
+            loreJsonRepair: true,
+          };
+          entry.phaseParamInheritance = inheritance;
+        }
+      });
     });
   }
 }

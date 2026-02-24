@@ -11,6 +11,8 @@ import type {
   LLMProvider,
   ModelCapability,
   PhaseConfigMap,
+  PhaseParamInheritanceMap,
+  PhaseParamOverrides,
   PhaseModelSelection,
   ProviderScopedSettings,
   SensoryAnchorTemplate,
@@ -242,6 +244,59 @@ function createDefaultPhaseConfig(): PhaseConfigMap {
   };
 }
 
+function createDefaultPhaseParamOverrides(): PhaseParamOverrides {
+  return {
+    compression: {},
+    analysis: {},
+    outline: {},
+    breakdown: {},
+    chapter1: {},
+    continuation: {},
+    sensoryHarvest: {},
+    loreExtractor: {},
+    loreJsonRepair: {},
+  };
+}
+
+function createDefaultPhaseParamInheritance(): PhaseParamInheritanceMap {
+  return {
+    compression: true,
+    analysis: true,
+    outline: true,
+    breakdown: true,
+    chapter1: true,
+    continuation: true,
+    sensoryHarvest: true,
+    loreExtractor: true,
+    loreJsonRepair: true,
+  };
+}
+
+function sanitizePhaseParamOverrides(
+  value: Partial<PhaseParamOverrides> | undefined
+): PhaseParamOverrides {
+  const defaults = createDefaultPhaseParamOverrides();
+  const sanitized = { ...defaults };
+  for (const phaseId of DEFAULT_PHASES) {
+    sanitized[phaseId] = {
+      ...defaults[phaseId],
+      ...(value?.[phaseId] || {}),
+    };
+  }
+  return sanitized;
+}
+
+function sanitizePhaseParamInheritance(
+  value: Partial<PhaseParamInheritanceMap> | undefined
+): PhaseParamInheritanceMap {
+  const defaults = createDefaultPhaseParamInheritance();
+  const sanitized = { ...defaults };
+  for (const phaseId of DEFAULT_PHASES) {
+    sanitized[phaseId] = value?.[phaseId] ?? defaults[phaseId];
+  }
+  return sanitized;
+}
+
 function normalizeGenerationParams(
   params: Partial<GenerationParams> | undefined,
   fallback: GenerationParams
@@ -328,6 +383,8 @@ interface SettingsState {
   phaseConfig: PhaseConfigMap;
   providerDefaults: Record<LLMProvider, GenerationParams>;
   modelOverrides: Record<LLMProvider, Record<string, Partial<GenerationParams>>>;
+  phaseParamOverrides: PhaseParamOverrides;
+  phaseParamInheritance: PhaseParamInheritanceMap;
 
   // Legacy compatibility projections for existing components.
   apiKey: string;
@@ -364,6 +421,8 @@ interface SettingsState {
     phaseConfig: PhaseConfigMap;
     providerDefaults: Record<LLMProvider, GenerationParams>;
     modelOverrides: Record<LLMProvider, Record<string, Partial<GenerationParams>>>;
+    phaseParamOverrides?: PhaseParamOverrides;
+    phaseParamInheritance?: PhaseParamInheritanceMap;
     customPrompts: Record<string, string>;
     sensoryAnchorTemplates: SensoryAnchorTemplate[];
     sensoryAutoTemplateByPhase: {
@@ -451,6 +510,8 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   phaseConfig: createDefaultPhaseConfig(),
   providerDefaults: createDefaultProviderDefaults(),
   modelOverrides: { nim: {}, openrouter: {} },
+  phaseParamOverrides: createDefaultPhaseParamOverrides(),
+  phaseParamInheritance: createDefaultPhaseParamInheritance(),
 
   apiKey: '',
   selectedModel: DEFAULT_NIM_MODEL,
@@ -517,6 +578,8 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
         snapshot.sensoryAutoTemplateByPhase,
         normalizedSensoryTemplates
       );
+      const normalizedPhaseParamOverrides = sanitizePhaseParamOverrides(snapshot.phaseParamOverrides);
+      const normalizedPhaseParamInheritance = sanitizePhaseParamInheritance(snapshot.phaseParamInheritance);
 
       const next = {
         ...state,
@@ -525,6 +588,8 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
         phaseConfig: snapshot.phaseConfig,
         providerDefaults: normalizedProviderDefaults,
         modelOverrides: snapshot.modelOverrides,
+        phaseParamOverrides: normalizedPhaseParamOverrides,
+        phaseParamInheritance: normalizedPhaseParamInheritance,
         customPrompts: snapshot.customPrompts,
         sensoryAnchorTemplates: normalizedSensoryTemplates,
         sensoryAutoTemplateByPhase: normalizedSensoryAutoTemplateByPhase,
@@ -657,6 +722,9 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     const model = phaseSelection?.model || scoped.selectedModel;
     const defaults = state.providerDefaults[provider];
     const override = state.modelOverrides[provider]?.[model] || {};
+    const phaseParams = state.phaseParamInheritance[phaseId]
+      ? {}
+      : (state.phaseParamOverrides[phaseId] || {});
     
     // Fallback to environment variables if apiKey is missing in settings
     let resolvedApiKey = scoped.apiKey;
@@ -672,7 +740,14 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       provider,
       model,
       apiKey: resolvedApiKey,
-      params: { ...defaults, ...override },
+      params: normalizeGenerationParams(
+        {
+          ...defaults,
+          ...override,
+          ...phaseParams,
+        },
+        createDefaultProviderDefaults()[provider]
+      ),
       capability: scoped.modelCapabilities[model],
       supportedParameters: scoped.modelParameterSupport[model] || [],
       maxContextTokens: scoped.modelTokenLimits?.[model]?.contextLength,
@@ -1013,6 +1088,8 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     };
     const modelOverrides = settings.modelOverrides ?? { nim: {}, openrouter: {} };
     const phaseConfig = { ...createDefaultPhaseConfig(), ...(settings.phaseConfig || {}) };
+    const phaseParamOverrides = sanitizePhaseParamOverrides(settings.phaseParamOverrides);
+    const phaseParamInheritance = sanitizePhaseParamInheritance(settings.phaseParamInheritance);
     const sensoryAnchorTemplates = sanitizeSensoryAnchorTemplates(settings.sensoryAnchorTemplates);
     const sensoryAutoTemplateByPhase = sanitizeSensoryAutoTemplateByPhase(
       settings.sensoryAutoTemplateByPhase,
@@ -1059,6 +1136,8 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       providerDefaults,
       modelOverrides,
       phaseConfig,
+      phaseParamOverrides,
+      phaseParamInheritance,
       customPrompts: settings.customPrompts || {},
       sensoryAnchorTemplates,
       sensoryAutoTemplateByPhase,
@@ -1108,6 +1187,8 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       providerDefaults: state.providerDefaults,
       modelOverrides: state.modelOverrides,
       phaseConfig: state.phaseConfig,
+      phaseParamOverrides: state.phaseParamOverrides,
+      phaseParamInheritance: state.phaseParamInheritance,
 
       customPrompts: state.customPrompts,
       sensoryAnchorTemplates: state.sensoryAnchorTemplates,

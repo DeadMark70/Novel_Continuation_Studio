@@ -34,6 +34,8 @@ import type {
   GenerationParams,
   LLMProvider,
   PhaseConfigMap,
+  PhaseParamInheritanceMap,
+  PhaseParamOverrides,
   ProviderScopedSettings,
   SensoryAnchorTemplate,
 } from '@/lib/llm-types';
@@ -113,6 +115,22 @@ function parseRequiredFloatInput(raw: string, current: number): number {
   return Number.isFinite(next) ? next : current;
 }
 
+function parseOptionalIntInput(raw: string): number | undefined {
+  if (raw.trim() === '') {
+    return undefined;
+  }
+  const next = Number.parseInt(raw, 10);
+  return Number.isFinite(next) ? next : undefined;
+}
+
+function parseOptionalFloatInput(raw: string): number | undefined {
+  if (raw.trim() === '') {
+    return undefined;
+  }
+  const next = Number.parseFloat(raw);
+  return Number.isFinite(next) ? next : undefined;
+}
+
 function createTemplateId(): string {
   return `sensory_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 }
@@ -126,6 +144,8 @@ export default function SettingsPage() {
       phaseConfig: state.phaseConfig,
       providerDefaults: state.providerDefaults,
       modelOverrides: state.modelOverrides,
+      phaseParamOverrides: state.phaseParamOverrides,
+      phaseParamInheritance: state.phaseParamInheritance,
       customPrompts: state.customPrompts,
       sensoryAnchorTemplates: state.sensoryAnchorTemplates,
       sensoryAutoTemplateByPhase: state.sensoryAutoTemplateByPhase,
@@ -181,6 +201,13 @@ export default function SettingsPage() {
   const [draftOverrides, setDraftOverrides] = useState<Record<LLMProvider, Record<string, Partial<GenerationParams>>>>(
     () => clone(settings.modelOverrides)
   );
+  const [draftPhaseParamOverrides, setDraftPhaseParamOverrides] = useState<PhaseParamOverrides>(
+    () => clone(settings.phaseParamOverrides)
+  );
+  const [draftPhaseParamInheritance, setDraftPhaseParamInheritance] = useState<PhaseParamInheritanceMap>(
+    () => clone(settings.phaseParamInheritance)
+  );
+  const [selectedPhaseParamTab, setSelectedPhaseParamTab] = useState<GenerationPhaseId>('compression');
   const [draftPrompts, setDraftPrompts] = useState<Record<string, string>>(() =>
     clone(settings.customPrompts)
   );
@@ -225,6 +252,8 @@ export default function SettingsPage() {
     const nextPhase = clone(settings.phaseConfig);
     const nextDefaults = clone(settings.providerDefaults);
     const nextOverrides = clone(settings.modelOverrides);
+    const nextPhaseParamOverrides = clone(settings.phaseParamOverrides);
+    const nextPhaseParamInheritance = clone(settings.phaseParamInheritance);
     const nextPrompts = clone(settings.customPrompts);
     const nextSensoryTemplates = clone(settings.sensoryAnchorTemplates);
     const nextSensoryAutoByPhase = clone(settings.sensoryAutoTemplateByPhase);
@@ -247,6 +276,8 @@ export default function SettingsPage() {
     setDraftPhaseConfig(nextPhase);
     setDraftDefaults(nextDefaults);
     setDraftOverrides(nextOverrides);
+    setDraftPhaseParamOverrides(nextPhaseParamOverrides);
+    setDraftPhaseParamInheritance(nextPhaseParamInheritance);
     setDraftPrompts(nextPrompts);
     setDraftSensoryTemplates(nextSensoryTemplates);
     setDraftSensoryAutoTemplateByPhase(nextSensoryAutoByPhase);
@@ -260,6 +291,8 @@ export default function SettingsPage() {
       phaseConfig: nextPhase,
       providerDefaults: nextDefaults,
       modelOverrides: nextOverrides,
+      phaseParamOverrides: nextPhaseParamOverrides,
+      phaseParamInheritance: nextPhaseParamInheritance,
       prompts: nextPrompts,
       sensoryTemplates: nextSensoryTemplates,
       sensoryAutoByPhase: nextSensoryAutoByPhase,
@@ -289,7 +322,7 @@ export default function SettingsPage() {
     }
     // one-time hydration to avoid clobbering dirty draft
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isInitialized, settings.activeProvider, settings.providers, settings.phaseConfig, settings.providerDefaults, settings.modelOverrides, settings.customPrompts, settings.sensoryAnchorTemplates, settings.sensoryAutoTemplateByPhase, settings.truncationThreshold, settings.dualEndBuffer, settings.compressionMode, settings.compressionAutoThreshold, settings.compressionChunkSize, settings.compressionChunkOverlap, settings.compressionEvidenceSegments, settings.autoResumeOnLength, settings.autoResumePhaseAnalysis, settings.autoResumePhaseOutline, settings.autoResumeMaxRounds]);
+  }, [isInitialized, settings.activeProvider, settings.providers, settings.phaseConfig, settings.providerDefaults, settings.modelOverrides, settings.phaseParamOverrides, settings.phaseParamInheritance, settings.customPrompts, settings.sensoryAnchorTemplates, settings.sensoryAutoTemplateByPhase, settings.truncationThreshold, settings.dualEndBuffer, settings.compressionMode, settings.compressionAutoThreshold, settings.compressionChunkSize, settings.compressionChunkOverlap, settings.compressionEvidenceSegments, settings.autoResumeOnLength, settings.autoResumePhaseAnalysis, settings.autoResumePhaseOutline, settings.autoResumeMaxRounds]);
 
   const signature = useMemo(() => JSON.stringify({
     activeProvider: draftProvider,
@@ -297,11 +330,13 @@ export default function SettingsPage() {
     phaseConfig: draftPhaseConfig,
     providerDefaults: draftDefaults,
     modelOverrides: draftOverrides,
+    phaseParamOverrides: draftPhaseParamOverrides,
+    phaseParamInheritance: draftPhaseParamInheritance,
     prompts: draftPrompts,
     sensoryTemplates: draftSensoryTemplates,
     sensoryAutoByPhase: draftSensoryAutoTemplateByPhase,
     context: draftContext,
-  }), [draftProvider, draftProviders, draftPhaseConfig, draftDefaults, draftOverrides, draftPrompts, draftSensoryTemplates, draftSensoryAutoTemplateByPhase, draftContext]);
+  }), [draftProvider, draftProviders, draftPhaseConfig, draftDefaults, draftOverrides, draftPhaseParamOverrides, draftPhaseParamInheritance, draftPrompts, draftSensoryTemplates, draftSensoryAutoTemplateByPhase, draftContext]);
 
   const isDirty = didHydrateRef.current && signature !== initialSignatureRef.current;
 
@@ -402,6 +437,14 @@ export default function SettingsPage() {
         acc[provider] = cleaned;
         return acc;
       }, {} as Record<LLMProvider, Record<string, Partial<GenerationParams>>>);
+      const normalizedPhaseParamOverrides = PHASES.reduce((acc, phase) => {
+        acc[phase] = { ...(draftPhaseParamOverrides[phase] || {}) };
+        return acc;
+      }, {} as PhaseParamOverrides);
+      const normalizedPhaseParamInheritance = PHASES.reduce((acc, phase) => {
+        acc[phase] = draftPhaseParamInheritance[phase] ?? true;
+        return acc;
+      }, {} as PhaseParamInheritanceMap);
 
       const normalizedPrompts = PROMPT_KEYS.reduce((acc, key) => {
         const nextValue = draftPrompts[key] ?? '';
@@ -418,6 +461,8 @@ export default function SettingsPage() {
           openrouter: normalizeParams(draftDefaults.openrouter),
         },
         modelOverrides: normalizedOverrides,
+        phaseParamOverrides: normalizedPhaseParamOverrides,
+        phaseParamInheritance: normalizedPhaseParamInheritance,
         customPrompts: normalizedPrompts,
         sensoryAnchorTemplates: draftSensoryTemplates,
         sensoryAutoTemplateByPhase: draftSensoryAutoTemplateByPhase,
@@ -467,6 +512,24 @@ export default function SettingsPage() {
       return;
     }
     router.push('/');
+  };
+  const setPhaseParamOverride = <K extends keyof GenerationParams>(
+    phase: GenerationPhaseId,
+    key: K,
+    value: GenerationParams[K] | undefined
+  ) => {
+    setDraftPhaseParamOverrides((prev) => {
+      const nextPhaseParams: Partial<GenerationParams> = { ...(prev[phase] || {}) };
+      if (value === undefined || value === null) {
+        delete nextPhaseParams[key];
+      } else {
+        nextPhaseParams[key] = value;
+      }
+      return {
+        ...prev,
+        [phase]: nextPhaseParams,
+      };
+    });
   };
 
   return (
@@ -811,6 +874,240 @@ export default function SettingsPage() {
                 </div>
               </div>
             ))}
+
+            <div className="rounded-lg border border-border p-3 space-y-4">
+              <div>
+                <h3 className="font-semibold uppercase text-sm">Phase Param Overrides</h3>
+                <p className="text-xs text-muted-foreground">
+                  Configure per-phase overrides with fallback to global defaults.
+                </p>
+              </div>
+              <Tabs
+                value={selectedPhaseParamTab}
+                onValueChange={(value) => setSelectedPhaseParamTab(value as GenerationPhaseId)}
+                className="w-full"
+              >
+                <TabsList className="grid h-auto w-full grid-cols-2 gap-1 md:grid-cols-3 lg:grid-cols-5">
+                  {PHASES.map((phase) => (
+                    <TabsTrigger key={`phase-params-tab-${phase}`} value={phase} className="text-[11px]">
+                      {PHASE_LABELS[phase]}
+                    </TabsTrigger>
+                  ))}
+                </TabsList>
+                {PHASES.map((phase) => {
+                  const selection = draftPhaseConfig[phase] ?? {
+                    provider: FALLBACK_PHASE_PROVIDER,
+                    model: draftProviders[FALLBACK_PHASE_PROVIDER].selectedModel,
+                  };
+                  const inherited = draftPhaseParamInheritance[phase] ?? true;
+                  const phaseOverrides = draftPhaseParamOverrides[phase] || {};
+                  const modelId = selection.model || draftProviders[selection.provider].selectedModel;
+                  const baselineParams = {
+                    ...draftDefaults[selection.provider],
+                    ...(draftOverrides[selection.provider]?.[modelId] || {}),
+                  };
+                  const effectiveParams = {
+                    ...baselineParams,
+                    ...phaseOverrides,
+                  };
+                  return (
+                    <TabsContent key={`phase-params-content-${phase}`} value={phase} className="space-y-4 pt-3">
+                      <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 rounded-md border border-border p-3">
+                        <div className="space-y-1">
+                          <Label htmlFor={`phase-params-provider-${phase}`}>provider</Label>
+                          <Select
+                            value={selection.provider}
+                            onValueChange={(value) =>
+                              setDraftPhaseConfig((prev) => ({
+                                ...prev,
+                                [phase]: {
+                                  ...prev[phase],
+                                  provider: value as LLMProvider,
+                                  model: draftProviders[value as LLMProvider].selectedModel,
+                                },
+                              }))
+                            }
+                          >
+                            <SelectTrigger id={`phase-params-provider-${phase}`}>
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="nim">NVIDIA NIM</SelectItem>
+                              <SelectItem value="openrouter">OpenRouter</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div className="lg:col-span-2 space-y-1">
+                          <Label htmlFor={`phase-params-model-${phase}`}>model</Label>
+                          <Input
+                            id={`phase-params-model-${phase}`}
+                            name={`phase-params-model-${phase}`}
+                            value={selection.model || ''}
+                            onChange={(e) =>
+                              setDraftPhaseConfig((prev) => ({
+                                ...prev,
+                                [phase]: { ...prev[phase], model: e.target.value },
+                              }))
+                            }
+                            list={`phase-params-${phase}-${selection.provider}-models`}
+                          />
+                          <datalist id={`phase-params-${phase}-${selection.provider}-models`}>
+                            {availableModels[selection.provider].map((model) => (
+                              <option key={`phase-params-${phase}-${model}`} value={model} />
+                            ))}
+                          </datalist>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center justify-between rounded border border-border px-3 py-2">
+                        <div>
+                          <p className="text-sm font-medium">Inherit Global Defaults</p>
+                          <p className="text-[11px] text-muted-foreground">
+                            When enabled, this phase uses provider default/model override params only.
+                          </p>
+                        </div>
+                        <Switch
+                          checked={inherited}
+                          onCheckedChange={(checked) => {
+                            setDraftPhaseParamInheritance((prev) => ({ ...prev, [phase]: checked }));
+                            if (checked) {
+                              setDraftPhaseParamOverrides((prev) => ({ ...prev, [phase]: {} }));
+                            }
+                          }}
+                        />
+                      </div>
+
+                      {!inherited ? (
+                        <div className="space-y-3">
+                          <div className="grid grid-cols-2 lg:grid-cols-6 gap-3">
+                            <div className="space-y-1">
+                              <Label htmlFor={`phase-params-maxTokens-${phase}`}>max_tokens</Label>
+                              <Input
+                                id={`phase-params-maxTokens-${phase}`}
+                                name={`phase-params-maxTokens-${phase}`}
+                                type="number"
+                                min={1}
+                                step={1}
+                                disabled={Boolean(effectiveParams.autoMaxTokens)}
+                                value={phaseOverrides.maxTokens ?? baselineParams.maxTokens}
+                                onChange={(e) => setPhaseParamOverride(phase, 'maxTokens', parseOptionalIntInput(e.target.value))}
+                              />
+                              <div className="flex items-center justify-between rounded border border-border px-2 py-1">
+                                <Label htmlFor={`phase-params-autoMaxTokens-${phase}`} className="text-xs">auto_max_tokens</Label>
+                                <Switch
+                                  id={`phase-params-autoMaxTokens-${phase}`}
+                                  checked={Boolean(effectiveParams.autoMaxTokens)}
+                                  onCheckedChange={(checked) => setPhaseParamOverride(phase, 'autoMaxTokens', checked)}
+                                />
+                              </div>
+                            </div>
+                            <div className="space-y-1">
+                              <Label htmlFor={`phase-params-temperature-${phase}`}>temperature</Label>
+                              <Input
+                                id={`phase-params-temperature-${phase}`}
+                                name={`phase-params-temperature-${phase}`}
+                                type="number"
+                                min={0}
+                                max={2}
+                                step="0.1"
+                                value={phaseOverrides.temperature ?? baselineParams.temperature}
+                                onChange={(e) => setPhaseParamOverride(phase, 'temperature', parseOptionalFloatInput(e.target.value))}
+                              />
+                            </div>
+                            <div className="space-y-1">
+                              <Label htmlFor={`phase-params-topP-${phase}`}>top_p</Label>
+                              <Input
+                                id={`phase-params-topP-${phase}`}
+                                name={`phase-params-topP-${phase}`}
+                                type="number"
+                                min={0}
+                                max={1}
+                                step="0.05"
+                                value={phaseOverrides.topP ?? baselineParams.topP}
+                                onChange={(e) => setPhaseParamOverride(phase, 'topP', parseOptionalFloatInput(e.target.value))}
+                              />
+                            </div>
+                            <div className="space-y-1">
+                              <Label htmlFor={`phase-params-topK-${phase}`}>top_k</Label>
+                              <Input
+                                id={`phase-params-topK-${phase}`}
+                                name={`phase-params-topK-${phase}`}
+                                type="number"
+                                min={1}
+                                step={1}
+                                value={phaseOverrides.topK ?? baselineParams.topK ?? ''}
+                                onChange={(e) => setPhaseParamOverride(phase, 'topK', parseOptionalIntInput(e.target.value))}
+                              />
+                            </div>
+                            <div className="space-y-1">
+                              <Label htmlFor={`phase-params-frequencyPenalty-${phase}`}>frequency_penalty</Label>
+                              <Input
+                                id={`phase-params-frequencyPenalty-${phase}`}
+                                name={`phase-params-frequencyPenalty-${phase}`}
+                                type="number"
+                                step="0.1"
+                                value={phaseOverrides.frequencyPenalty ?? baselineParams.frequencyPenalty ?? ''}
+                                onChange={(e) => setPhaseParamOverride(phase, 'frequencyPenalty', parseOptionalFloatInput(e.target.value))}
+                              />
+                            </div>
+                            <div className="space-y-1">
+                              <Label htmlFor={`phase-params-presencePenalty-${phase}`}>presence_penalty</Label>
+                              <Input
+                                id={`phase-params-presencePenalty-${phase}`}
+                                name={`phase-params-presencePenalty-${phase}`}
+                                type="number"
+                                step="0.1"
+                                value={phaseOverrides.presencePenalty ?? baselineParams.presencePenalty ?? ''}
+                                onChange={(e) => setPhaseParamOverride(phase, 'presencePenalty', parseOptionalFloatInput(e.target.value))}
+                              />
+                            </div>
+                          </div>
+                          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                            <div className="space-y-1">
+                              <Label htmlFor={`phase-params-seed-${phase}`}>seed</Label>
+                              <Input
+                                id={`phase-params-seed-${phase}`}
+                                name={`phase-params-seed-${phase}`}
+                                type="number"
+                                step={1}
+                                value={phaseOverrides.seed ?? baselineParams.seed ?? ''}
+                                onChange={(e) => setPhaseParamOverride(phase, 'seed', parseOptionalIntInput(e.target.value))}
+                              />
+                            </div>
+                            <div className="rounded border border-border p-3 space-y-2">
+                              <div className="flex items-center justify-between">
+                                <Label htmlFor={`phase-params-thinkingEnabled-${phase}`}>thinking_enabled</Label>
+                                <Switch
+                                  id={`phase-params-thinkingEnabled-${phase}`}
+                                  checked={Boolean(effectiveParams.thinkingEnabled)}
+                                  onCheckedChange={(checked) => setPhaseParamOverride(phase, 'thinkingEnabled', checked)}
+                                />
+                              </div>
+                            </div>
+                            <div className="space-y-1">
+                              <Label htmlFor={`phase-params-thinkingBudget-${phase}`}>thinking_budget</Label>
+                              <Input
+                                id={`phase-params-thinkingBudget-${phase}`}
+                                name={`phase-params-thinkingBudget-${phase}`}
+                                type="number"
+                                min={0}
+                                step={128}
+                                value={phaseOverrides.thinkingBudget ?? baselineParams.thinkingBudget ?? ''}
+                                onChange={(e) => setPhaseParamOverride(phase, 'thinkingBudget', parseOptionalIntInput(e.target.value))}
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      ) : (
+                        <p className="text-xs text-muted-foreground">
+                          This phase currently inherits global defaults + model overrides.
+                        </p>
+                      )}
+                    </TabsContent>
+                  );
+                })}
+              </Tabs>
+            </div>
 
             <div className="rounded-lg border border-border p-3 space-y-3">
               <h3 className="font-semibold uppercase text-sm">Model Override</h3>

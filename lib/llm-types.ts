@@ -83,6 +83,8 @@ export type GenerationPhaseId =
   | 'loreJsonRepair';
 
 export type PhaseConfigMap = Record<GenerationPhaseId, PhaseModelSelection>;
+export type PhaseParamOverrides = Record<GenerationPhaseId, Partial<GenerationParams>>;
+export type PhaseParamInheritanceMap = Record<GenerationPhaseId, boolean>;
 
 export interface SensoryAnchorTemplate {
   id: string;

@@ -87,6 +87,66 @@ describe('useSettingsStore', () => {
     expect(resolved.params.topP).toBe(0.9);
   });
 
+  it('applies phase param override over model override when inheritance is disabled', async () => {
+    await act(async () => {
+      await useSettingsStore.getState().setProviderSelectedModel('nim', 'nim-model-phase');
+      await useSettingsStore.getState().setProviderDefaultParams('nim', {
+        maxTokens: 3000,
+        temperature: 0.6,
+        topP: 0.9,
+        thinkingEnabled: false,
+      });
+      await useSettingsStore.getState().setModelOverrideParams('nim', 'nim-model-phase', {
+        maxTokens: 1800,
+        temperature: 0.4,
+      });
+      await useSettingsStore.getState().setPhaseSelection('analysis', {
+        provider: 'nim',
+        model: 'nim-model-phase',
+      });
+      const state = useSettingsStore.getState();
+      await useSettingsStore.getState().applySettingsSnapshot({
+        activeProvider: state.activeProvider,
+        providers: state.providers,
+        phaseConfig: state.phaseConfig,
+        providerDefaults: state.providerDefaults,
+        modelOverrides: state.modelOverrides,
+        phaseParamOverrides: {
+          ...state.phaseParamOverrides,
+          analysis: {
+            maxTokens: 900,
+            temperature: 0.15,
+          },
+        },
+        phaseParamInheritance: {
+          ...state.phaseParamInheritance,
+          analysis: false,
+        },
+        customPrompts: state.customPrompts,
+        sensoryAnchorTemplates: state.sensoryAnchorTemplates,
+        sensoryAutoTemplateByPhase: state.sensoryAutoTemplateByPhase,
+        context: {
+          truncationThreshold: state.truncationThreshold,
+          dualEndBuffer: state.dualEndBuffer,
+          compressionMode: state.compressionMode,
+          compressionAutoThreshold: state.compressionAutoThreshold,
+          compressionChunkSize: state.compressionChunkSize,
+          compressionChunkOverlap: state.compressionChunkOverlap,
+          compressionEvidenceSegments: state.compressionEvidenceSegments,
+          autoResumeOnLength: state.autoResumeOnLength,
+          autoResumePhaseAnalysis: state.autoResumePhaseAnalysis,
+          autoResumePhaseOutline: state.autoResumePhaseOutline,
+          autoResumeMaxRounds: state.autoResumeMaxRounds,
+        },
+      });
+    });
+
+    const resolved = useSettingsStore.getState().getResolvedGenerationConfig('analysis');
+    expect(resolved.params.maxTokens).toBe(900);
+    expect(resolved.params.temperature).toBe(0.15);
+    expect(resolved.params.topP).toBe(0.9);
+  });
+
   it('clamps provider default numeric params to valid ranges', async () => {
     await act(async () => {
       await useSettingsStore.getState().setProviderDefaultParams('nim', {
