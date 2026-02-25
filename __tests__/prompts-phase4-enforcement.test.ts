@@ -6,6 +6,8 @@ describe('phase 4 prompt enforcement defaults', () => {
     'chapter1Compressed' | 'chapter1Raw' | 'continuationCompressed' | 'continuationRaw'
   > = ['chapter1Compressed', 'chapter1Raw', 'continuationCompressed', 'continuationRaw'];
 
+  const BANNED_WORDS = ['海嘯般', '浪潮', '電流', '無形的威壓洗禮', '彷彿', '如同'];
+
   it('contains chapter execution target and critical enforcement blocks', () => {
     for (const key of phase4PromptKeys) {
       const prompt = DEFAULT_PROMPTS[key];
@@ -25,20 +27,22 @@ describe('phase 4 prompt enforcement defaults', () => {
     }
   });
 
-  it('includes explicit banned-word list in all phase 4 prompts', () => {
+  it('includes consistent banned-word list in all phase 4 prompts', () => {
     for (const key of phase4PromptKeys) {
       const prompt = DEFAULT_PROMPTS[key];
-      expect(prompt).toContain('海嘯般');
-      expect(prompt).toContain('浪潮');
-      expect(prompt).toContain('彷彿');
+      for (const word of BANNED_WORDS) {
+        expect(prompt).toContain(word);
+      }
     }
   });
 
-  it('SENSORY_STYLE_GUIDE enforces quantitative sentence limit and explicit banned words', () => {
+  it('SENSORY_STYLE_GUIDE enforces quantitative sentence limit and same banned-word list', () => {
     expect(SENSORY_STYLE_GUIDE).toContain('65 字');
     expect(SENSORY_STYLE_GUIDE).toContain('絕對禁止');
-    expect(SENSORY_STYLE_GUIDE).toContain('海嘯');
     expect(SENSORY_STYLE_GUIDE).toContain('強烈且具體的心理變化');
+    for (const word of BANNED_WORDS) {
+      expect(SENSORY_STYLE_GUIDE).toContain(word);
+    }
   });
 });
 
