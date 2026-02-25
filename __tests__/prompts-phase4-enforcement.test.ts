@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { DEFAULT_PROMPTS } from '../lib/prompts';
+import { DEFAULT_PROMPTS, SENSORY_STYLE_GUIDE } from '../lib/prompts';
 
 describe('phase 4 prompt enforcement defaults', () => {
   const phase4PromptKeys: Array<
@@ -15,6 +15,30 @@ describe('phase 4 prompt enforcement defaults', () => {
       expect(prompt).toContain('<critical_enforcement>');
       expect(prompt).toContain('</critical_enforcement>');
     }
+  });
+
+  it('enforces quantitative sentence-length and dash limits in all phase 4 prompts', () => {
+    for (const key of phase4PromptKeys) {
+      const prompt = DEFAULT_PROMPTS[key];
+      expect(prompt).toContain('65 字');
+      expect(prompt).toContain('每個段落最多只能出現 1 次破折號');
+    }
+  });
+
+  it('includes explicit banned-word list in all phase 4 prompts', () => {
+    for (const key of phase4PromptKeys) {
+      const prompt = DEFAULT_PROMPTS[key];
+      expect(prompt).toContain('海嘯般');
+      expect(prompt).toContain('浪潮');
+      expect(prompt).toContain('彷彿');
+    }
+  });
+
+  it('SENSORY_STYLE_GUIDE enforces quantitative sentence limit and explicit banned words', () => {
+    expect(SENSORY_STYLE_GUIDE).toContain('65 字');
+    expect(SENSORY_STYLE_GUIDE).toContain('絕對禁止');
+    expect(SENSORY_STYLE_GUIDE).toContain('海嘯');
+    expect(SENSORY_STYLE_GUIDE).toContain('強烈且具體的心理變化');
   });
 });
 
