@@ -124,12 +124,12 @@ function normalizeFieldHeading(line: string): string | null {
   }
   const normalized = candidate.replace(/\s+/g, '');
   if (/(推薦|推荐)感官標籤/u.test(normalized) || /(推薦|推荐)感官标签/u.test(normalized)) {
-    const match = candidate.match(/[:：](.*)$/u);
+    const match = candidate.match(/[:：](.*)$/u) || candidate.match(/】\s*(.+)$/u);
     const value = match?.[1]?.trim();
     return value ? `${TAG_HEADING}${value}` : TAG_HEADING;
   }
   if (/感官視角重心/u.test(normalized) || /感官视角重心/u.test(normalized)) {
-    const match = candidate.match(/[:：](.*)$/u);
+    const match = candidate.match(/[:：](.*)$/u) || candidate.match(/】\s*(.+)$/u);
     const value = match?.[1]?.trim();
     return value ? `${POV_HEADING}${value}` : POV_HEADING;
   }
