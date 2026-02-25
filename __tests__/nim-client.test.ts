@@ -1,5 +1,12 @@
 import { fetchModelCapability, fetchModels, generateStream } from '../lib/nim-client';
 import { vi } from 'vitest';
+import {
+  CIRCUIT_OPEN_ERROR_MESSAGE,
+  FAILURE_THRESHOLD,
+  getCircuitState,
+  recordFailure,
+  resetCircuit,
+} from '../lib/circuit-breaker';
 
 // Mock fetch globally
 global.fetch = vi.fn();
@@ -15,6 +22,7 @@ describe('NIM Client', () => {
 
   afterEach(() => {
     vi.clearAllMocks();
+    resetCircuit();
   });
 
   describe('fetchModels', () => {
@@ -75,6 +83,60 @@ describe('NIM Client', () => {
   });
 
   describe('generateStream', () => {
+    it('throws immediately when provider circuit breaker is open', async () => {
+      for (let count = 0; count < FAILURE_THRESHOLD; count += 1) {
+        recordFailure('nim');
+      }
+
+      await expect(
+        collectStream(generateStream('prompt', 'model-id', 'api-key'))
+      ).rejects.toThrow(CIRCUIT_OPEN_ERROR_MESSAGE);
+
+      expect(global.fetch).not.toHaveBeenCalled();
+    });
+
+    it('records a final failure in the circuit counter', async () => {
+      (global.fetch as unknown as ReturnType<typeof vi.fn>).mockResolvedValue({
+        ok: false,
+        status: 503,
+        text: async () => 'Service Unavailable',
+      });
+
+      await expect(
+        collectStream(
+          generateStream('prompt', 'model-id', 'api-key', undefined, {
+            maxRetries: 0,
+          })
+        )
+      ).rejects.toThrow(/503/);
+
+      expect(getCircuitState('nim').consecutiveFailures).toBe(1);
+    });
+
+    it('resets circuit counters after a successful generation', async () => {
+      recordFailure('nim');
+      recordFailure('nim');
+
+      const mockStream = new ReadableStream({
+        start(controller) {
+          const encoder = new TextEncoder();
+          controller.enqueue(encoder.encode('data: {"choices":[{"delta":{"content":"OK"}}]}\n\n'));
+          controller.enqueue(encoder.encode('data: [DONE]\n\n'));
+          controller.close();
+        },
+      });
+
+      (global.fetch as unknown as ReturnType<typeof vi.fn>).mockResolvedValue({
+        ok: true,
+        body: mockStream,
+      });
+
+      const result = await collectStream(generateStream('prompt', 'model-id', 'api-key'));
+      expect(result).toBe('OK');
+      expect(getCircuitState('nim').consecutiveFailures).toBe(0);
+      expect(getCircuitState('nim').isOpen).toBe(false);
+    });
+
     it('streams content correctly', async () => {
       const mockStream = new ReadableStream({
         start(controller) {

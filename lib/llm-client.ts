@@ -5,6 +5,13 @@ import type {
   LLMProvider,
   ModelCapability,
 } from '@/lib/llm-types';
+import {
+  createCircuitOpenError,
+  isCircuitBreakerOpenError,
+  recordFailure,
+  recordSuccess,
+  tryAcquireCircuitPass,
+} from '@/lib/circuit-breaker';
 import { assertOpenRouterNetworkEnabled } from '@/lib/openrouter-guard';
 import { estimateTokenCount, estimateTokenCountHeuristic } from '@/lib/token-estimator';
 import { yieldToMain } from '@/lib/yield-to-main';
@@ -282,6 +289,19 @@ function isRetryableError(error: unknown, retryableErrors: number[]): boolean {
 
 function isTimeoutError(error: unknown): boolean {
   return error instanceof Error && error.message === 'Request timed out';
+}
+
+function shouldRecordCircuitFailure(error: unknown): boolean {
+  if (isCircuitBreakerOpenError(error)) {
+    return false;
+  }
+  if (isAbortError(error)) {
+    return false;
+  }
+  if (error instanceof Error && error.message === 'Request cancelled') {
+    return false;
+  }
+  return true;
 }
 
 function waitWithAbort(ms: number, signal?: AbortSignal): Promise<void> {
@@ -566,6 +586,19 @@ export async function* generateStream(
     requestedMaxTokens: effectiveMaxTokensForBudget,
     maxContextTokens: options?.maxContextTokens,
   });
+  if (!tryAcquireCircuitPass(provider)) {
+    throw createCircuitOpenError(provider);
+  }
+
+  const throwWithCircuitTracking = (finalError: unknown): never => {
+    const normalizedFinalError = finalError instanceof Error
+      ? finalError
+      : new Error('Unknown generation error');
+    if (shouldRecordCircuitFailure(normalizedFinalError)) {
+      recordFailure(provider);
+    }
+    throw normalizedFinalError;
+  };
 
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
     const controller = new AbortController();
@@ -726,12 +759,13 @@ export async function* generateStream(
         providerRawReason: latestRawFinishReason,
       });
 
+      recordSuccess(provider);
       return;
     } catch (error) {
       let normalizedError: unknown = error;
       if (isAbortError(error)) {
         if (signal?.aborted) {
-          throw new Error('Request cancelled');
+          throwWithCircuitTracking(new Error('Request cancelled'));
         }
         normalizedError = new Error('Request timed out');
       }
@@ -748,9 +782,9 @@ export async function* generateStream(
             typeof hint.inputTokens === 'number' &&
             hint.inputTokens >= hint.maxContextTokens
           ) {
-            throw new Error(
+            throwWithCircuitTracking(new Error(
               `${provider.toUpperCase()} context overflow: input ${hint.inputTokens} tokens exceeds model context ${hint.maxContextTokens}. Reduce input chunk size or use a larger-context model.`
-            );
+            ));
           }
 
           const currentMaxTokens = clampMaxTokensToModelLimits(
@@ -799,14 +833,14 @@ export async function* generateStream(
           await waitWithAbort(delay, signal);
         } catch (waitError) {
           if (isAbortError(waitError) && signal?.aborted) {
-            throw new Error('Request cancelled');
+            throwWithCircuitTracking(new Error('Request cancelled'));
           }
-          throw waitError;
+          throwWithCircuitTracking(waitError);
         }
         continue;
       }
 
-      throw normalizedError;
+      throwWithCircuitTracking(normalizedError);
     } finally {
       if (releaseGenerateSlot) {
         releaseGenerateSlot();
@@ -816,7 +850,7 @@ export async function* generateStream(
     }
   }
 
-  throw lastError instanceof Error ? lastError : new Error('Unknown generation error');
+  throwWithCircuitTracking(lastError);
 }
 
 export async function* streamToAsyncIterable(

@@ -3,6 +3,7 @@ import { act, render } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { useStepGenerator } from '../hooks/useStepGenerator';
 import { parseOutlinePhase2Content, serializeOutlinePhase2Content } from '../lib/outline-phase2';
+import { CIRCUIT_OPEN_ERROR_MESSAGE } from '../lib/circuit-breaker';
 
 const runSchedulerState = {
   runExecutor: null as null | ((ctx: {
@@ -45,7 +46,7 @@ const createEmptyStep = (): {
 });
 
 const workflowState = {
-  autoMode: 'manual' as const,
+  autoMode: 'manual' as 'manual' | 'full_auto' | 'range',
   autoRangeEnd: 5,
   isPaused: false,
   setIsGenerating: vi.fn(),
@@ -59,6 +60,7 @@ const workflowState = {
   setCurrentStep: vi.fn(),
   setAutoTriggerStep: vi.fn(),
   resetContinuationStep: vi.fn(),
+  pauseGeneration: vi.fn(),
   steps: {
     compression: createEmptyStep(),
     analysis: createEmptyStep(),
@@ -371,6 +373,53 @@ describe('useStepGenerator', () => {
         recoverableStepId: 'analysis',
       })
     );
+  });
+
+  it('pauses auto mode when circuit breaker is open', async () => {
+    workflowState.autoMode = 'full_auto';
+    generateStreamByProviderMock.mockImplementation(
+      async function* () {
+        throw new Error(`NIM: ${CIRCUIT_OPEN_ERROR_MESSAGE}`);
+      }
+    );
+
+    await expect(
+      getRunExecutor()({
+        runId: 'run_circuit_open',
+        sessionId: 'session_active',
+        stepId: 'analysis',
+        source: 'auto',
+        signal: new AbortController().signal,
+        onProgress: vi.fn(),
+      })
+    ).rejects.toThrow(CIRCUIT_OPEN_ERROR_MESSAGE);
+
+    expect(workflowState.pauseGeneration).toHaveBeenCalledTimes(1);
+    expect(workflowState.setStepError).toHaveBeenCalledWith(
+      'analysis',
+      expect.stringContaining(CIRCUIT_OPEN_ERROR_MESSAGE)
+    );
+  });
+
+  it('shows localized preflight labels before analysis stream starts', async () => {
+    const onProgress = vi.fn();
+    await expect(
+      getRunExecutor()({
+        runId: 'run_analysis_preflight_labels',
+        sessionId: 'session_active',
+        stepId: 'analysis',
+        source: 'manual',
+        signal: new AbortController().signal,
+        onProgress,
+      })
+    ).resolves.toBeUndefined();
+
+    const contentUpdates = (
+      workflowState.updateStepContent.mock.calls as Array<[string, string]>
+    ).filter(([updatedStep]) => updatedStep === 'analysis');
+    expect(contentUpdates.some(([, value]) => value.includes('正在讀取原文與壓縮成果'))).toBe(true);
+    expect(contentUpdates.some(([, value]) => value.includes('正在建構續寫分析提示詞'))).toBe(true);
+    expect(onProgress).toHaveBeenCalledWith(expect.stringContaining('正在讀取原文與壓縮成果'));
   });
 
   it('retries analysis section contract once and keeps clean analysis output content', async () => {

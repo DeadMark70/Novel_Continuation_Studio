@@ -46,6 +46,7 @@ import { parseAnalysisOutput } from '@/lib/analysis-output';
 import type { AutoContinuationPolicy, RunStepId } from '@/lib/run-types';
 import type { NovelEntry } from '@/lib/db';
 import type { GenerateFinishReason } from '@/lib/llm-types';
+import { isCircuitBreakerOpenError } from '@/lib/circuit-breaker';
 import {
   buildResumePrompt,
   hasResumeLastOutputDirective,
@@ -66,6 +67,15 @@ const PREVIEW_CHARS = 220;
 const UNKNOWN_FINISH_REASON: GenerateFinishReason = 'unknown';
 const BREAKDOWN_CHUNK_SIZE = 4;
 const BREAKDOWN_TAG_HINT_LIMIT = 30;
+const PREFLIGHT_LABEL_DELAY_MS = 200;
+
+const PHASE_PREFLIGHT_LABELS: Partial<Record<WorkflowStepId, string[]>> = {
+  analysis: ['正在讀取原文與壓縮成果...', '正在建構續寫分析提示詞...'],
+  outline: ['正在整合分析摘要...', '正在建構大綱骨架提示詞...'],
+  breakdown: ['正在整合大綱與章節參數...', '正在建構章節拆解提示詞...'],
+  chapter1: ['正在準備首章生成...', '正在計算 Token 預算...'],
+  continuation: ['正在讀取前章脈絡...', '正在準備續寫提示詞...'],
+};
 
 const STEP_TRANSITIONS: Record<
   Exclude<WorkflowStepId, 'continuation'>,
@@ -97,6 +107,57 @@ function toProgressPreview(value: string): string {
     return '';
   }
   return value.length <= PREVIEW_CHARS ? value : value.slice(-PREVIEW_CHARS);
+}
+
+async function waitForPreflightDelay(signal?: AbortSignal): Promise<void> {
+  if (PREFLIGHT_LABEL_DELAY_MS <= 0) {
+    return;
+  }
+  await new Promise<void>((resolve, reject) => {
+    const timer = setTimeout(() => {
+      if (signal) {
+        signal.removeEventListener('abort', onAbort);
+      }
+      resolve();
+    }, PREFLIGHT_LABEL_DELAY_MS);
+    const onAbort = () => {
+      clearTimeout(timer);
+      reject(new Error('Request cancelled'));
+    };
+    if (signal) {
+      if (signal.aborted) {
+        clearTimeout(timer);
+        reject(new Error('Request cancelled'));
+        return;
+      }
+      signal.addEventListener('abort', onAbort, { once: true });
+    }
+  });
+}
+
+async function emitPhasePreflightLabels(params: {
+  stepId: WorkflowStepId;
+  sessionId: string;
+  signal: AbortSignal;
+  onProgress: (preview: string) => void;
+}): Promise<void> {
+  const labels = PHASE_PREFLIGHT_LABELS[params.stepId];
+  if (!labels || labels.length === 0) {
+    return;
+  }
+  for (let index = 0; index < labels.length; index += 1) {
+    const label = labels[index];
+    if (params.signal.aborted) {
+      throw new Error('Request cancelled');
+    }
+    if (isActiveSession(params.sessionId)) {
+      useWorkflowStore.getState().updateStepContent(params.stepId, label);
+    }
+    params.onProgress(toProgressPreview(label));
+    if (index < labels.length - 1) {
+      await waitForPreflightDelay(params.signal);
+    }
+  }
 }
 
 function buildFormatNotice(
@@ -1039,6 +1100,12 @@ export function useStepGenerator() {
           let outlineAutoResumeRoundsUsed = 0;
           let outlineTruncatedTask: OutlinePhase2Task | undefined;
           let outlineFinishReason: GenerateFinishReason = UNKNOWN_FINISH_REASON;
+          await emitPhasePreflightLabels({
+            stepId,
+            sessionId,
+            signal,
+            onProgress,
+          });
 
           const runOutlineTask = async (task: OutlinePhase2Task): Promise<void> => {
             if (task === '2B') {
@@ -1238,6 +1305,12 @@ export function useStepGenerator() {
             injectedTagsByChapter: {},
           };
           let normalizationChanges = 0;
+          await emitPhasePreflightLabels({
+            stepId,
+            sessionId,
+            signal,
+            onProgress,
+          });
 
           const metaTemplate = (
             customPrompts.breakdownMeta ||
@@ -1518,6 +1591,12 @@ export function useStepGenerator() {
             resolvedPromptTemplateKey === 'analysisRaw' ||
             resolvedPromptTemplateKey === 'analysisCompressed'
           );
+          await emitPhasePreflightLabels({
+            stepId,
+            sessionId,
+            signal,
+            onProgress,
+          });
 
           let stepResultMeta: StreamAttemptWithResumeResult | null = null;
           if (shouldCheckSections) {
@@ -1723,6 +1802,13 @@ export function useStepGenerator() {
           lastRunId: runId,
         });
         throw error;
+      }
+
+      if (isActiveSession(sessionId) && isCircuitBreakerOpenError(error)) {
+        const workflow = useWorkflowStore.getState();
+        if (workflow.autoMode !== 'manual') {
+          workflow.pauseGeneration();
+        }
       }
 
       if (isActiveSession(sessionId)) {
