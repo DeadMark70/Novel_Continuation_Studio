@@ -10,6 +10,7 @@
 
 - Run queue + active run tracking (`store/useRunSchedulerStore.ts`)
 - Abortable generation requests and interruption states
+- Cross-request circuit breaker per provider (`lib/circuit-breaker.ts`)
 - Prompt section validation + bounded retries
 - Analysis/outline sanitization and dual-output parsing
 - Phase 3 breakdown normalization + guarded validation (chapter count/sequence/truncation/omission markers)
@@ -30,6 +31,7 @@
 - Surface explicit errors with actionable next steps.
 - Preserve latest stable artifacts in session storage.
 - Allow rerun from failed phase, not full restart.
+- When provider failures become consecutive, circuit breaker opens (threshold 3) and cools down for 60s before one half-open trial.
 - On generation truncation (`finish_reason=length`) for chapter steps, auto-resume is bounded and merged without duplicated prefix text.
 - Sensory harvesting errors do not auto-retry; system opens recovery dialog with editable raw output for manual JSON fix and re-parse.
 

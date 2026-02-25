@@ -31,6 +31,7 @@ Expected outcome:
 - Structured dual output:
   - detailed analysis block
   - executive summary block for downstream use
+- Before first token arrives, UI shows preflight progress labels (for example: `正在讀取原文與壓縮成果...`).
 
 ## Phase 2A and 2B: Outline
 
@@ -117,6 +118,12 @@ Flow is considered successful when:
 - At least one new chapter is generated.
 - Consistency report is available for that chapter.
 - Session can be resumed from persisted state.
+
+## Failure Protection (Cross-Phase)
+
+- If one provider has consecutive final request failures, circuit breaker opens for that provider.
+- While circuit is open, new requests fail fast with explicit message instead of repeated retries.
+- When Auto Mode is active, circuit-open errors trigger automatic pause to prevent repeated request storms.
 
 ## Settings Surface
 
