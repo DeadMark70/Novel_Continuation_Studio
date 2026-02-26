@@ -902,12 +902,12 @@ export default function SettingsPage() {
                 onValueChange={(value) => setActiveSettingsPhase(value as GenerationPhaseId)}
                 className="w-full"
               >
-                <TabsList className="grid h-auto w-full grid-cols-1 gap-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                <TabsList className="grid w-full grid-cols-1 items-stretch gap-1 overflow-visible h-auto group-data-[orientation=horizontal]/tabs:h-auto sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
                   {PHASES.map((phase) => (
                     <TabsTrigger
                       key={`phase-params-tab-${phase}`}
                       value={phase}
-                      className="h-auto min-h-10 whitespace-normal break-words px-2 py-2 text-left text-[11px] leading-tight"
+                      className="h-auto min-h-10 justify-start whitespace-normal break-words px-2 py-2 text-left text-[11px] leading-tight"
                     >
                       {PHASE_LABELS[phase]}
                     </TabsTrigger>
