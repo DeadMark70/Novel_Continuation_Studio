@@ -1812,6 +1812,12 @@ export function useStepGenerator() {
       }
 
       if (isActiveSession(sessionId)) {
+        if (
+          (stepId === 'analysis' || stepId === 'breakdown') &&
+          preRunStepContent.trim()
+        ) {
+          useWorkflowStore.getState().updateStepContent(stepId, preRunStepContent);
+        }
         useWorkflowStore.getState().setStepError(stepId, error instanceof Error ? error.message : 'Unknown error');
       }
       await useNovelStore.getState().setSessionRunMeta(sessionId, {

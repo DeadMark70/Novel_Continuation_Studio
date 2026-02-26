@@ -295,7 +295,10 @@ function resolvePromptKind(prompt: string):
   if (prompt.includes('先輸出章節總覽與升級守則')) {
     return 'breakdownMeta';
   }
-  if (prompt.includes('只為指定章節範圍輸出逐章內容')) {
+  if (
+    prompt.includes('只為指定章節範圍輸出逐章內容') ||
+    prompt.includes('為指定章節範圍輸出逐章內容')
+  ) {
     return 'breakdownChunk';
   }
   return 'other';
@@ -372,6 +375,37 @@ describe('useStepGenerator', () => {
         runStatus: 'error',
         recoverableStepId: 'analysis',
       })
+    );
+  });
+
+  it('restores previous analysis content when analysis run fails', async () => {
+    workflowState.steps.analysis.status = 'completed';
+    workflowState.steps.analysis.content = 'stable analysis before retry';
+    novelState.currentSessionId = 'session_active';
+    generateStreamByProviderMock.mockImplementation(
+      async function* () {
+        throw new Error('analysis stream failed');
+      }
+    );
+
+    await expect(
+      getRunExecutor()({
+        runId: 'run_analysis_fail_restore',
+        sessionId: 'session_active',
+        stepId: 'analysis',
+        source: 'manual',
+        signal: new AbortController().signal,
+        onProgress: vi.fn(),
+      })
+    ).rejects.toThrow(/analysis stream failed/i);
+
+    expect(workflowState.updateStepContent).toHaveBeenCalledWith(
+      'analysis',
+      'stable analysis before retry'
+    );
+    expect(workflowState.setStepError).toHaveBeenCalledWith(
+      'analysis',
+      expect.stringContaining('analysis stream failed')
     );
   });
 
@@ -941,6 +975,8 @@ describe('useStepGenerator', () => {
   it('surfaces breakdown chunk failure after successful meta stage', async () => {
     settingsState.compressionMode = 'off';
     novelState.currentSessionId = 'session_active';
+    workflowState.steps.breakdown.status = 'completed';
+    workflowState.steps.breakdown.content = 'stable breakdown before retry';
     novelState.getSessionSnapshot.mockImplementation(async (sessionId: string) => (
       createSessionSnapshot(sessionId, {
         targetChapterCount: 4,
@@ -995,6 +1031,11 @@ describe('useStepGenerator', () => {
       'breakdown',
       expect.stringContaining('Chunk 1 (1-4): error')
     );
+    const breakdownContentUpdates = (
+      workflowState.updateStepContent.mock.calls as Array<[string, string]>
+    ).filter(([stepId]) => stepId === 'breakdown');
+    const lastBreakdownContent = breakdownContentUpdates[breakdownContentUpdates.length - 1]?.[1];
+    expect(lastBreakdownContent).toBe('stable breakdown before retry');
   });
 
   it('does not auto-resume breakdown chunk when length finish reason is returned', async () => {
