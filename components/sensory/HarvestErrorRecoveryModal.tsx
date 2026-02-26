@@ -42,25 +42,25 @@ export function HarvestErrorRecoveryModal() {
 
   return (
     <Dialog open={showErrorDialog} onOpenChange={setShowErrorDialog}>
-      <DialogContent className="sm:max-w-4xl">
-        <DialogHeader>
+      <DialogContent className="max-h-[85vh] gap-0 overflow-hidden p-0 sm:max-w-4xl">
+        <DialogHeader className="px-6 pt-6">
           <DialogTitle>Sensory Harvest Error</DialogTitle>
           <DialogDescription>
             Auto-retry is disabled. Review the error and fix output JSON manually if needed.
           </DialogDescription>
         </DialogHeader>
-        <div className="space-y-2">
-          <p className="rounded border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs font-mono text-destructive">
+        <div className="flex-1 space-y-2 overflow-y-auto px-6 py-4">
+          <p className="max-h-28 overflow-y-auto break-words rounded border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs font-mono text-destructive">
             {error || 'Unknown harvesting error.'}
           </p>
           <Textarea
             value={editableRaw}
             onChange={(event) => setEditableRaw(event.target.value)}
-            className="min-h-[320px] font-mono text-xs"
+            className="min-h-[280px] max-h-[50vh] font-mono text-xs"
             placeholder="Paste and fix harvest JSON output here..."
           />
         </div>
-        <DialogFooter className="gap-2">
+        <DialogFooter className="sticky bottom-0 gap-2 border-t border-border bg-background px-6 py-4">
           <Button variant="outline" onClick={() => router.push('/settings')}>
             Go To Settings
           </Button>
