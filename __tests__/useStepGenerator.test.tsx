@@ -1020,7 +1020,15 @@ describe('useStepGenerator', () => {
     settingsState.compressionMode = 'off';
     novelState.currentSessionId = 'session_active';
     workflowState.steps.breakdown.status = 'completed';
-    workflowState.steps.breakdown.content = 'stable breakdown before retry';
+    workflowState.steps.breakdown.content = [
+      '【Phase 3 Breakdown Pipeline】',
+      '- Meta: done',
+      '- Chunk 1 (1-4): error',
+      '- Validation Attempt: 2/2',
+      '',
+      '【章節框架總覽】',
+      'stable breakdown before retry',
+    ].join('\n');
     novelState.getSessionSnapshot.mockImplementation(async (sessionId: string) => (
       createSessionSnapshot(sessionId, {
         targetChapterCount: 4,
@@ -1079,7 +1087,59 @@ describe('useStepGenerator', () => {
       workflowState.updateStepContent.mock.calls as Array<[string, string]>
     ).filter(([stepId]) => stepId === 'breakdown');
     const lastBreakdownContent = breakdownContentUpdates[breakdownContentUpdates.length - 1]?.[1];
-    expect(lastBreakdownContent).toBe('stable breakdown before retry');
+    expect(lastBreakdownContent).toContain('【章節框架總覽】');
+    expect(lastBreakdownContent).toContain('stable breakdown before retry');
+    expect(lastBreakdownContent).not.toContain('Validation Attempt: 2/2');
+  });
+
+  it('keeps current breakdown body when meta fails and no previous stable content exists', async () => {
+    settingsState.compressionMode = 'off';
+    novelState.currentSessionId = 'session_active';
+    workflowState.steps.breakdown.status = 'idle';
+    workflowState.steps.breakdown.content = '';
+    novelState.getSessionSnapshot.mockImplementation(async (sessionId: string) => (
+      createSessionSnapshot(sessionId, {
+        targetChapterCount: 4,
+      })
+    ));
+    generateStreamByProviderMock.mockImplementation(
+      async function* (
+        _provider: string,
+        prompt: string,
+        _model: string,
+        _apiKey: string,
+        _systemPrompt: unknown,
+        options?: { onFinish?: (meta: { finishReason: 'stop' | 'length' | 'unknown' }) => void }
+      ) {
+        const kind = resolvePromptKind(prompt);
+        if (kind === 'breakdownMeta') {
+          options?.onFinish?.({ finishReason: 'stop' });
+          yield '【章節框架總覽】\n僅有總覽';
+          throw new Error('meta stream interrupted');
+        }
+        options?.onFinish?.({ finishReason: 'stop' });
+        yield 'Generated content';
+      }
+    );
+
+    await expect(
+      getRunExecutor()({
+        runId: 'run_breakdown_meta_fail_keep_body',
+        sessionId: 'session_active',
+        stepId: 'breakdown',
+        source: 'manual',
+        signal: new AbortController().signal,
+        onProgress: vi.fn(),
+      })
+    ).rejects.toThrow(/meta stream interrupted/i);
+
+    const breakdownContentUpdates = (
+      workflowState.updateStepContent.mock.calls as Array<[string, string]>
+    ).filter(([stepId]) => stepId === 'breakdown');
+    const lastBreakdownContent = breakdownContentUpdates[breakdownContentUpdates.length - 1]?.[1];
+    expect(lastBreakdownContent).toContain('【章節框架總覽】');
+    expect(lastBreakdownContent).toContain('僅有總覽');
+    expect(lastBreakdownContent).not.toContain('Validation Attempt');
   });
 
   it('does not auto-resume breakdown chunk when length finish reason is returned', async () => {

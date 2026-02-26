@@ -212,6 +212,27 @@ function collectPovHintsForBreakdown(
   return [...new Set(candidates.filter((name) => text.includes(name)))].slice(0, 6);
 }
 
+function stripBreakdownPipelineStatus(content: string): string {
+  const trimmed = content.trim();
+  if (!trimmed.startsWith('【Phase 3 Breakdown Pipeline】')) {
+    return content;
+  }
+  const withoutHeader = trimmed.replace(
+    /^【Phase 3 Breakdown Pipeline】\n(?:- .*\n)+\n?/u,
+    ''
+  ).trim();
+  return withoutHeader || '';
+}
+
+function firstNonEmpty(...values: Array<string | undefined>): string {
+  for (const value of values) {
+    if (value && value.trim()) {
+      return value;
+    }
+  }
+  return '';
+}
+
 function resolvePromptTemplateKey(stepId: WorkflowStepId, useCompressedContext: boolean): PromptTemplateKey {
   if (stepId === 'analysis') {
     return useCompressedContext ? 'analysisCompressed' : 'analysisRaw';
@@ -415,6 +436,9 @@ export function useStepGenerator() {
     const preRunStepContent = activeSession
       ? useWorkflowStore.getState().steps[stepId].content
       : '';
+    const preRunBreakdownBody = stepId === 'breakdown'
+      ? stripBreakdownPipelineStatus(preRunStepContent)
+      : '';
     const shouldPreserveOutlineContent = (
       stepId === 'outline' &&
       Boolean(preRunStepContent.trim())
@@ -441,6 +465,8 @@ export function useStepGenerator() {
     let breakdownMetaForPersist: NovelEntry['breakdownMeta'] | undefined;
     let analysisPreValidationContent = '';
     let breakdownPreValidationContent = '';
+    let analysisLatestStreamContent = stepId === 'analysis' ? preRunStepContent : '';
+    let breakdownLatestPreviewBody = stepId === 'breakdown' ? preRunBreakdownBody : '';
     try {
       const settingsState = useSettingsStore.getState();
         const {
@@ -1349,6 +1375,10 @@ export function useStepGenerator() {
 
             const publishBreakdownPreview = () => {
               const preview = buildBreakdownPreview();
+              const previewBody = stripBreakdownPipelineStatus(preview);
+              if (previewBody.trim()) {
+                breakdownLatestPreviewBody = previewBody;
+              }
               if (isActiveSession(sessionId)) {
                 useWorkflowStore.getState().updateStepContent(stepId, preview);
               }
@@ -1502,6 +1532,7 @@ export function useStepGenerator() {
               chapterRangeEnd: targetChapterCount,
             });
             breakdownPreValidationContent = fallback.content;
+            breakdownLatestPreviewBody = fallback.content;
 
             const validation = validateBreakdownForSensoryMapping({
               content: fallback.content,
@@ -1582,6 +1613,15 @@ export function useStepGenerator() {
           });
 
           let stepResultMeta: StreamAttemptWithResumeResult | null = null;
+          const publishAnalysisProgress = stepId === 'analysis'
+            ? (next: string) => {
+              analysisLatestStreamContent = next;
+              if (isActiveSession(sessionId)) {
+                useWorkflowStore.getState().updateStepContent(stepId, next);
+              }
+              onProgress(toProgressPreview(next));
+            }
+            : undefined;
           if (shouldCheckSections) {
             content = (
               await generateWithSectionRetry({
@@ -1591,7 +1631,7 @@ export function useStepGenerator() {
                 generate: async (attemptPrompt, attempt) => {
                   const stepResult = await streamPromptAttempt(
                     attemptPrompt,
-                    undefined,
+                    publishAnalysisProgress,
                     {
                       manualResume: attempt === 1 && manualResumeRequested,
                       initialContent: attempt === 1 && manualResumeRequested ? analysis : '',
@@ -1602,6 +1642,7 @@ export function useStepGenerator() {
                     }
                   );
                   analysisPreValidationContent = stepResult.content;
+                  analysisLatestStreamContent = stepResult.content;
                   stepResultMeta = stepResult;
                   return stepResult.content;
                 },
@@ -1610,7 +1651,7 @@ export function useStepGenerator() {
           } else {
             const stepResult = await streamPromptAttempt(
               contractedPrompt,
-              undefined,
+              publishAnalysisProgress,
               {
                 manualResume: manualResumeRequested,
                 initialContent: manualResumeRequested ? analysis : '',
@@ -1622,6 +1663,7 @@ export function useStepGenerator() {
             );
             stepResultMeta = stepResult;
             analysisPreValidationContent = stepResult.content;
+            analysisLatestStreamContent = stepResult.content;
             content = stepResult.content;
           }
 
@@ -1798,9 +1840,23 @@ export function useStepGenerator() {
 
       if (isActiveSession(sessionId)) {
         if (stepId === 'analysis' || stepId === 'breakdown') {
+          const workflow = useWorkflowStore.getState();
+          const liveStepContent = workflow.steps[stepId].content || '';
           const fallbackContent = stepId === 'analysis'
-            ? (analysisPreValidationContent || preRunStepContent)
-            : (breakdownPreValidationContent || preRunStepContent);
+            ? firstNonEmpty(
+              analysisPreValidationContent,
+              analysisLatestStreamContent,
+              preRunStepContent,
+              liveStepContent
+            )
+            : firstNonEmpty(
+              breakdownPreValidationContent,
+              preRunBreakdownBody,
+              breakdownLatestPreviewBody,
+              stripBreakdownPipelineStatus(liveStepContent),
+              stripBreakdownPipelineStatus(preRunStepContent),
+              preRunStepContent
+            );
           useWorkflowStore.getState().updateStepContent(stepId, fallbackContent);
         }
         useWorkflowStore.getState().setStepError(stepId, error instanceof Error ? error.message : 'Unknown error');
