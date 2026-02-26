@@ -60,8 +60,8 @@ Runtime hardening for noisy Markdown outputs:
   - omission markers (`以下省略`, `略同`, etc.)
   - likely truncated tail / incomplete last chapter signal
 - Retry policy:
-  - one guarded retry for Phase 3 contract failures
-  - if still invalid: fail explicitly (no silent acceptance)
+  - no automatic second pass after final breakdown validation fails
+  - if invalid: fail explicitly (no silent acceptance)
 
 Sensory tag injection strategy (A+B):
 

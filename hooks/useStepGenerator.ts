@@ -67,6 +67,7 @@ const PREVIEW_CHARS = 220;
 const UNKNOWN_FINISH_REASON: GenerateFinishReason = 'unknown';
 const BREAKDOWN_CHUNK_SIZE = 4;
 const BREAKDOWN_TAG_HINT_LIMIT = 30;
+const BREAKDOWN_VALIDATION_ATTEMPTS = 1;
 const PREFLIGHT_LABEL_DELAY_MS = 200;
 
 const PHASE_PREFLIGHT_LABELS: Partial<Record<WorkflowStepId, string[]>> = {
@@ -169,16 +170,6 @@ function buildFormatNotice(
     `此步驟輸出缺少必要章節：${missingSections.map((label) => `【${label}】`).join('、')}`,
     `檢查規格：${promptKey}`,
     '系統不會自動重試，請由使用者決定是否手動重試。',
-  ].join('\n');
-}
-
-function buildBreakdownRetryInstruction(reason: string): string {
-  return [
-    '【Breakdown 重試約束】',
-    `上一版問題：${reason}`,
-    '請完整輸出所有章節，不得使用「以下省略」或任何省略語句。',
-    '請確保每章包含：【推薦感官標籤】與【感官視角重心】。',
-    '最後一章必須結構完整，不可截斷。',
   ].join('\n');
 }
 
@@ -448,6 +439,8 @@ export function useStepGenerator() {
 
     let content = '';
     let breakdownMetaForPersist: NovelEntry['breakdownMeta'] | undefined;
+    let analysisPreValidationContent = '';
+    let breakdownPreValidationContent = '';
     try {
       const settingsState = useSettingsStore.getState();
         const {
@@ -1331,14 +1324,11 @@ export function useStepGenerator() {
             throw new Error('No prompt template found for breakdown chunk task');
           }
 
-          for (let validationAttempt = 1; validationAttempt <= 2; validationAttempt += 1) {
+          for (let validationAttempt = 1; validationAttempt <= BREAKDOWN_VALIDATION_ATTEMPTS; validationAttempt += 1) {
             const chunkOutputs = new Array<string>(breakdownRanges.length).fill('');
             const chunkStates = new Array<'idle' | 'running' | 'done' | 'error'>(breakdownRanges.length).fill('idle');
             let metaState: 'idle' | 'running' | 'done' | 'error' = 'idle';
             let metaRaw = '';
-            const retryInstruction = validationAttempt > 1
-              ? buildBreakdownRetryInstruction(validationFailureReason || '章節驗證未通過')
-              : '';
 
             const buildBreakdownPreview = (): string => {
               const metaSections = extractBreakdownMetaSections(metaRaw);
@@ -1352,7 +1342,7 @@ export function useStepGenerator() {
                 ...breakdownRanges.map((range, index) => (
                   `- Chunk ${index + 1} (${range.start}-${range.end}): ${chunkStates[index]}`
                 )),
-                `- Validation Attempt: ${validationAttempt}/2`,
+                `- Validation Attempt: ${validationAttempt}/${BREAKDOWN_VALIDATION_ATTEMPTS}`,
               ];
               return ['【Phase 3 Breakdown Pipeline】', ...rows, '', synthesized].join('\n');
             };
@@ -1391,13 +1381,10 @@ export function useStepGenerator() {
               existingSensoryTagsHint,
             } as const;
 
-            const metaPromptBase = injectPrompt(
+            const metaPrompt = injectPrompt(
               applyPromptSectionContract(metaTemplate, 'breakdownMeta'),
               sharedPromptContext
             );
-            const metaPrompt = retryInstruction
-              ? `${metaPromptBase}\n\n${retryInstruction}`
-              : metaPromptBase;
 
             metaState = 'running';
             publishBreakdownPreview();
@@ -1449,7 +1436,7 @@ export function useStepGenerator() {
 
             for (let index = 0; index < breakdownRanges.length; index += 1) {
               const range = breakdownRanges[index];
-              const chunkPromptBase = injectPrompt(
+              const chunkPrompt = injectPrompt(
                 applyPromptSectionContract(chunkTemplate, 'breakdownChunk'),
                 {
                   ...sharedPromptContext,
@@ -1457,9 +1444,6 @@ export function useStepGenerator() {
                   chapterRangeEnd: range.end,
                 }
               );
-              const chunkPrompt = retryInstruction
-                ? `${chunkPromptBase}\n\n${retryInstruction}`
-                : chunkPromptBase;
 
               chunkStates[index] = 'running';
               publishBreakdownPreview();
@@ -1517,6 +1501,7 @@ export function useStepGenerator() {
               chapterRangeStart: 1,
               chapterRangeEnd: targetChapterCount,
             });
+            breakdownPreValidationContent = fallback.content;
 
             const validation = validateBreakdownForSensoryMapping({
               content: fallback.content,
@@ -1538,9 +1523,7 @@ export function useStepGenerator() {
             }
 
             validationFailureReason = validation.errors.join(' ');
-            if (validationAttempt >= 2) {
-              throw new Error(`Breakdown validation failed: ${validationFailureReason}`);
-            }
+            throw new Error(`Breakdown validation failed: ${validationFailureReason}`);
           }
 
           if (!content.trim()) {
@@ -1618,6 +1601,7 @@ export function useStepGenerator() {
                       ) ? 1 : undefined,
                     }
                   );
+                  analysisPreValidationContent = stepResult.content;
                   stepResultMeta = stepResult;
                   return stepResult.content;
                 },
@@ -1637,6 +1621,7 @@ export function useStepGenerator() {
               }
             );
             stepResultMeta = stepResult;
+            analysisPreValidationContent = stepResult.content;
             content = stepResult.content;
           }
 
@@ -1812,11 +1797,11 @@ export function useStepGenerator() {
       }
 
       if (isActiveSession(sessionId)) {
-        if (
-          (stepId === 'analysis' || stepId === 'breakdown') &&
-          preRunStepContent.trim()
-        ) {
-          useWorkflowStore.getState().updateStepContent(stepId, preRunStepContent);
+        if (stepId === 'analysis' || stepId === 'breakdown') {
+          const fallbackContent = stepId === 'analysis'
+            ? (analysisPreValidationContent || preRunStepContent)
+            : (breakdownPreValidationContent || preRunStepContent);
+          useWorkflowStore.getState().updateStepContent(stepId, fallbackContent);
         }
         useWorkflowStore.getState().setStepError(stepId, error instanceof Error ? error.message : 'Unknown error');
       }

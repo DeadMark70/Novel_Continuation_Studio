@@ -538,6 +538,50 @@ describe('useStepGenerator', () => {
     expect(lastAnalysisUpdate).toBe('previous analysis content');
   });
 
+  it('keeps latest analysis pre-check output when section validation fails', async () => {
+    workflowState.steps.analysis.status = 'completed';
+    workflowState.steps.analysis.content = 'previous analysis content';
+    novelState.currentSessionId = 'session_active';
+    validatePromptSectionsMock.mockReturnValue({
+      ok: false,
+      missing: ['角色動機地圖'],
+    });
+    generateStreamByProviderMock.mockImplementation(
+      async function* (
+        _provider: string,
+        _prompt: string,
+        _model: string,
+        _apiKey: string,
+        _systemPrompt: unknown,
+        options?: { onFinish?: (meta: { finishReason: 'stop' | 'length' | 'unknown' }) => void }
+      ) {
+        options?.onFinish?.({ finishReason: 'stop' });
+        yield 'analysis precheck candidate';
+      }
+    );
+
+    await expect(
+      getRunExecutor()({
+        runId: 'run_analysis_validation_hard_fail',
+        sessionId: 'session_active',
+        stepId: 'analysis',
+        source: 'manual',
+        signal: new AbortController().signal,
+        onProgress: vi.fn(),
+      })
+    ).rejects.toThrow(/missing required sections/i);
+
+    const analysisContentUpdates = (
+      workflowState.updateStepContent.mock.calls as Array<[string, string]>
+    ).filter(([stepId]) => stepId === 'analysis');
+    const lastAnalysisUpdate = analysisContentUpdates[analysisContentUpdates.length - 1][1];
+    expect(lastAnalysisUpdate).toBe('analysis precheck candidate');
+    expect(workflowState.setStepError).toHaveBeenCalledWith(
+      'analysis',
+      expect.stringContaining('Missing required sections')
+    );
+  });
+
   it('queues next continuation run when continuation is full-auto and target chapters not reached', async () => {
     vi.useFakeTimers();
     novelState.currentSessionId = 'other_active_session';
@@ -1197,9 +1241,11 @@ describe('useStepGenerator', () => {
     expect(breakdownContent).toContain('去重規則');
   });
 
-  it('retries breakdown once when validator detects missing chapter count', async () => {
+  it('fails breakdown immediately when validator detects missing chapter count', async () => {
     settingsState.compressionMode = 'off';
     novelState.currentSessionId = 'session_active';
+    workflowState.steps.breakdown.status = 'completed';
+    workflowState.steps.breakdown.content = 'stable breakdown before validation fail';
     novelState.getSessionSnapshot.mockImplementation(async (sessionId: string) => (
       createSessionSnapshot(sessionId, {
         targetChapterCount: 4,
@@ -1224,21 +1270,6 @@ describe('useStepGenerator', () => {
         }
         if (kind === 'breakdownChunk') {
           chunkCalls += 1;
-          if (chunkCalls === 1) {
-            yield [
-              '【逐章章節表】',
-              '【第1章】情節 A',
-              '【推薦感官標籤】摩擦刺激',
-              '【感官視角重心】通用',
-              '【第2章】情節 B',
-              '【推薦感官標籤】溫度刺激',
-              '【感官視角重心】通用',
-              '【第3章】情節 C',
-              '【推薦感官標籤】壓迫束縛',
-              '【感官視角重心】通用',
-            ].join('\n');
-            return;
-          }
           yield [
             '【逐章章節表】',
             '【第1章】情節 A',
@@ -1249,9 +1280,6 @@ describe('useStepGenerator', () => {
             '【感官視角重心】通用',
             '【第3章】情節 C',
             '【推薦感官標籤】壓迫束縛',
-            '【感官視角重心】通用',
-            '【第4章】情節 D',
-            '【推薦感官標籤】失控反應',
             '【感官視角重心】通用',
           ].join('\n');
           return;
@@ -1270,20 +1298,24 @@ describe('useStepGenerator', () => {
         signal: new AbortController().signal,
         onProgress: vi.fn(),
       });
+      const runExpectation = expect(runPromise).rejects.toThrow(/Breakdown validation failed/i);
       await vi.advanceTimersByTimeAsync(3500);
-      await runPromise;
+      await runExpectation;
     } finally {
       vi.useRealTimers();
     }
 
-    expect(chunkCalls).toBe(2);
-    expect(novelState.updateWorkflowBySession).toHaveBeenCalledWith(
-      'session_active',
-      expect.objectContaining({
-        breakdownMeta: expect.objectContaining({
-          repairStatus: expect.any(String),
-        }),
-      })
+    expect(chunkCalls).toBe(1);
+    const breakdownContentUpdates = (
+      workflowState.updateStepContent.mock.calls as Array<[string, string]>
+    ).filter(([stepId]) => stepId === 'breakdown');
+    const lastBreakdownContent = breakdownContentUpdates[breakdownContentUpdates.length - 1]?.[1];
+    expect(lastBreakdownContent).toContain('【逐章章節表】');
+    expect(lastBreakdownContent).toContain('【第3章】 情節 C');
+    expect(lastBreakdownContent).not.toContain('Validation Attempt');
+    expect(workflowState.setStepError).toHaveBeenCalledWith(
+      'breakdown',
+      expect.stringContaining('Breakdown validation failed')
     );
   });
 });

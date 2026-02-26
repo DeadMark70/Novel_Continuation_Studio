@@ -33,6 +33,7 @@
 - Allow rerun from failed phase, not full restart.
 - When provider failures become consecutive, circuit breaker opens (threshold 3) and cools down for 60s before one half-open trial.
 - On generation truncation (`finish_reason=length`) for chapter steps, auto-resume is bounded and merged without duplicated prefix text.
+- Phase 3 final validation failures do not auto-retry; system surfaces explicit error and preserves latest stable breakdown content.
 - Sensory harvesting errors do not auto-retry; system opens recovery dialog with editable raw output for manual JSON fix and re-parse.
 
 ## Operational Checks

@@ -56,7 +56,7 @@ Expected outcome:
 - Chapter plan with progression and anti-dup rules.
 - If chapter count is large, output can be composed from chunks.
 - System normalizes chapter/field headings before save (for parser stability).
-- System validates chapter range completeness and truncation risk; invalid output is retried once.
+- System validates chapter range completeness and truncation risk; invalid output fails immediately with explicit error (no auto-retry).
 - If sensory fields are missing, system auto-injects fallback tags/POV and marks this in metadata.
 - StepBreakdown shows auto-repair status and chapter-level injected tags in highlighted style.
 
