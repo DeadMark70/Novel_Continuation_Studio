@@ -881,28 +881,34 @@ export default function SettingsPage() {
             ))}
 
             <div className="rounded-lg border border-border p-3 space-y-4">
-              <div>
+              <div className="space-y-2">
                 <h3 className="font-semibold uppercase text-sm">Phase Routing + Params</h3>
                 <p className="text-xs text-muted-foreground">
                   Configure provider/model and per-phase parameter overrides in one place.
                 </p>
-                <label className="mt-2 inline-flex items-center gap-2 text-xs text-muted-foreground">
-                  <input
-                    type="checkbox"
-                    checked={allowCustomModelId}
-                    onChange={(e) => setAllowCustomModelId(e.target.checked)}
-                  />
-                  Allow manual model IDs
-                </label>
+                <div className="rounded-md border border-border/70 bg-card/30 px-3 py-2">
+                  <label className="inline-flex items-center gap-2 text-xs text-muted-foreground">
+                    <input
+                      type="checkbox"
+                      checked={allowCustomModelId}
+                      onChange={(e) => setAllowCustomModelId(e.target.checked)}
+                    />
+                    Allow manual model IDs
+                  </label>
+                </div>
               </div>
               <Tabs
                 value={activeSettingsPhase}
                 onValueChange={(value) => setActiveSettingsPhase(value as GenerationPhaseId)}
                 className="w-full"
               >
-                <TabsList className="grid h-auto w-full grid-cols-2 gap-1 md:grid-cols-3 lg:grid-cols-5">
+                <TabsList className="grid h-auto w-full grid-cols-1 gap-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
                   {PHASES.map((phase) => (
-                    <TabsTrigger key={`phase-params-tab-${phase}`} value={phase} className="text-[11px]">
+                    <TabsTrigger
+                      key={`phase-params-tab-${phase}`}
+                      value={phase}
+                      className="h-auto min-h-10 whitespace-normal break-words px-2 py-2 text-left text-[11px] leading-tight"
+                    >
                       {PHASE_LABELS[phase]}
                     </TabsTrigger>
                   ))}
