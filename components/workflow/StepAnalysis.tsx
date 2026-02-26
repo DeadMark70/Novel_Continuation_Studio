@@ -6,6 +6,7 @@ import { useSettingsStore } from '@/store/useSettingsStore';
 import { useNovelStore } from '@/store/useNovelStore';
 import { useShallow } from 'zustand/react/shallow';
 import { useStepGenerator } from '@/hooks/useStepGenerator';
+import { useSessionStepRuntime } from '@/hooks/useSessionStepRuntime';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Play, StopCircle, RefreshCw } from 'lucide-react';
@@ -36,8 +37,9 @@ export const StepAnalysis: React.FC = () => {
     }))
   );
   const { generate, stop } = useStepGenerator();
+  const { isQueuedOrRunningForStep } = useSessionStepRuntime('analysis');
   
-  const isStreaming = step.status === 'streaming';
+  const isStreaming = isQueuedOrRunningForStep || step.status === 'streaming';
   const isCompleted = step.status === 'completed';
   const hasContent = step.content.trim().length > 0;
   const isTruncated = step.truncation.isTruncated;

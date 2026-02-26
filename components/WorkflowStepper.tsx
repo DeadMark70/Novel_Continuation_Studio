@@ -4,6 +4,7 @@ import React, { useEffect } from 'react';
 import { useWorkflowStore, WorkflowStepId } from '@/store/useWorkflowStore';
 import { useSettingsStore } from '@/store/useSettingsStore';
 import { useNovelStore } from '@/store/useNovelStore';
+import { useRunSchedulerStore } from '@/store/useRunSchedulerStore';
 import { useShallow } from 'zustand/react/shallow';
 import { useStepGenerator } from '@/hooks/useStepGenerator';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
@@ -52,20 +53,39 @@ export const WorkflowStepper: React.FC = () => {
       compressionAutoThreshold: state.compressionAutoThreshold,
     }))
   );
-  const { wordCount, compressedContext } = useNovelStore(
+  const { wordCount, compressedContext, currentSessionId, runStatus, recoverableStepId } = useNovelStore(
     useShallow((state) => ({
       wordCount: state.wordCount,
       compressedContext: state.compressedContext,
+      currentSessionId: state.currentSessionId,
+      runStatus: state.runStatus,
+      recoverableStepId: state.recoverableStepId,
     }))
   );
+  const runtime = useRunSchedulerStore((state) => (
+    currentSessionId ? state.sessionStates[currentSessionId] : undefined
+  ));
   const { generate } = useStepGenerator();
-  const statusByStep: Record<WorkflowStepId, 'idle' | 'streaming' | 'completed' | 'error'> = {
+  const runtimeStatus = runtime?.status ?? runStatus;
+  const runtimeStepId = runtime?.activeStepId ?? recoverableStepId;
+  const runtimeStreamingStepId = (
+    runtimeStatus === 'queued' || runtimeStatus === 'running'
+  ) ? runtimeStepId : undefined;
+  const rawStatusByStep: Record<WorkflowStepId, 'idle' | 'streaming' | 'completed' | 'error'> = {
     compression: compressionStatus,
     analysis: analysisStatus,
     outline: outlineStatus,
     breakdown: breakdownStatus,
     chapter1: chapter1Status,
     continuation: continuationStatus,
+  };
+  const statusByStep: Record<WorkflowStepId, 'idle' | 'streaming' | 'completed' | 'error'> = {
+    compression: runtimeStreamingStepId === 'compression' ? 'streaming' : rawStatusByStep.compression,
+    analysis: runtimeStreamingStepId === 'analysis' ? 'streaming' : rawStatusByStep.analysis,
+    outline: runtimeStreamingStepId === 'outline' ? 'streaming' : rawStatusByStep.outline,
+    breakdown: runtimeStreamingStepId === 'breakdown' ? 'streaming' : rawStatusByStep.breakdown,
+    chapter1: runtimeStreamingStepId === 'chapter1' ? 'streaming' : rawStatusByStep.chapter1,
+    continuation: runtimeStreamingStepId === 'continuation' ? 'streaming' : rawStatusByStep.continuation,
   };
   const isAnyStepStreaming = Object.values(statusByStep).some((status) => status === 'streaming');
 

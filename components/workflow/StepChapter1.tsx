@@ -6,6 +6,7 @@ import { useSettingsStore } from '@/store/useSettingsStore';
 import { useNovelStore } from '@/store/useNovelStore';
 import { useShallow } from 'zustand/react/shallow';
 import { useStepGenerator } from '@/hooks/useStepGenerator';
+import { useSessionStepRuntime } from '@/hooks/useSessionStepRuntime';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Play, StopCircle, RefreshCw, ArrowDownRight } from 'lucide-react';
@@ -53,6 +54,7 @@ export const StepChapter1: React.FC = () => {
     }))
   );
   const { generate, stop } = useStepGenerator();
+  const { isQueuedOrRunningForStep } = useSessionStepRuntime('chapter1');
   const [sensoryAnchors, setSensoryAnchors] = React.useState('');
   const [selectedTemplateIds, setSelectedTemplateIds] = React.useState<string[]>([]);
 
@@ -86,7 +88,7 @@ export const StepChapter1: React.FC = () => {
     ));
   }, [ensureManualOverride]);
   
-  const isStreaming = step.status === 'streaming';
+  const isStreaming = isQueuedOrRunningForStep || step.status === 'streaming';
   const isCompleted = step.status === 'completed';
   const modeMeta = resolveWorkflowMode({
     stepId: 'chapter1',

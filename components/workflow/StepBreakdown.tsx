@@ -6,6 +6,7 @@ import { useNovelStore } from '@/store/useNovelStore';
 import { useShallow } from 'zustand/react/shallow';
 import { useSettingsStore } from '@/store/useSettingsStore';
 import { useStepGenerator } from '@/hooks/useStepGenerator';
+import { useSessionStepRuntime } from '@/hooks/useSessionStepRuntime';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
@@ -30,8 +31,9 @@ export const StepBreakdown: React.FC = () => {
     }))
   );
   const { generate, stop } = useStepGenerator();
+  const { isQueuedOrRunningForStep } = useSessionStepRuntime('breakdown');
   
-  const isStreaming = step.status === 'streaming';
+  const isStreaming = isQueuedOrRunningForStep || step.status === 'streaming';
   const isCompleted = step.status === 'completed';
   const hasContent = step.content.trim().length > 0;
   const isTruncated = step.truncation.isTruncated;

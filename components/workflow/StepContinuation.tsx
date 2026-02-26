@@ -6,6 +6,7 @@ import { useNovelStore } from '@/store/useNovelStore';
 import { useShallow } from 'zustand/react/shallow';
 import { useSettingsStore } from '@/store/useSettingsStore';
 import { useStepGenerator } from '@/hooks/useStepGenerator';
+import { useSessionStepRuntime } from '@/hooks/useSessionStepRuntime';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { BookOpen } from 'lucide-react';
 import { Textarea } from '@/components/ui/textarea';
@@ -23,7 +24,6 @@ import { SensoryCruiseDiagnosticsPanel } from '@/components/sensory/SensoryCruis
 
 export const StepContinuation: React.FC = () => {
   const step = useWorkflowStore((state) => state.steps.continuation);
-  const isGenerating = useWorkflowStore((state) => state.isGenerating);
   const {
     compressionMode,
     compressionAutoThreshold,
@@ -53,6 +53,7 @@ export const StepContinuation: React.FC = () => {
     }))
   );
   const { generate, stop } = useStepGenerator();
+  const { isQueuedOrRunningForStep } = useSessionStepRuntime('continuation');
   const [sensoryAnchors, setSensoryAnchors] = React.useState('');
   const [selectedTemplateIds, setSelectedTemplateIds] = React.useState<string[]>([]);
 
@@ -100,6 +101,7 @@ export const StepContinuation: React.FC = () => {
   const modeClass = modeMeta.isCompressed
     ? 'border-green-400/40 bg-green-600/20 text-green-200'
     : 'border-zinc-500/30 bg-zinc-700/30 text-zinc-200';
+  const isStreaming = isQueuedOrRunningForStep || step.status === 'streaming';
   const sensoryCruiseResolution = React.useMemo(() => resolveSensoryCruiseState({
     stepId: 'continuation',
     chapterNumber: nextChapterNumber,
@@ -232,7 +234,7 @@ export const StepContinuation: React.FC = () => {
             </div>
 
             {/* Automation Controls */}
-            {isGenerating ? (
+            {isStreaming ? (
               <ProgressIndicator 
                 current={nextChapterNumber} 
                 total={totalChapterCount} 

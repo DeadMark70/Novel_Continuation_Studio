@@ -6,6 +6,7 @@ import { useWorkflowStore } from '@/store/useWorkflowStore';
 import { useNovelStore } from '@/store/useNovelStore';
 import { useSettingsStore } from '@/store/useSettingsStore';
 import { useStepGenerator } from '@/hooks/useStepGenerator';
+import { useSessionStepRuntime } from '@/hooks/useSessionStepRuntime';
 import { resolveWorkflowMode } from '@/lib/workflow-mode';
 import {
   buildOutlineTaskDirective,
@@ -85,6 +86,7 @@ export function useStepOutlineController() {
     }))
   );
   const { generate, stop } = useStepGenerator();
+  const { isQueuedOrRunningForStep } = useSessionStepRuntime('outline');
 
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const [storyWordCountInput, setStoryWordCountInput] = React.useState(targetStoryWordCount.toString());
@@ -95,7 +97,7 @@ export function useStepOutlineController() {
   const [sceneLimitInput, setSceneLimitInput] = React.useState(eroticSceneLimitPerChapter.toString());
   const [pendingResumeTask, setPendingResumeTask] = React.useState<OutlineTask | null>(null);
 
-  const isStreaming = step.status === 'streaming';
+  const isStreaming = isQueuedOrRunningForStep || step.status === 'streaming';
   const isCompleted = step.status === 'completed';
   const isActive = currentStepId === 'outline';
   const parsedOutline = useMemo(() => parseOutlinePhase2Content(step.content), [step.content]);

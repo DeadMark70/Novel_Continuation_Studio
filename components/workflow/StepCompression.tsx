@@ -6,6 +6,7 @@ import { useNovelStore } from '@/store/useNovelStore';
 import { useShallow } from 'zustand/react/shallow';
 import { useSettingsStore } from '@/store/useSettingsStore';
 import { useStepGenerator } from '@/hooks/useStepGenerator';
+import { useSessionStepRuntime } from '@/hooks/useSessionStepRuntime';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Play, StopCircle, RefreshCw } from 'lucide-react';
@@ -28,8 +29,9 @@ export const StepCompression: React.FC = () => {
     }))
   );
   const { generate, stop } = useStepGenerator();
+  const { isQueuedOrRunningForStep } = useSessionStepRuntime('compression');
 
-  const isStreaming = step.status === 'streaming';
+  const isStreaming = isQueuedOrRunningForStep || step.status === 'streaming';
   const isCompleted = step.status === 'completed';
   const willRun = shouldRunCompression(compressionMode, wordCount, compressionAutoThreshold);
 
