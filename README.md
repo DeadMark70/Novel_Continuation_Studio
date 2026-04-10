@@ -204,4 +204,7 @@ npm run e2e
 
 ---
 
+![Stone Badge](https://stone.professorlee.work/api/stone/DeadMark70/Novel_Continuation_Studio)
+
+
 _Last verified locally on Windows 11 / Node v20.11.0 — 2026-02-23_
